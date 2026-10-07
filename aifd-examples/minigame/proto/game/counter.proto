@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package minigame.game;
+
+option go_package = "github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg;pbmsg";
+
+message MceCounterAdd {
+  int32 delta = 1;
+}
+
+message MseCounterState {
+  int64 uid = 1;
+  int32 value = 2;
+  int32 limit = 3;
+  string message = 4;
+}
+
+message CounterState {
+  int32 value = 1;
+}
+
+message CounterWorldAdd {
+  int64 uid = 1;
+  int32 delta = 2;
+}
+
+message CounterWorldState {
+  int64 total_add = 1;
+  int64 last_uid = 2;
+}

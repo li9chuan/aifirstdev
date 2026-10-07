@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package aifd.plugins.mail;
+
+option go_package = "github.com/li9chuan/aifirstdev/aifd-plugins/mail/generated/mailpb;mailpb";
+
+enum MailType {
+  MAIL_TYPE_UNSPECIFIED = 0;
+  MAIL_TYPE_PERSONAL = 1;
+  MAIL_TYPE_GLOBAL = 2;
+  MAIL_TYPE_GROUP = 3;
+}
+
+message MailItem {
+  int32 tid = 1;
+  int64 num = 2;
+}
+
+message MailBase {
+  int32 template_id = 1;
+  repeated string content_list = 2;
+  repeated MailItem item_list = 3;
+  MailCustomContent custom_content = 4;
+}
+
+message MailData {
+  int64 mail_id = 1;
+  MailType type = 2;
+  MailBase base = 3;
+  bool read = 4;
+  bool claimed = 5;
+  int64 send_time_unix = 6;
+  int64 end_time_unix = 7;
+  repeated string group_keys = 8;
+  repeated int32 target_realms = 9;
+  string preview = 10; // Derived preview, never the authoritative body.
+}
+
+message MailGroupCursor {
+  string group_key = 1;
+  int64 last_mail_id = 2;
+}
+
+message MailboxMeta {
+  int64 last_global_mail_id = 1;
+  repeated MailGroupCursor group_cursors = 2;
+}
+
+message MceMailList {
+  repeated string group_keys = 1;
+  int64 after_mail_id = 2;
+  int32 limit = 3;
+  bool summary_only = 4;
+}
+
+message MceMailGet {
+  int64 mail_id = 1;
+}
+
+message MseMailGet {
+  int32 ret = 1;
+  MailData mail = 2;
+  string message = 3;
+}
+
+message MseMailList {
+  int32 ret = 1;
+  int64 time_unix = 2;
+  repeated MailData mail_list = 3;
+  string message = 4;
+}
+
+message MceMailRead {
+  repeated int64 mail_id_list = 1;
+}
+
+message MseMailRead {
+  int32 ret = 1;
+  repeated int64 mail_id_list = 2;
+  string message = 3;
+}
+
+message MceMailClaim {
+  repeated int64 mail_id_list = 1;
+}
+
+message MseMailClaim {
+  int32 ret = 1;
+  repeated int64 mail_id_list = 2;
+  string message = 3;
+}
+
+message MceMailDeleteRead {
+  repeated int64 mail_id_list = 1;
+}
+
+message MseMailDeleteRead {
+  int32 ret = 1;
+  repeated int64 mail_id_list = 2;
+  string message = 3;
+}
+
+message MailAddRequest {
+  MailType type = 1;
+  MailBase base = 2;
+  repeated int64 root_id_list = 3;
+  int32 save_days = 4;
+  repeated int32 target_realms = 5;
+  repeated string group_keys = 6;
+  int64 end_time_unix = 7;
+}
+
+message MailAddBatchRequest {
+  repeated MailAddRequest mail_list = 1;
+}
+
+message MailAddResponse {
+  int32 ret = 1;
+  repeated int64 mail_id_list = 2;
+  string message = 3;
+}
+
+// MseMailReceived pushes one newly persisted personal mail to an online client.
+message MseMailReceived {
+  MailData mail = 1;
+}
+
+message MailCustomContent {
+  string title = 1;
+  string body = 2;
+}

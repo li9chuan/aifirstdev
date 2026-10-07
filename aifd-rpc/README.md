@@ -1,0 +1,60 @@
+# aifd-rpc
+
+## 定位
+
+`aifd-rpc` 提供传输中立的 RPC 契约、路由注册、分发、session、codec 和 adapter
+边界。
+
+## 负责
+
+- 顶层 `rpc` 业务门面，默认只向业务暴露 `Session + PB` handler。
+- `Message`、`Session`、`Handler`、`Route`、`Bus`、`Delivery`、stats 和 codec 契约。
+- protobuf 消息的框架级 marshal / unmarshal helper。
+- 进程内 router、delivery、runner、callback timeout 和统计行为。
+- Local adapter，用于本进程 RPC、单测、runtime 回环和 mock。
+- NATS adapter，用于 `RPC.` request/reply、`S.` client push 和 `js.` JetStream 事件。
+- 反射式 protobuf handler binding，用于兼容 `func(uid, *Req)`、`func(session, *Req) *Rsp` 等写法。
+
+## 不负责
+
+- Player、World、DBPlayer、持久化或玩法逻辑。
+- 业务 `.proto` 定义或生成的 pb 包。
+- Runtime lifecycle、feature module 归属或配置加载。
+- 具体业务项目的共享常量、service 注册规则、奖励/邮件/玩法 stream 命名封装。
+
+## 业务项目如何使用
+
+业务项目默认只 import `github.com/li9chuan/aifirstdev/aifd-rpc`，并使用 `rpc` 注册 client、
+server、admin 或 stream route。业务 handler 固定收敛为 `func(*rpc.Session)` 或
+`func(*rpc.Session, *Req)`，其中 `*Req` 必须是
+protobuf message。业务状态变更应发生在拥有职责的 runtime 或 feature 模块中。
+
+业务 handler 不直接返回 pb 或 error，也不默认接收 `context.Context`、uid、`Message`、
+`Header`、`Bus`。成功回包使用 `s.Response(pb)`，失败回包使用 `s.Error(code, message)`，
+服务间调用通过 `s.Tell`、`s.Request`、`s.Forward` 表达。
+
+推荐用法：
+
+- 业务 feature 的 `RegisterRPC` 接收 `*rpc.Registry`，由启动层统一 `rpc.Install` 到真实 bus。
+- 本进程开发、单测和 runtime 回环使用 `adapters/local.NewBus`。
+- 生产跨进程通信使用 `adapters/nats.NewBus`。
+- 需要可靠事件时使用 `RegisterStream` / `SaveToStream`，不要把 stream 事件混进普通 RPC 命名。
+- 框架启动层、proxy、robot、adapter 可使用 `contracts.Message`、`Bus`、`Route` 等底层接口。
+- `rpcpb` 子包保留为 deprecated 兼容别名；新业务代码直接使用顶层 `rpc`。
+- `binding/proto` 保留为迁移兼容辅助；新业务代码优先使用顶层 `rpc`。
+- 业务 protobuf 不进入 `aifd-rpc`。
+
+默认 header 语义：
+
+- `uid`：请求主体。
+- `s`：客户端 inbox。
+- `rsp`：服务端推送或回包的 topic / 消息名。
+- `pbType`：payload 对应的 protobuf 结构名；topic 为空时可作为默认 topic。
+- `Status`：transport 错误状态。
+- `traceID`：链路追踪预留字段。
+
+## 更新边界
+
+RPC 升级应保持 `Message`、`Session`、`Route` 和 `Bus` 契约。新的 adapter 应保持
+可选，不能强制业务项目 import 内部包。NATS subject 默认兼容 `RPC.`、`S.`、`js.`
+约定，但必须允许业务项目通过 config 替换。

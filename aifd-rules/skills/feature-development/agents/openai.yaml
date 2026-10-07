@@ -1,0 +1,3 @@
+﻿interface:
+  display_name: "Feature 开发"
+  short_description: "指导业务项目 feature 的 root/service 归属、目录、协议配置和测试接入"

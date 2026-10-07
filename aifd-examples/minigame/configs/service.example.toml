@@ -1,0 +1,31 @@
+# Single-proxy local default config. Use a per-node proxy_broker.config_file in multi-proxy deployments.
+
+[log]
+level = "info"
+stdout = true
+dir = "./logs"
+
+[rpc.nats]
+servers = ["nats://127.0.0.1:4222"]
+timeout = "3s"
+# credentials_file = "./secrets/minigame.creds"
+# tls_ca_file = "./secrets/ca.pem"
+# tls_cert_file = "./secrets/client.crt"
+# tls_key_file = "./secrets/client.key"
+
+[proxy_broker]
+enabled = true
+config_file = "./configs/nats/proxy-local.conf"
+ready_timeout = "10s"
+shutdown_timeout = "10s"
+
+[rdb.redis]
+addrs = ["127.0.0.1:6379"]
+password = ""
+dial_timeout = "1s"
+read_timeout = "1s"
+write_timeout = "1s"
+
+[proxy]
+max_message_bytes = 4194304
+duplicate_policy = "kick_old"

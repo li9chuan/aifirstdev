@@ -1,0 +1,4 @@
+interface:
+  display_name: "Desktop App Development"
+  short_description: "开发 Wails、React、Ant Design 桌面壳和更新流程"
+  default_prompt: "开发或调整 Wails + React + Ant Design 桌面应用时，保持运行时为普通业务数据和组件代码；Go 侧承载通信、缓存、分析和整包更新，React 只负责 UI 展示。"

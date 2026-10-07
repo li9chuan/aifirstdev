@@ -1,0 +1,4 @@
+interface:
+  display_name: "提交描述"
+  short_description: "生成带模块标签的提交描述"
+  default_prompt: "任务产生文件修改后，最终交付时使用“提交描述”，提交标题第一个方括号写主模块标签，例如 [aifd-tools] 或 [desktool]。"

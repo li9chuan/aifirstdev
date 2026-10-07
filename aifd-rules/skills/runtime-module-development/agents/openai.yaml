@@ -1,0 +1,3 @@
+﻿interface:
+  display_name: "Runtime 模块开发"
+  short_description: "处理 aifd-runtime 的 service/root/Root/module/lifecycle 和 feature 接入"

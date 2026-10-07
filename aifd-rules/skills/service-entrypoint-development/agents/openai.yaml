@@ -1,0 +1,3 @@
+interface:
+  display_name: "服务入口开发"
+  short_description: "处理 CLI、服务启动链、配置加载、adapter 注册和进程级 wiring"

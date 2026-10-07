@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package aifd.proxy;
+
+option go_package = "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy;proxypb";
+
+// 本文件收纳 proxy 线协议相关的框架默认 PB 定义。
+// 文件按协议域命名，不按单个 message 命名，便于后续继续扩展默认 PB。
+
+// MsgHead 是客户端与 proxy 通信时的 PB 帧头。
+//
+// 线格式为：
+//
+//   protobuf(MsgHead) + protobuf(body)
+//
+// 其中 len 表示 body 的字节长度。解码方先解析 MsgHead，再按 len 从剩余
+// payload 中切出 body。
+message MsgHead {
+  // pb 数据块长度；为 0 时表示没有 body。
+  int32 len = 1;
+
+  // rpc 回调 inbox；为 0 时表示普通推送或无需回调。
+  int32 inbox = 2;
+
+  // 路由主题，通常是 MceMsgIn、McwMsgIn.mail 或 McwMsgIn.1 这类主题。
+  string topic = 3;
+
+  // protobuf 结构名。响应 inbox 时 topic 可以为空，但 pbType 必须能说明 body 类型。
+  string pbType = 4;
+}

@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package aifd.observe;
+
+option go_package = "github.com/li9chuan/aifirstdev/aifd-schema/generated/observe;observepb";
+
+// ObserveBatch 是 observe 事件跨进程传输的批量 envelope。
+message ObserveBatch {
+  repeated ObserveEvent events = 1;
+}
+
+// ObserveEvent 是日志、指标、trace、审计、统计和健康信号的共享 wire envelope。
+message ObserveEvent {
+  string id = 1;
+  ObserveKind kind = 2;
+  ObserveLevel level = 3;
+  string name = 4;
+  string message = 5;
+  int64 time_unix_ms = 6;
+
+  string source_service = 10;
+  string source_instance = 11;
+  string trace_id = 12;
+  string shard_key = 13;
+
+  double value = 20;
+  repeated ObserveAttr dimensions = 21;
+  repeated ObserveAttr fields = 22;
+}
+
+// ObserveKind 标识事件所属的 observability 流。
+enum ObserveKind {
+  OBSERVE_KIND_UNSPECIFIED = 0;
+  OBSERVE_KIND_LOG = 1;
+  OBSERVE_KIND_METRIC = 2;
+  OBSERVE_KIND_TRACE = 3;
+  OBSERVE_KIND_AUDIT = 4;
+  OBSERVE_KIND_STAT = 5;
+  OBSERVE_KIND_HEALTH = 6;
+}
+
+// ObserveLevel 主要用于日志事件。
+enum ObserveLevel {
+  OBSERVE_LEVEL_UNSPECIFIED = 0;
+  OBSERVE_LEVEL_DEBUG = 1;
+  OBSERVE_LEVEL_INFO = 2;
+  OBSERVE_LEVEL_WARN = 3;
+  OBSERVE_LEVEL_ERROR = 4;
+}
+
+// ObserveAttr 是 observe dimensions 和 fields 的稳定 key/value 表示。
+message ObserveAttr {
+  string key = 1;
+  ObserveValue value = 2;
+}
+
+// ObserveValue 用 oneof 收敛跨语言稳定值类型。
+message ObserveValue {
+  oneof kind {
+    string string_value = 1;
+    int64 int64_value = 2;
+    uint64 uint64_value = 3;
+    double double_value = 4;
+    bool bool_value = 5;
+    int64 duration_ms = 6;
+    int64 time_unix_ms = 7;
+    bytes bytes_value = 8;
+    string json_value = 9;
+  }
+}

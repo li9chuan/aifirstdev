@@ -1,0 +1,21 @@
+go 1.26.0
+
+use (
+	./aifd-account
+	./aifd-auth
+	./aifd-client
+	./aifd-config
+	./aifd-contracts
+	./aifd-examples/desktool
+	./aifd-examples/minigame
+	./aifd-llm
+	./aifd-observe
+	./aifd-plugins/mail
+	./aifd-proxy
+	./aifd-rdb
+	./aifd-robot
+	./aifd-rpc
+	./aifd-runtime
+	./aifd-schema
+	./aifd-tools
+)

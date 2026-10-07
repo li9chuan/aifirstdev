@@ -1,0 +1,3 @@
+interface:
+  display_name: "Schema 与 Proto 工作流"
+  short_description: "处理框架默认 PB、业务 proto、生成边界和兼容性检查"

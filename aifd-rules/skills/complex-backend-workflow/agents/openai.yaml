@@ -1,0 +1,3 @@
+interface:
+  display_name: "复杂后端流程"
+  short_description: "用 L0-L5 冻结复杂框架能力或业务 feature 的设计与验收"

@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package minigame.system;
+
+option go_package = "github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg;pbmsg";
+
+message MAuthPayload {
+  int64 account_id = 1;
+  int64 uid = 2;
+  int32 realm_id = 3;
+  string provider = 4;
+  string subject_hash = 5;
+  string token_id = 6;
+  int64 issued_at = 7;
+  int64 expires_at = 8;
+  bool is_new_account = 9;
+}
+
+message MceAuth {
+  MAuthPayload payload = 1;
+  string token = 2;
+}
+
+message MseAuth {
+  int32 ret = 1;
+}

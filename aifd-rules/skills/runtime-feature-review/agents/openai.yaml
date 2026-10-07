@@ -1,0 +1,3 @@
+interface:
+  display_name: "Runtime Feature 评审"
+  short_description: "以 findings-first 审查 runtime/feature 的恢复、RPC、tick、持久化和测试"

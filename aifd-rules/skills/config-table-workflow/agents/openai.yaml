@@ -1,0 +1,3 @@
+interface:
+  display_name: "配置表与 Luban 工作流"
+  short_description: "处理 aifd-config、Luban、cfgtable 适配、校验和热更边界"

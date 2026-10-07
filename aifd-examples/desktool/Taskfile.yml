@@ -1,0 +1,25 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build DeskTool for Windows using the pinned Wails 3 toolchain.
+    platforms: [windows]
+    cmds:
+      - powershell -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 {{if eq .DEV "true"}}-Dev{{end}} -Version "{{.VERSION | default "0.1.0"}}"
+  package:
+    desc: Build the Windows application and NSIS installer.
+    platforms: [windows]
+    cmds:
+      - powershell -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 -Package -Version "{{.VERSION | default "0.1.0"}}"
+  run:
+    platforms: [windows]
+    cmds:
+      - ./build/bin/desktool.exe
+  dev:
+    platforms: [windows]
+    cmds:
+      - wails3 dev -config ./build/config.yml -port 5173
+  frontend:dev:
+    dir: frontend
+    cmds:
+      - npm run dev:native

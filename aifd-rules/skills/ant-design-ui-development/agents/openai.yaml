@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "Ant Design UI Development"
+  short_description: "使用 Ant Design MCP、CLI 和 LLMs.txt 辅助 React UI 开发"
+  default_prompt: "开发 Ant Design React UI 时，优先使用开发期 MCP 或 CLI 查询组件、demo、token、semantic 和迁移信息，并生成普通 React 代码。"

@@ -1,0 +1,8 @@
+frontend/dist/
+frontend/package.json.md5
+build/bin/
+build/windows/installer/tmp/
+build/tmp/
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+*.syso
+.task/

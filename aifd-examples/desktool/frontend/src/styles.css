@@ -1,0 +1,277 @@
+:root {
+  color: #17212b;
+  background: #edf1f5;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+.loading {
+  display: grid;
+  width: 100%;
+  min-height: 100vh;
+  place-items: center;
+  color: #64727f;
+  background: #edf1f5;
+}
+
+.desk-shell {
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  background: #edf1f5;
+}
+
+.desk-shell .desk-sidebar {
+  color: #f6f7f8;
+  background: #24313d;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 16px;
+}
+
+.brand-mark {
+  display: grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 8px;
+  color: #17212b;
+  background: #8dd3c7;
+  font-weight: 800;
+}
+
+.brand-title {
+  color: #f6f7f8;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.brand-subtitle {
+  color: #aebbc6;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.desk-shell .desk-topbar {
+  height: 72px;
+  line-height: normal;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: 0 24px;
+  border-bottom: 1px solid #d9e0e7;
+  background: #ffffff;
+}
+
+.desk-title {
+  display: grid;
+  gap: 4px;
+}
+
+.desk-title h3 {
+  margin: 0;
+  color: #17212b;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.desk-title .ant-typography:last-child {
+  margin: 0;
+  margin: 0;
+  color: #64727f;
+  font-size: 13px;
+}
+
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logout-button {
+  min-height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  padding: 0 14px;
+  color: #17212b;
+  background: #ffffff;
+}
+
+.logout-button:hover {
+  border-color: #2f6f73;
+  color: #2f6f73;
+}
+
+.desk-content {
+  min-height: 0;
+  padding: 24px;
+  overflow: auto;
+}
+
+.side-footer {
+  padding: 16px;
+}
+
+.side-footer .muted-label {
+  color: #aebbc6;
+  margin-right: 8px;
+}
+
+.main-panel {
+  min-width: 0;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  align-items: start;
+}
+
+.side-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.main-stack,
+.activity-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.workspace-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.workspace-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.public-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+
+.workspace-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.activity-meta {
+  color: #8a97a3;
+  font-size: 12px;
+}
+
+.activity-list {
+  display: grid;
+  gap: 12px;
+}
+
+.update-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.update-meta {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.update-notes {
+  margin: 0;
+  padding-left: 18px;
+  color: #64727f;
+}
+
+.activity-item {
+  border-bottom: 1px solid #edf1f5;
+  padding-bottom: 12px;
+}
+
+.activity-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.empty-session {
+  min-height: 280px;
+}
+
+@media (max-width: 1400px) {
+  .public-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1080px) {
+  body {
+    overflow: auto;
+  }
+
+  .content-grid,
+  .public-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-row {
+    grid-template-columns: 1fr;
+  }
+}

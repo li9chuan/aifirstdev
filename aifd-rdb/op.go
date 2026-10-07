@@ -19,6 +19,13 @@ type savePayload interface {
 	MarshalQueued() ([]byte, bool, error)
 }
 
+// entityKey preserves field boundaries; save and delete share the same identity.
+type entityKey struct {
+	kind  string
+	key   string
+	field string
+}
+
 type finalIntent struct {
 	kind    string
 	intent  string
@@ -44,11 +51,8 @@ func hashDeleteIntent(key, field string) finalIntent {
 	return finalIntent{kind: intentKindHash, intent: intentDelete, key: key, field: field}
 }
 
-func (op finalIntent) entityKey() string {
-	if op.kind == intentKindHash {
-		return op.kind + ":" + op.key + ":" + op.field
-	}
-	return op.kind + ":" + op.key
+func (op finalIntent) entityKey() entityKey {
+	return entityKey{kind: op.kind, key: op.key, field: op.field}
 }
 
 func (op finalIntent) apply(ctx context.Context, store store) error {

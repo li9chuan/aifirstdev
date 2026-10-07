@@ -12,11 +12,11 @@ type waitEntry struct {
 
 type waitList struct {
 	items list.List
-	index map[string]*list.Element
+	index map[entityKey]*list.Element
 }
 
 func newWaitList() *waitList {
-	return &waitList{index: make(map[string]*list.Element)}
+	return &waitList{index: make(map[entityKey]*list.Element)}
 }
 
 func (w *waitList) Len() int {
@@ -65,8 +65,8 @@ func (w *waitList) PopFrontReady(now time.Time, minStay time.Duration) (finalInt
 	return op, true
 }
 
-func (w *waitList) Has(entityKey string) bool {
-	_, ok := w.index[entityKey]
+func (w *waitList) Has(key entityKey) bool {
+	_, ok := w.index[key]
 	return ok
 }
 
@@ -80,5 +80,5 @@ func (w *waitList) Snapshot() []finalIntent {
 
 func (w *waitList) Clear() {
 	w.items.Init()
-	w.index = make(map[string]*list.Element)
+	w.index = make(map[entityKey]*list.Element)
 }

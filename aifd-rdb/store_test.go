@@ -99,11 +99,11 @@ func TestWaitListMergesFinalIntentByEntity(t *testing.T) {
 		t.Fatalf("Len = %d, want 2", wait.Len())
 	}
 	first, ok := wait.PopFront()
-	if !ok || first.entityKey() != "set:a" || first.intent != intentSave {
+	if !ok || first.entityKey() != (entityKey{kind: intentKindSet, key: "a"}) || first.intent != intentSave {
 		t.Fatalf("first op = %+v ok=%v, want set a save", first, ok)
 	}
 	second, ok := wait.PopFront()
-	if !ok || second.entityKey() != "set:b" || second.intent != intentSave {
+	if !ok || second.entityKey() != (entityKey{kind: intentKindSet, key: "b"}) || second.intent != intentSave {
 		t.Fatalf("second op = %+v ok=%v, want set b save", second, ok)
 	}
 }
@@ -140,7 +140,7 @@ func TestWaitListSaveDeleteSaveKeepsFinalIntent(t *testing.T) {
 		t.Fatalf("Len after save delete save = %d, want 1", wait.Len())
 	}
 	op, ok := wait.PopFront()
-	if !ok || op.entityKey() != "set:a" || op.intent != intentSave {
+	if !ok || op.entityKey() != (entityKey{kind: intentKindSet, key: "a"}) || op.intent != intentSave {
 		t.Fatalf("op after save delete save = %+v ok=%v, want final save", op, ok)
 	}
 }
@@ -148,7 +148,7 @@ func TestWaitListSaveDeleteSaveKeepsFinalIntent(t *testing.T) {
 func TestWaitListPopFrontReadyUsesFirstQueuedTime(t *testing.T) {
 	wait := newWaitList()
 	wait.PushBack(hashSaveIntent("rank", "uid:1", 0, nil))
-	entityKey := "hash:rank:uid:1"
+	entityKey := entityKey{kind: intentKindHash, key: "rank", field: "uid:1"}
 	firstQueued := time.Now().Add(-2 * time.Second)
 	entry := wait.index[entityKey].Value.(waitEntry)
 	entry.firstQueued = firstQueued

@@ -35,7 +35,12 @@ func pendingIntentKeys(wait *waitList) []string {
 	keys := make([]string, 0, wait.items.Len())
 	for element := wait.items.Front(); element != nil; element = element.Next() {
 		op := element.Value.(waitEntry).op
-		keys = append(keys, op.entityKey()+":"+op.intent)
+		// Human-readable labels only; queue identity uses the structured key.
+		label := op.kind + ":" + op.key
+		if op.kind == intentKindHash {
+			label += ":" + op.field
+		}
+		keys = append(keys, label+":"+op.intent)
 	}
 	return keys
 }

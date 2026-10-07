@@ -59,7 +59,7 @@ func TestTakeNextWaitsForSaveStayMin(t *testing.T) {
 	}
 
 	op, _, ok := db.takeNext(true)
-	if !ok || op.entityKey() != "set:stay" {
+	if !ok || op.entityKey() != (entityKey{kind: intentKindSet, key: "stay"}) {
 		t.Fatalf("takeNext(true) = %+v ok=%v, want forced set:stay", op, ok)
 	}
 }
@@ -73,13 +73,14 @@ func TestTakeNextPopsAfterSaveStayMin(t *testing.T) {
 	db.lastSave = time.Now().Add(-time.Hour)
 	db.queueMu.Lock()
 	db.wait.PushBack(setSaveIntent("ready", 0, nil))
-	entry := db.wait.index["set:ready"].Value.(waitEntry)
+	key := entityKey{kind: intentKindSet, key: "ready"}
+	entry := db.wait.index[key].Value.(waitEntry)
 	entry.firstQueued = time.Now().Add(-2 * time.Second)
-	db.wait.index["set:ready"].Value = entry
+	db.wait.index[key].Value = entry
 	db.queueMu.Unlock()
 
 	op, _, ok := db.takeNext(false)
-	if !ok || op.entityKey() != "set:ready" {
+	if !ok || op.entityKey() != key {
 		t.Fatalf("takeNext(false) = %+v ok=%v, want ready set", op, ok)
 	}
 }

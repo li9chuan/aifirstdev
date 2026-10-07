@@ -55,7 +55,7 @@ description: 开发 aifd-runtime、业务 runtime feature 模块或可选功能�
 - 插件自己的 proto/generated、Redis/RDB key、RPC topic、指标名由插件包或业务项目拥有，不进入
   `aifd-runtime` 或 `aifd-schema` 核心。
 - 推荐代码结构是 `aifd-plugins/<name>/service`、`aifd-plugins/<name>/root`、`aifd-plugins/<name>/proto`
-  和 `aifd-plugins/<name>/generated`；是否拆独立 Go module 按实现阶段决定。
+  和 `aifd-plugins/<name>/generated`；默认属于框架根 Go module，只有实际独立消费或发布需求才评估拆分。
 - mail、friend、guild、ranking 的跨 root 真相源优先放在插件自己的 service module，例如
   `aifd-plugins/mail/service`；root 侧只保留视图、缓存、红点或在线推送。
 

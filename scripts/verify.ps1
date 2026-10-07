@@ -55,6 +55,11 @@ try {
         throw 'go.work contains no modules.'
     }
 
+    # Test each module's declared dependency graph. The minigame example uses
+    # its explicit root replacement; workspace-selected versions must not hide
+    # a missing requirement or override the framework's own dependency versions.
+    $env:GOWORK = 'off'
+
     foreach ($frontend in @('aifd-examples/desktool/frontend', 'aifd-proxy/web')) {
         Write-Host "Frontend: $frontend"
         Push-Location (Join-Path $repoRoot $frontend)

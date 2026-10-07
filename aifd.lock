@@ -1,15 +1,4 @@
-config: v0.1.0
-contracts: v0.1.0
-llm: v0.1.0
-observe: v0.1.0
-proxy: v0.1.0
-rdb: v0.1.0
-robot: v0.1.0
-rpc: v0.1.0
-rules: v0.1.0
-runtime: v0.1.0
-schema: v0.1.0
-tools: v0.1.0
+# Framework versions are resolved by go.mod/go.sum; this file pins development tools.
 tools.luban: v4.8.0
 tools.nsis: 3.10
 tools.protoc: 3.20.3

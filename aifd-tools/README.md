@@ -12,7 +12,7 @@
 - `aifd proto gen` 对 `protoc` 的真实调用。
 - `aifd config gen` 对 Luban 的真实调用。
 - `aifd dev up/down/status` 管理本地 `redis-server` 开发态进程。
-- `aifd.lock` 中 module 版本和 `tools.<name>` 版本的读取。
+- `aifd.lock` 中 `tools.<name>` 版本的读取；框架版本统一由业务项目的 `go.mod/go.sum` 管理。
 
 ## 不负责
 

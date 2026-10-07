@@ -7,6 +7,7 @@ AI 辅助框架开发的高频规则：
 - 涉及 `aifd-account`、登录身份、账号 Redis 模型、token payload 或业务项目接入账号中心时，读取 [account-identity-store-workflow](skills/account-identity-store-workflow/SKILL.md)。
 - 审查项目、框架模块或业务 feature 时，使用[项目与 Feature 代码评审](skills/runtime-feature-review/SKILL.md)，按范围读取其关联清单和规则。
 - 编辑前先选择最小职责归属模块。
+- 框架使用根 Go module 和单一根版本标签；职责目录不单独发版。仅两个示例保留独立 `go.mod`，独立组件发布需求出现后再评估拆分。
 - 对外 API 优先简单，复杂度封装在拥有行为的模块内部；不要把派生配置、内部安全边界或底层组合件暴露成业务必填项。
 - 依赖方向保持单向：contracts/llm -> config/observe/proxy/robot/rpc/rdb/schema -> runtime -> project。
 - 模块分类和 `aifd-core` 准入以工作区 [模块边界](../docs/module-boundary.md) 为准；当前不创建 `aifd-core`，不新增 `share`、`common`、`utils` 或泛化工具包。

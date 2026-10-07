@@ -3,17 +3,6 @@ module github.com/li9chuan/aifirstdev/aifd-examples/minigame
 go 1.26.0
 
 require (
-	github.com/li9chuan/aifirstdev/aifd-account v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-auth v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-client v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-config v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-observe v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-proxy v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-rdb v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-robot v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-rpc v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-runtime v0.1.0
-	github.com/li9chuan/aifirstdev/aifd-schema v0.1.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/coder/websocket v1.8.12
 	github.com/nats-io/nats-server/v2 v2.14.3
@@ -48,32 +37,11 @@ require (
 )
 
 require (
-	github.com/li9chuan/aifirstdev/aifd-contracts v0.1.0
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/redis/go-redis/v9 v9.20.0
 	go.uber.org/atomic v1.11.0 // indirect
 )
 
-replace github.com/li9chuan/aifirstdev/aifd-contracts => ../../aifd-contracts
+require github.com/li9chuan/aifirstdev v0.2.0
 
-replace github.com/li9chuan/aifirstdev/aifd-account => ../../aifd-account
-
-replace github.com/li9chuan/aifirstdev/aifd-auth => ../../aifd-auth
-
-replace github.com/li9chuan/aifirstdev/aifd-client => ../../aifd-client
-
-replace github.com/li9chuan/aifirstdev/aifd-config => ../../aifd-config
-
-replace github.com/li9chuan/aifirstdev/aifd-observe => ../../aifd-observe
-
-replace github.com/li9chuan/aifirstdev/aifd-proxy => ../../aifd-proxy
-
-replace github.com/li9chuan/aifirstdev/aifd-robot => ../../aifd-robot
-
-replace github.com/li9chuan/aifirstdev/aifd-runtime => ../../aifd-runtime
-
-replace github.com/li9chuan/aifirstdev/aifd-rdb => ../../aifd-rdb
-
-replace github.com/li9chuan/aifirstdev/aifd-rpc => ../../aifd-rpc
-
-replace github.com/li9chuan/aifirstdev/aifd-schema => ../../aifd-schema
+replace github.com/li9chuan/aifirstdev => ../..

@@ -1,7 +1,7 @@
 # aifd-llm
 
 `aifd-llm` provides a provider-neutral LLM calling surface for backend services
-and desktop Go bindings. It is an independent root module, not a runtime module
+and desktop Go bindings. It is a separately scoped package within the framework root Go module, not a runtime module
 and not a feature plugin.
 
 ## Responsible For

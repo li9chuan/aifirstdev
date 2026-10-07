@@ -8,7 +8,8 @@ import (
 	"strings"
 )
 
-// Lock 保存从 aifd.lock 解析出的模块版本和工具版本。
+// Lock 保存工具版本，并保留旧锁文件的字段以便工具安装时无损写回。
+// 框架依赖版本以业务项目的 go.mod/go.sum 为准，不从此结构解析。
 type Lock struct {
 	// Versions 保留旧版调用方使用的扁平视图。
 	Versions map[string]string

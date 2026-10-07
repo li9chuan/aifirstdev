@@ -4,7 +4,13 @@
 
 当前不创建 `aifd-core`。现有代码里还没有一个能力同时满足无领域语义、无运行时依赖、至少两个框架基础设施模块稳定复用、并且无法合理归属已有模块。
 
-现在要解决的是模块分类和归属判断收紧，而不是为了减少 Go module 数量而合并模块。
+框架统一使用仓库根 Go module `github.com/li9chuan/aifirstdev`，用一个根标签发布整套版本。
+本文的“模块”表示目录、包和职责边界，不表示独立 Go module。现有包名、import 路径、
+依赖方向和显式组合方式保持不变；`aifd-tools` 和官方插件也随框架一起发布。
+
+只有 `aifd-examples/minigame` 和 `aifd-examples/desktool` 保留独立 `go.mod`，用于消费验证和
+隔离示例构建环境，不单独发布模块标签。未来出现真实独立消费者、发布周期或依赖隔离需求时，
+再评估拆分 Go module；不能仅凭职责不同或代码可复用就提前拆分。
 
 ## 根模块分类
 
@@ -14,10 +20,11 @@
 
 ### 基础设施根模块
 
-`aifd-auth`、`aifd-account`、`aifd-config`、`aifd-llm`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、`aifd-rpc`、`aifd-rdb`、`aifd-runtime` 和 `aifd-schema` 都按职责独立演进：
+`aifd-auth`、`aifd-account`、`aifd-client`、`aifd-config`、`aifd-llm`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、`aifd-rpc`、`aifd-rdb`、`aifd-runtime` 和 `aifd-schema` 按职责组织，在同一个 Go module 中统一版本：
 
 - `aifd-auth`：账号中心和 proxy 共享的签名 ticket 基础件。
 - `aifd-account`：可选账号中心实现，不强迫已有账号中心的业务项目依赖。
+- `aifd-client`：Go 客户端请求、回包和推送，以及 proxy WebSocket transport。
 - `aifd-config`：typed config bundle 生命周期、reload、manifest diff、validator 和 Luban bundle builder adapter。
 - `aifd-llm`：provider-neutral 的 LLM 调用门面、stream、usage、tool call、JSON 输出、错误语义和 provider adapter。
 - `aifd-observe`：日志、指标、trace、audit、stat sink。

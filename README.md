@@ -2,19 +2,19 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-**v0.1.0 is the first development snapshot. APIs may change incompatibly.**
+**v0.2.0 releases the whole framework as one root Go module. APIs may change incompatibly.**
 The canonical repository is [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev).
 The desktop example currently targets Windows amd64 and Wails 3 beta.28.
 
 aiFirstDev is a lightweight backend framework for AI-first development. It is
-organized as multiple Go modules in one workspace. The current runtime first
+organized as one framework Go module with two separate example modules in the local workspace. The current runtime first
 covers game backend scenarios, while the framework language uses service/root
 runtime concepts. Business applications name their own backend services by
 domain, making the framework extensible to Wails tools, desktop applications,
 and other business backends.
 
-The first-stage split keeps infrastructure modules independent while business
-projects continue to write feature code in the normal way:
+Directories retain their responsibility, API, and dependency boundaries while
+sharing one framework version. Business projects continue to write feature code:
 
 - [aifd-contracts](aifd-contracts/README.md): minimal shared contracts.
 - [aifd-auth](aifd-auth/README.md): signed tickets shared by the account center and proxy.
@@ -116,20 +116,18 @@ installer builds need NSIS.
 
 ## Use from another Go project
 
-From an initialized Go module outside this workspace, add only the modules needed:
+From an initialized Go module outside this workspace, pin the whole framework.
+Existing package import paths stay unchanged. Use the unified framework version:
 
 ```powershell
-go get github.com/li9chuan/aifirstdev/aifd-runtime@v0.1.0
-go get github.com/li9chuan/aifirstdev/aifd-client@v0.1.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.1.0
+go get github.com/li9chuan/aifirstdev@v0.2.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.2.0
 ```
 
-There is no Go module at the repository root. The 17 modules retain independent
-paths under `github.com/li9chuan/aifirstdev/`; the repository uses `go.work` for
-local development. Nested module tags include their directory, such as
-`aifd-runtime/v0.1.0` and `aifd-plugins/mail/v0.1.0`. The root tag `v0.1.0` identifies
-the complete source snapshot. This first release does not promise stable APIs or
-parallel maintenance branches. See [version and update policy](docs/update-policy.md).
+Framework packages, CLI, and official plugins share the root `go.mod/go.sum` and
+one root release tag. The two example modules isolate their build environments
+and verify consumption; they do not receive separate release tags.
+See the [version and release policy](docs/update-policy.md).
 
 `aifd update` is a reserved placeholder: it prints guidance but does not check,
 download, or apply updates. Third-party tool versions remain pinned in `aifd.lock`.
@@ -149,8 +147,10 @@ This sets the execution policy for that process only.
 
 The script installs the locked frontend dependencies with `npm ci`, tests and
 builds both the desktool frontend and proxy Web client, then runs
-`go test -mod=readonly -count=1 -timeout=2m ./...` in every module listed in
-`go.work`. Root-level `go test ./...` does not traverse this multi-module workspace.
+`go test -mod=readonly -count=1 -timeout=2m ./...` in the root module and both
+examples listed in `go.work`, with workspace mode disabled to test each declared
+dependency graph. Root-level `go test ./...` covers framework packages but excludes
+the two nested examples.
 The first run needs network access to download dependencies.
 
 Desktool embeds `frontend/dist` in Go; build its frontend before running its Go

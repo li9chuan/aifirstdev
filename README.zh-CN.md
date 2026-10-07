@@ -2,16 +2,16 @@
 
 [English](./README.md) | 简体中文
 
-**v0.1.0 是首个开发快照，API 仍可能发生不兼容变更。**
+**v0.2.0 使用一个根 Go module 发布整套框架。API 仍可能发生不兼容变更。**
 正式仓库为 [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev)。
 桌面示例当前面向 Windows amd64，使用 Wails 3 beta.28。
 
-aiFirstDev 是面向 AI 优先开发的轻量后端框架，多 Go module 组织在同一个
-workspace 中。当前 runtime 先覆盖游戏后端，但框架组织语言使用 service/root
+aiFirstDev 是面向 AI 优先开发的轻量后端框架，框架包共享一个根 Go module 和整套版本，
+两个示例以独立 Go module 加入本地 workspace。当前 runtime 先覆盖游戏后端，但框架组织语言使用 service/root
 runtime，业务应用按领域命名自己的后端服务，便于扩展到 Wails 工具、桌面应用和其他业务后端。
 
-第一阶段拆分的目标是让基础设施模块保持独立，同时业务项目仍然按正常方式编写
-feature 代码：
+框架目录保持明确的职责、接口和依赖边界，业务项目按正常方式编写 feature 代码；
+这些职责模块统一发布，不分别维护 Go module 版本：
 
 - [aifd-contracts](aifd-contracts/README.md)：最小公共契约。
 - [aifd-auth](aifd-auth/README.md)：账号中心和 proxy 共享的签名 ticket。
@@ -95,18 +95,16 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 
 ## 在其他 Go 项目中使用
 
-在本仓库以外已经初始化的 Go module 中，按需引入模块：
+在本仓库以外已经初始化的 Go module 中，锁定整套框架，源码继续按需 import 原有包路径。
+使用统一框架版本：
 
 ```powershell
-go get github.com/li9chuan/aifirstdev/aifd-runtime@v0.1.0
-go get github.com/li9chuan/aifirstdev/aifd-client@v0.1.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.1.0
+go get github.com/li9chuan/aifirstdev@v0.2.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.2.0
 ```
 
-仓库根目录没有 Go module。17 个模块保留独立路径，统一位于
-`github.com/li9chuan/aifirstdev/` 下；本地开发通过 `go.work` 组合。
-子模块标签带目录前缀，例如 `aifd-runtime/v0.1.0`、`aifd-plugins/mail/v0.1.0`；
-根标签 `v0.1.0` 标识整仓源码快照。本次首发不承诺 API 稳定，也不建立并行维护分支。
+框架、CLI 和官方插件共用根 `go.mod/go.sum`，一次发版只使用一个根标签。
+两个示例保留独立 `go.mod` 用于消费验证和构建隔离，不单独发 tag。
 详见[版本与更新策略](docs/update-policy.md)。
 
 `aifd update` 目前是预留占位入口，只打印提示，不检查、下载或执行更新。
@@ -125,8 +123,9 @@ go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.1.0
 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1`，仅对本次进程生效。
 
 脚本使用 `npm ci` 安装锁定的前端依赖，测试并构建 desktool 前端和 proxy Web 客户端，
-再遍历 `go.work` 中的模块，分别执行 `go test -mod=readonly -count=1 -timeout=2m ./...`。
-根目录直接执行 `go test ./...` 不会遍历这个多模块 workspace。首次执行需要联网下载依赖。
+再读取 `go.work` 中的根 module 和两个示例，关闭 workspace 后分别执行
+`go test -mod=readonly -count=1 -timeout=2m ./...`，避免 workspace 的依赖版本覆盖各自声明。
+根目录直接执行 `go test ./...` 覆盖框架包，不包含两个嵌套示例。首次执行需要联网下载依赖。
 
 desktool 的 Go 入口 embed `frontend/dist`，因此必须先构建前端，再运行该模块的 Go 测试。
 前端构建产物和安装器下载文件只在本地生成，不纳入版本控制；protobuf 源码、生成绑定和依赖锁文件保留在仓库中。

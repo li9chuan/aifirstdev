@@ -41,7 +41,7 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 ## 基础工具集归属判定
 
 - 不要用 `share` / `common` 承载边界不清的小工具；先判断能力是否能归属现有模块。
-- 当前不创建 `aifd-core`。模块混乱优先通过文档、规则和窄职责归属收敛，不通过合并 Go module 解决。
+- 当前不创建 `aifd-core`。框架职责目录共用根 Go module，保持原有包和依赖边界；仅两个示例保留独立 `go.mod`，以后有独立消费或发布需求再评估拆分。
 - 根模块分类固定为四类：`aifd-contracts` 最小公共契约；`aifd-*` 基础设施根模块；`aifd-plugins/*` 可选业务能力插件；`aifd-tools` / `aifd-rules` / `aifd-examples` 工具、规则和示例。
 - `aifd-account` 是可选账号中心实现，拥有 provider 校验、账号绑定、账号状态和 token 签发流程；已有账号中心的业务项目不应被迫依赖它。业务 owner、realm、role 或角色列表归业务项目。
 - `aifd-proxy` 拥有客户端连接、packet、session、delivery 和登录接入边界；它不拥有账号中心实现，也不应强迫 `aifd-account` 反向依赖 proxy。

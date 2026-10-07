@@ -25,6 +25,26 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestUpdateUsesWholeFramework(t *testing.T) {
+	for _, args := range [][]string{{"update"}, {"update", "--check"}} {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr, t.TempDir()); code != 0 {
+			t.Fatalf("run(%v) = %d: %s", args, code, stderr.String())
+		}
+		for _, want := range []string{"no remote check or update was performed", "go get github.com/li9chuan/aifirstdev@<version>"} {
+			if !strings.Contains(stdout.String(), want) {
+				t.Fatalf("run(%v) missing %q: %s", args, want, stdout.String())
+			}
+		}
+	}
+	for _, args := range [][]string{{"update", "rdb"}, {"update", "--check", "rdb"}, {"update", "unknown"}} {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr, t.TempDir()); code != 2 || stdout.Len() != 0 {
+			t.Fatalf("run(%v) = %d, stdout=%q, stderr=%q", args, code, stdout.String(), stderr.String())
+		}
+	}
+}
+
 func TestToolsPathWithExplicitExecutables(t *testing.T) {
 	dir := t.TempDir()
 	exe := os.Args[0]

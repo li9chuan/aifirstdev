@@ -55,19 +55,13 @@ func run(args []string, stdout io.Writer, stderr io.Writer, cwd string) int {
 }
 
 func update(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) == 0 || args[0] == "--check" {
-		fmt.Fprintln(stdout, "aifd update check: config, contracts, observe, proxy, robot, rpc, rdb, runtime, schema, tools, rules")
-		return 0
-	}
-	target := strings.TrimSpace(args[0])
-	switch target {
-	case "config", "contracts", "observe", "proxy", "robot", "rpc", "rdb", "runtime", "schema", "tools", "rules":
-		fmt.Fprintf(stdout, "aifd update %s: planned\n", target)
-		return 0
-	default:
-		fmt.Fprintf(stderr, "unknown update target %q\n", target)
+	if len(args) > 1 || (len(args) == 1 && args[0] != "--check") {
+		fmt.Fprintln(stderr, "usage: aifd update [--check]; AIFD is versioned as one framework, without per-module updates")
 		return 2
 	}
+	fmt.Fprintln(stdout, "aifd update: reserved; no remote check or update was performed")
+	fmt.Fprintln(stdout, "upgrade the framework in your project with: go get github.com/li9chuan/aifirstdev@<version>")
+	return 0
 }
 
 func tools(args []string, stdout io.Writer, stderr io.Writer, cwd string) int {

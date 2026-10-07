@@ -1,11 +1,18 @@
 ---
 name: runtime-feature-review
-description: 审查 runtime 或业务 feature 代码时使用。适用于检查恢复顺序、RPC 接入、tick/goroutine、配置、持久化幂等、日志、测试覆盖和模块职责边界，并要求 findings-first 输出。
+description: 审查 aiFirstDev 项目、框架模块或业务 feature 时使用。按审查范围选择已有规则和清单，检查职责边界、运行行为、测试及文档一致性，并以 findings-first 输出。
 ---
 
-# Runtime Feature 评审
+# 项目与 Feature 代码评审
 
-这个 skill 只做通用 runtime/feature 代码评审，不内置具体业务语义。
+这是 aiFirstDev 的项目级代码审查入口，也适用于单个 runtime 或业务 feature；具体业务语义以业务项目需求为准。
+
+## 阅读与审查路径
+
+1. 确认用户目标、审查范围和主修改模块；从该模块 README 了解能力与限制。职责不清时查阅[模块边界](../../../docs/module-boundary.md)和[修改面路由](../architecture-and-surface-routing/SKILL.md)。
+2. 使用[项目级编码约束](../project-coding-constraints/SKILL.md)和[评审检查清单](../../checklists/review.md)，只检查与本次范围相关的项。协议、配置、账号等专项规则从[skills 索引](../README.md)按需选择，不默认加载全部 skill。
+3. 沿实际调用和状态流核对实现、测试与文档；特别检查业务变更是否无必要地修改框架，是否重复已有能力，以及规则是否有明确归属和可达入口。文档可发现性问题与实际运行缺陷分别说明。
+4. 根据风险运行相关验证并记录证据；全仓构建入口见[项目首页](../../../README.zh-CN.md#构建与验证)。局部审查不因清单包含发布或桌面项而自动扩大为全套验收。
 
 ## 输出格式
 
@@ -31,3 +38,8 @@ description: 审查 runtime 或业务 feature 代码时使用。适用于检查�
 - 不用具体业务规则替代通用工程审查。
 - 如果审查需要业务语义，要求额外读取业务项目自己的规则或需求文档。
 - 不因为测试依赖外部服务失败就直接判定逻辑失败；要区分环境问题和编译/行为问题。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [评审检查清单](../../checklists/review.md)

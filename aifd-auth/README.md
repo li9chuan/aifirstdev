@@ -11,3 +11,9 @@
 
 后续如果需要非对称签名、JWKS 或 key rotation，仍应保持业务 feature 只接触登录结果，
 不直接处理签名细节。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [账号身份与存储工作流](../aifd-rules/skills/account-identity-store-workflow/SKILL.md)
+- [账号中心](../aifd-account/README.md)

@@ -13,23 +13,23 @@ runtime，业务应用按领域命名自己的后端服务，便于扩展到 Wai
 第一阶段拆分的目标是让基础设施模块保持独立，同时业务项目仍然按正常方式编写
 feature 代码：
 
-- `aifd-contracts`：最小公共契约。
-- `aifd-auth`：账号中心和 proxy 共享的签名 ticket。
-- `aifd-account`：登录身份、全局 account_id、provider 绑定和登录 payload/token 签发；业务 uid、owner、realm 映射由业务项目维护。
-- `aifd-client`：Go 客户端连接、登录、消息路由和请求。
-- `aifd-config`：typed 配置 bundle 生命周期、校验、manifest diff 和 Luban bundle builder 适配。
-- `aifd-llm`：provider-neutral 的 LLM 请求、响应、stream、错误和 adapter 契约。
-- `aifd-observe`：可观测事件、异步 sink 和本地统计适配。
-- `aifd-proxy`：客户端网关契约、session、投递和适配。
-- `aifd-robot`：集成测试机器人、运行组、行为和统计。
-- `aifd-rpc`：RPC 契约、路由、分发器和适配。
-- `aifd-rdb`：持久化 saver 原语和存储适配。
-- `aifd-runtime`：service/root runtime、root store、module lifecycle 和配置/lifecycle 辅助。
-- `aifd-schema`：proto/message 描述、兼容性检查和 RPC 绑定。
-- `aifd-tools`：CLI、工具安装和预留的更新命令。
-- `aifd-rules`：AI 规则、skills、模板和 checklist。
-- `aifd-plugins/mail`：可选邮件存储、邮箱访问和 runtime 模块，由应用入口显式组合。
-- `aifd-examples`：业务形态示例；`minigame` 展示完整游戏后端框架链路，`desktool` 展示桌面工具。
+- [aifd-contracts](aifd-contracts/README.md)：最小公共契约。
+- [aifd-auth](aifd-auth/README.md)：账号中心和 proxy 共享的签名 ticket。
+- [aifd-account](aifd-account/README.md)：登录身份、全局 account_id、provider 绑定和登录 payload/token 签发；业务 uid、owner、realm 映射由业务项目维护。
+- [aifd-client](aifd-client/README.md)：Go 客户端连接、登录、消息路由和请求。
+- [aifd-config](aifd-config/README.md)：typed 配置 bundle 生命周期、校验、manifest diff 和 Luban bundle builder 适配。
+- [aifd-llm](aifd-llm/README.md)：provider-neutral 的 LLM 请求、响应、stream、错误和 adapter 契约。
+- [aifd-observe](aifd-observe/README.md)：可观测事件、异步 sink 和本地统计适配。
+- [aifd-proxy](aifd-proxy/README.md)：客户端网关契约、session、投递和适配。
+- [aifd-robot](aifd-robot/README.md)：集成测试机器人、运行组、行为和统计。
+- [aifd-rpc](aifd-rpc/README.md)：RPC 契约、路由、分发器和适配。
+- [aifd-rdb](aifd-rdb/README.md)：持久化 saver 原语和存储适配。
+- [aifd-runtime](aifd-runtime/README.md)：service/root runtime、root store、module lifecycle 和配置/lifecycle 辅助。
+- [aifd-schema](aifd-schema/README.md)：proto/message 描述、兼容性检查和 RPC 绑定。
+- [aifd-tools](aifd-tools/README.md)：CLI、工具安装和预留的更新命令。
+- [aifd-rules](aifd-rules/README.md)：AI 规则、skills、模板和 checklist。
+- [aifd-plugins/mail](aifd-plugins/mail/README.md)：可选邮件存储、邮箱访问和 runtime 模块，由应用入口显式组合。
+- [aifd-examples](aifd-examples/README.md)：业务形态示例；`minigame` 展示完整游戏后端框架链路，`desktool` 展示桌面工具。
 
 依赖方向必须保持单向：
 
@@ -61,6 +61,12 @@ aifd-runtime           |
 
 模块分类和未来 `aifd-core` 准入规则见 [docs/module-boundary.md](docs/module-boundary.md)。
 Scope runtime 的组织原则见 [docs/scope-runtime.md](docs/scope-runtime.md)。
+
+## 文档导航
+
+- AI 开发与审查：从[Agent 规则](AGENTS.md)进入；[rules 使用入口](aifd-rules/README.md)说明资料分工，[skills 索引](aifd-rules/skills/README.md)按任务选择流程。
+- 代码审查：[项目与 Feature 代码评审](aifd-rules/skills/runtime-feature-review/SKILL.md)按范围引用已有[评审清单](aifd-rules/checklists/review.md)。
+- 设计依据：[模块边界](docs/module-boundary.md)、[runtime 组织原则](docs/scope-runtime.md)、[更新策略](docs/update-policy.md)。上方模块链接进入各自用法和相关工作流，接线参考[示例入口](aifd-examples/README.md)。
 
 ## 快速开始
 

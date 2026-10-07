@@ -19,3 +19,9 @@ Redis key 模型固定为：
 `subject_hash` 由 `sha256("<provider>:<normalized_subject>")` 生成，key 和持久值不保存手机号、
 openid 等明文 subject。Redis client 的创建、关闭和重连策略由应用入口负责，
 `aifd-account` 只使用传入 client。`MemoryStore` 只用于单测和本地 demo。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [账号身份与存储工作流](../aifd-rules/skills/account-identity-store-workflow/SKILL.md)
+- [签名 Ticket](../aifd-auth/README.md)

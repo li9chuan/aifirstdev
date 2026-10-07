@@ -46,3 +46,8 @@ cfg, err := viper.Load[AppConfig](ctx, viper.Options{
 ```
 
 业务项目可以不使用该 adapter，直接实现自己的 loader 或 typed config reader。
+
+## 相关文档
+
+- [Config 模块入口](../../README.md)
+- [配置工作流](../../../aifd-rules/skills/config-table-workflow/SKILL.md)

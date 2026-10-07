@@ -64,3 +64,10 @@ AIFD 使用 logical services，而不是强制 physical microservices：
 
 Wails 前端只调用 Go binding 的业务门面，例如 `ImportDocument(path)`、`ListDocuments()`，不直接接触
 root/service runtime 细节。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [Runtime 能力与用法](../aifd-runtime/README.md)
+- [Runtime 模块开发](../aifd-rules/skills/runtime-module-development/SKILL.md)
+- [Root / Service Feature 模板](../aifd-rules/templates/root-service-feature.md)

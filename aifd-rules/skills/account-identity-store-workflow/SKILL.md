@@ -52,3 +52,9 @@ description: "当规划、实现或审查 aifd-account、登录身份、account_
 - 测试覆盖重复登录、并发创建、`autoCreate=false`、禁用账号、损坏 `act` 和 login key 不含明文 subject。
 - 改动公开类型、proto 或 Redis key 模型时，同步检查 README、示例、测试和生成物。
 - 静态扫描确认没有重新引入 `OwnerID`、`OwnerRef`、`RealmID`、`owner_id`、`realm_id`、`account:owner` 或 `seq:owner`。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [Account 模块用法](../../../aifd-account/README.md)
+- [Auth Ticket 用法](../../../aifd-auth/README.md)

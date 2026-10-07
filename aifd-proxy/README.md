@@ -103,3 +103,10 @@ websocket.NewServer(websocket.Config{
 
 Proxy 升级应保持 session 和 delivery 契约。adapter 变更不能要求业务 feature
 import proxy 内部包。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [服务入口开发](../aifd-rules/skills/service-entrypoint-development/SKILL.md)
+- [账号身份与存储工作流](../aifd-rules/skills/account-identity-store-workflow/SKILL.md)
+- [Web 客户端](web/README.md)

@@ -33,3 +33,9 @@
 
 示例应围绕各自目标保持清晰：`minigame` 覆盖完整游戏后端框架链路但不扩展成完整玩法内容，
 `desktool` 聚焦桌面工具形态。公共框架 API 变化时示例可以跟随调整，但不承诺生产行为兼容。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [Minigame 示例](minigame/README.md)
+- [Desktool 示例](desktool/README.md)

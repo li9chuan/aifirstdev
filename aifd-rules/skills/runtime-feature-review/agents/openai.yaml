@@ -1,3 +1,3 @@
 interface:
-  display_name: "Runtime Feature 评审"
-  short_description: "以 findings-first 审查 runtime/feature 的恢复、RPC、tick、持久化和测试"
+  display_name: "项目与 Feature 代码评审"
+  short_description: "按范围引用已有规则和清单，审查项目、框架模块及业务 feature 并优先报告问题"

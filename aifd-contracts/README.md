@@ -26,3 +26,9 @@
 
 这是 workspace 中最稳定的模块。由于很多模块都可能依赖它，破坏性变更必须非常少，
 并且需要升主版本。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [模块边界与职责依据](../docs/module-boundary.md)
+- [架构与修改面路由](../aifd-rules/skills/architecture-and-surface-routing/SKILL.md)

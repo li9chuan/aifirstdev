@@ -41,3 +41,10 @@ cli, err := aifdclient.New(transport, aifdclient.Options{AwaitTimeout: 10 * time
 ```
 
 该 adapter 只负责 WebSocket 和 proxy packet 编解码，不理解业务登录、robot 场景或 runtime 服务。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [Proxy 接入与协议](../aifd-proxy/README.md)
+- [桌面应用开发](../aifd-rules/skills/desktop-app-development/SKILL.md)
+- [项目与 Feature 代码评审](../aifd-rules/skills/runtime-feature-review/SKILL.md)

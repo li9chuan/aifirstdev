@@ -47,3 +47,9 @@ description: 处理 proto/schema 工作流时使用。适用于 aifd-schema、�
 - 业务项目拥有具体 route 常量、route -> message 绑定和 generated registry。
 - 不要新增框架级通用业务 route manifest。需要审计时，由业务项目生成可重建 artifact，再交给 AIFD 工具检查。
 - typed dispatcher helper 只处理 session/caller context、route、request/response、error 和 codec 这类基础设施问题；业务身份从 caller context 或业务请求中解释。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [Schema 模块用法](../../../aifd-schema/README.md)
+- [生成工具与命令状态](../../../aifd-tools/README.md)

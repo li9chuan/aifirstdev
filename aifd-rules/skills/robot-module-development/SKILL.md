@@ -38,3 +38,9 @@ description: 开发 aifd-robot 或业务 robot module 时使用。适用于 Agen
 - 测 callback 命中、超时清理和未知消息。
 - 测 behavior sequence/selector/action 和业务 action 注册。
 - 测 report 与 observe memory sink 记录。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [Robot 模块用法](../../../aifd-robot/README.md)
+- [Minigame 示例](../../../aifd-examples/minigame/README.md)

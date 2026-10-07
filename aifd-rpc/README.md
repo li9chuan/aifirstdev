@@ -58,3 +58,9 @@ protobuf message。业务状态变更应发生在拥有职责的 runtime 或 fea
 RPC 升级应保持 `Message`、`Session`、`Route` 和 `Bus` 契约。新的 adapter 应保持
 可选，不能强制业务项目 import 内部包。NATS subject 默认兼容 `RPC.`、`S.`、`js.`
 约定，但必须允许业务项目通过 config 替换。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [Schema 与 Proto 工作流](../aifd-rules/skills/schema-proto-workflow/SKILL.md)
+- [服务入口开发](../aifd-rules/skills/service-entrypoint-development/SKILL.md)

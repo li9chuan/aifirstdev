@@ -109,3 +109,11 @@ path，用于 well-known proto。
 Tools 由 `aifd.lock` 锁定。Wails 3 升级必须同步 Go 依赖、CLI、前端 `@wailsio/runtime`、生成绑定和构建验收；不能只改工具版本。`tools install` 只写业务项目
 本地 `.aifd/tools` 和 `aifd.lock`，不会把 exe 提交进仓库。命令应保持适合脚本调用；
 除非命令名明确表示安装、生成或进程管理，否则应避免修改项目文件。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [服务入口开发](../aifd-rules/skills/service-entrypoint-development/SKILL.md)
+- [版本与更新策略](../docs/update-policy.md)
+- [Schema 与 Proto 工作流](../aifd-rules/skills/schema-proto-workflow/SKILL.md)
+- [配置工作流](../aifd-rules/skills/config-table-workflow/SKILL.md)

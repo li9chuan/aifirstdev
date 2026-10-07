@@ -53,7 +53,7 @@ Wails 3 当前锁定 `v3.0.0-beta.28`。Go module、CLI、前端 `@wailsio/runti
 
 ## 前端规则
 
-- 使用 `ant-design-ui-development` skill 查询 Ant Design 组件、demo、token、semantic DOM 和升级信息。
+- 使用 [ant-design-ui-development](../ant-design-ui-development/SKILL.md) skill 查询 Ant Design 组件、demo、token、semantic DOM 和升级信息。
 - 运行时依赖普通 `antd`，不默认引入 `@ant-design/x-card`。
 - 组件布局优先用应用壳、侧边导航、顶部状态、内容区、登录面板和工作台表格；不要做营销 landing page。
 - 前端类型要与 Go binding JSON 字段保持一致；字段改名时同步更新 TypeScript 类型、Go 测试和 README。
@@ -66,3 +66,9 @@ Wails 3 当前锁定 `v3.0.0-beta.28`。Go module、CLI、前端 `@wailsio/runti
 - Wails CLI 通过 `aifd tools install --tool wails` 按需安装，不进入默认工具集合；优先使用项目本地 `.aifd/tools/.../wails/.../bin/wails3`。
 - 原生开发使用 `wails3 dev -config ./build/config.yml -port 5173`；Windows 发布包使用 `wails3 package`，任务定义和生成器必须与锁定版本一致。
 - NSIS 属于显式安装的 Windows 打包工具，不自动安装系统级组件；无法构建安装包时说明缺失原因。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [Desktool 示例与验证](../../../aifd-examples/desktool/README.md)
+- [Go 客户端](../../../aifd-client/README.md)

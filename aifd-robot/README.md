@@ -47,3 +47,9 @@ await 超时使用底层 client 默认超时配置，不支持单次调用单独
 
 Robot 升级应保持 agent、module、scenario 和 transport 契约。新的行为 adapter 不应
 把具体业务 action 名称引入框架。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [Robot 模块开发](../aifd-rules/skills/robot-module-development/SKILL.md)
+- [Minigame 示例](../aifd-examples/minigame/README.md)

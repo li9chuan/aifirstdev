@@ -53,3 +53,9 @@ aifd config check
 ```
 
 此入口暂时保留，实际自动更新能力在后续发布前另行评估，不在本次地址统一和首版发布中实现。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [工具能力与命令状态](../aifd-tools/README.md)
+- [项目与 Feature 代码评审](../aifd-rules/skills/runtime-feature-review/SKILL.md)

@@ -146,3 +146,9 @@ Wails binding
 
 `desktool` 可以跟随 Wails、React 或 Ant Design 升级，但功能必须围绕桌面框架形态保持清晰。
 新增真实业务能力应放入业务项目，不应把本目录扩展成生产工具。
+
+## 相关文档
+
+- [示例入口](../README.md)
+- [桌面应用开发](../../aifd-rules/skills/desktop-app-development/SKILL.md)
+- [Ant Design UI 开发](../../aifd-rules/skills/ant-design-ui-development/SKILL.md)

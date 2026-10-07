@@ -104,3 +104,9 @@ proxy 使用各自的 `proxy_broker.config_file`，例如通过独立配置文�
 
 这个示例可以直接跟随框架 API 变化。它用于展示完整游戏后端框架链路；新增能力应优先补齐
 `rpc/rdb/runtime/proxy/robot/config/observe/schema/account` 的边界和接线方式，而不是扩展玩法深度。
+
+## 相关文档
+
+- [示例入口](../README.md)
+- [业务 Feature 开发](../../aifd-rules/skills/feature-development/SKILL.md)
+- [服务入口开发](../../aifd-rules/skills/service-entrypoint-development/SKILL.md)

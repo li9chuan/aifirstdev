@@ -44,3 +44,9 @@ typed config，再显式组装 `proxy`、`rpc`、`rdb`、`observe` 和 `runtime`
 
 小版本可以增加 validator、adapter 或 manifest 元数据，但 reload 语义必须保持“失败时不发布”。
 `Bundle.Data` 不由框架 clone；loader 返回后调用方必须将其视为不可变对象。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [配置工作流](../aifd-rules/skills/config-table-workflow/SKILL.md)
+- [Viper 配置适配](adapters/viper/README.md)

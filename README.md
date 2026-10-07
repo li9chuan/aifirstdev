@@ -16,30 +16,30 @@ and other business backends.
 The first-stage split keeps infrastructure modules independent while business
 projects continue to write feature code in the normal way:
 
-- `aifd-contracts`: minimal shared contracts.
-- `aifd-auth`: signed tickets shared by the account center and proxy.
-- `aifd-account`: login identity, global account IDs, provider binding, and
+- [aifd-contracts](aifd-contracts/README.md): minimal shared contracts.
+- [aifd-auth](aifd-auth/README.md): signed tickets shared by the account center and proxy.
+- [aifd-account](aifd-account/README.md): login identity, global account IDs, provider binding, and
   login payload/token issuance. Business user, owner, and realm mappings belong
   to the application.
-- `aifd-client`: Go client connections, login, message routing, and requests.
-- `aifd-config`: typed configuration bundle lifecycle, validation, manifest diff,
+- [aifd-client](aifd-client/README.md): Go client connections, login, message routing, and requests.
+- [aifd-config](aifd-config/README.md): typed configuration bundle lifecycle, validation, manifest diff,
   and Luban bundle builder adapters.
-- `aifd-llm`: provider-neutral LLM request, response, stream, error, and adapter
+- [aifd-llm](aifd-llm/README.md): provider-neutral LLM request, response, stream, error, and adapter
   contracts.
-- `aifd-observe`: observable events, async sinks, and local statistics adapters.
-- `aifd-proxy`: client gateway contracts, sessions, delivery, and adapters.
-- `aifd-robot`: integration test robots, run groups, behaviors, and statistics.
-- `aifd-rpc`: RPC contracts, routing, dispatchers, and adapters.
-- `aifd-rdb`: persistence saver primitives and storage adapters.
-- `aifd-runtime`: service/root runtime, root store, module lifecycle, and
+- [aifd-observe](aifd-observe/README.md): observable events, async sinks, and local statistics adapters.
+- [aifd-proxy](aifd-proxy/README.md): client gateway contracts, sessions, delivery, and adapters.
+- [aifd-robot](aifd-robot/README.md): integration test robots, run groups, behaviors, and statistics.
+- [aifd-rpc](aifd-rpc/README.md): RPC contracts, routing, dispatchers, and adapters.
+- [aifd-rdb](aifd-rdb/README.md): persistence saver primitives and storage adapters.
+- [aifd-runtime](aifd-runtime/README.md): service/root runtime, root store, module lifecycle, and
   configuration/lifecycle helpers.
-- `aifd-schema`: proto/message descriptions, compatibility checks, and RPC
+- [aifd-schema](aifd-schema/README.md): proto/message descriptions, compatibility checks, and RPC
   binding.
-- `aifd-tools`: CLI, tool installation, and a reserved update command.
-- `aifd-rules`: AI rules, skills, templates, and checklists.
-- `aifd-plugins/mail`: optional mail storage, mailbox access, and runtime modules,
+- [aifd-tools](aifd-tools/README.md): CLI, tool installation, and a reserved update command.
+- [aifd-rules](aifd-rules/README.md): AI rules, skills, templates, and checklists.
+- [aifd-plugins/mail](aifd-plugins/mail/README.md): optional mail storage, mailbox access, and runtime modules,
   explicitly composed by the application.
-- `aifd-examples`: business-shape examples. `minigame` demonstrates the full
+- [aifd-examples](aifd-examples/README.md): business-shape examples. `minigame` demonstrates the full
   game backend framework flow, and `desktool` demonstrates a desktop tool.
 
 Dependencies must remain one-way:
@@ -78,6 +78,14 @@ only touch the necessary business parameters and domain objects.
 Module taxonomy and future `aifd-core` admission rules are described in
 [docs/module-boundary.md](docs/module-boundary.md). Scope runtime organization
 principles are described in [docs/scope-runtime.md](docs/scope-runtime.md).
+
+## Documentation
+
+- AI development and review: start with [agent rules](AGENTS.md). The [rules guide](aifd-rules/README.md) explains document ownership, and the [skills index](aifd-rules/skills/README.md) routes tasks to workflows.
+- Code review: use the [project and feature review skill](aifd-rules/skills/runtime-feature-review/SKILL.md), which selects relevant items from the [review checklist](aifd-rules/checklists/review.md).
+- Design references: [module boundaries](docs/module-boundary.md), [runtime organization](docs/scope-runtime.md), and [update policy](docs/update-policy.md). Module links above lead to usage and related workflows; see the [examples guide](aifd-examples/README.md) for application wiring.
+
+The linked design documents and skills are currently written in Chinese.
 
 ## Quick start
 

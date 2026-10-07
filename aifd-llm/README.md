@@ -46,3 +46,9 @@ alone does not prove that an adapter forwarded them. Tests cover forwarding,
 streaming, reserved-field collisions, and invalid values. No protobuf, runtime,
 or stored-data migration is required; callers that formerly supplied a reserved
 common field in `ProviderOptions` must use the corresponding `Request` field.
+
+## Related documentation
+
+- [Project home](../README.md)
+- [Module boundaries (Chinese)](../docs/module-boundary.md)
+- [Provider adapter coding rules (Chinese)](../aifd-rules/skills/project-coding-constraints/SKILL.md)

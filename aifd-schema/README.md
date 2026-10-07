@@ -30,3 +30,9 @@ proto 生成自己的前后端代码，但生成物仍应留在业务项目或�
 
 Schema 升级应保持 descriptor 和 registry 契约。兼容性检查只有在新规则可执行且已
 文档化时，才应变得更严格。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [Schema 与 Proto 工作流](../aifd-rules/skills/schema-proto-workflow/SKILL.md)
+- [生成工具与命令状态](../aifd-tools/README.md)

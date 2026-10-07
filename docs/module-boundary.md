@@ -87,3 +87,9 @@ SDK facade、小工具包、runtime helper 和 provider client 不放进 `aifd-p
 2. 如果多个模块需要它，优先让拥有语义的模块提供窄接口，或由业务项目在入口组合。
 3. 如果仍无归属，记录至少两个基础设施模块的生产代码复用证据。
 4. 满足准入门槛后，再提出 `aifd-core/<pkg>`，并用窄包名和窄 API 落地。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [按需求选择修改模块](../aifd-rules/skills/architecture-and-surface-routing/SKILL.md)
+- [项目与 Feature 代码评审](../aifd-rules/skills/runtime-feature-review/SKILL.md)

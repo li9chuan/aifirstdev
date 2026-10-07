@@ -19,17 +19,8 @@ description: 开发业务项目 feature 时使用。适用于判断 feature 归 
 
 ## 推荐目录
 
-```text
-features/<name>/
-  feature.go
-  root.go
-  service.go
-  rpc.go
-  storage.go
-  config.go
-  events.go
-  robot/
-```
+按需采用[Root / Service Feature 目录模板](../../templates/root-service-feature.md)。目录结构在模板中维护，
+生命周期接入见[Runtime 模块开发](../runtime-module-development/SKILL.md)，具体接线参考[minigame](../../../aifd-examples/minigame/README.md)。
 
 ## 边界
 
@@ -37,3 +28,10 @@ features/<name>/
 - 业务 feature 不修改基础设施模块来塞入自身规则。
 - 若需要通用能力，先沉淀到对应框架模块的窄接口，再由业务项目接入。
 - robot 测试代码属于业务项目 robot 包，不进入 `aifd-robot` 框架。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [Root / Service Feature 模板](../../templates/root-service-feature.md)
+- [Runtime 模块开发](../runtime-module-development/SKILL.md)
+- [Minigame 接线示例](../../../aifd-examples/minigame/README.md)

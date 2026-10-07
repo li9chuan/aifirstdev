@@ -48,3 +48,9 @@ description: 开发或调整服务入口、CLI 入口、启动链、配置加载
 - Go module 内入口变更优先跑受影响包测试或 `go test ./...`。
 - 文档或规则入口变更只需结构和内容检查。
 - 无法启动真实外部依赖时，用 local/memory adapter 验证 wiring。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [工具入口](../../../aifd-tools/README.md)
+- [Minigame 接线示例](../../../aifd-examples/minigame/README.md)

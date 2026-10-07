@@ -42,3 +42,10 @@ adapter 选择和 runner 启动由服务入口负责。
 ## 更新边界
 
 当前仍处于新框架设计阶段，runtime API 优先破坏式收敛到最小业务门面，不保留历史兼容层。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [runtime 组织原则](../docs/scope-runtime.md)
+- [Runtime 模块开发](../aifd-rules/skills/runtime-module-development/SKILL.md)
+- [业务 Feature 开发](../aifd-rules/skills/feature-development/SKILL.md)

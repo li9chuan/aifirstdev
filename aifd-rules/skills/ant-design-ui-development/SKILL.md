@@ -49,4 +49,10 @@ npm install -g @ant-design/cli
 - 如果需求是“让 Codex 更好地开发 Ant Design UI”，使用本 skill 和官方 MCP/CLI/LLMs.txt。
 - 如果需求是“应用运行时内置 AI 助手，并动态返回 UI 描述”，另开运行时 AI UI 方案，不要混入普通 desktool。
 - 如果需求只是普通桌面软件或后台管理界面，保持运行时为固定 React 组件和普通业务数据。
-- 如果需求涉及 Wails 壳、Go binding、更新流程、NSIS 或桌面后端通信，叠加 `desktop-app-development`；不要在本 skill 中定义桌面运行时协议。
+- 如果需求涉及 Wails 壳、Go binding、更新流程、NSIS 或桌面后端通信，叠加 [desktop-app-development](../desktop-app-development/SKILL.md)；不要在本 skill 中定义桌面运行时协议。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [桌面应用开发](../desktop-app-development/SKILL.md)
+- [Desktool 示例](../../../aifd-examples/desktool/README.md)

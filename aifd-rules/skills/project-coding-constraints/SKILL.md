@@ -20,7 +20,7 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 
 ## 基础工具集边界
 
-- 模块分类和未来 `aifd-core` 准入以工作区 `docs/module-boundary.md` 为准。
+- 模块分类和未来 `aifd-core` 准入以工作区 [模块边界](../../../docs/module-boundary.md) 为准。
 - 禁止重建旧式 `share` 垃圾桶。不要新增 `share`、`common`、`misc`、`utils` 这类无职责边界的公共目录或 module。
 - 新增小工具前先搜索现有模块和调用点，优先归属拥有使用边界的模块：连接与登录接入归 `proxy`，RPC helper 归 `rpc`，持久化 helper 归 `rdb`，schema helper 归 `schema`，账号中心实现归 `account`。
 - 如果能力同时被多个模块需要，但仍有明确领域归属，应保持在领域模块内，由其他模块通过窄接口或业务项目组合使用；不要为了减少 import 数量移动到公共工具集。
@@ -43,7 +43,7 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 - LLM provider 调用门面属于 `aifd-llm`；业务 prompt、provider key、额度策略、审计落库和 prompt 管理平台留在业务项目或业务服务。
 - `aifd-llm` 的 provider 扩展参数在适配器拥有的 HTTP 边界透传并测试；只检查中立 `Request.ProviderOptions` 不算验证生效。扩展不得覆盖通用字段（即使当前未输出该字段），不可序列化或冲突参数在发请求前失败；业务项目不得复制 HTTP 参数补丁来绕过框架适配器。
 - 普通桌面或 Web 前端默认使用固定 React/Vue/原生组件和普通业务数据；A2UI、XCard、运行时 Agent 动态 UI 只能在用户明确要求该产品形态时单独设计。
-- Ant Design 组件知识查询归 `ant-design-ui-development`，Wails 桌面壳归 `desktop-app-development`；不要在业务项目中新增无边界的 UI command runtime。
+- Ant Design 组件知识查询归 [ant-design-ui-development](../ant-design-ui-development/SKILL.md)，Wails 桌面壳归 [desktop-app-development](../desktop-app-development/SKILL.md)；不要在业务项目中新增无边界的 UI command runtime。
 - Wails CLI 是 `aifd-tools` 的按需工具，使用 `aifd tools install --tool wails` 管理；不要把 Wails CLI 路径硬编码进示例，也不要把它加入默认服务端工具安装集合。
 - NSIS、dmg/pkg、Sparkle、AppImage 等安装包生态属于桌面发布环境；首版只做显式检查和文档说明，不在无授权情况下自动安装系统级工具。
 - 桌面端运行时通信、PB/WS、缓存、数据分析、本地文件访问和整包更新流程应放 Go 后端；JS/React 保持 UI 和轻量交互态。
@@ -91,3 +91,9 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 - 每次分析问题、review 或完成改动后，判断是否产生可复用规则。
 - 可复用规则先归并到已有 skill、checklist 或模板；只有没有合适承载点时才新增 skill。
 - 最终交付必须说明“项目级经验”：新增、变更、合并建议，或明确没有发现。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [模块边界与职责依据](../../../docs/module-boundary.md)
+- [项目与 Feature 代码评审](../runtime-feature-review/SKILL.md)

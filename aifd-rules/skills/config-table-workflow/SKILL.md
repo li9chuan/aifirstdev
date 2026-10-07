@@ -38,3 +38,9 @@ description: 处理配置表、Luban、cfgtable 适配和 aifd-config 工作流�
 3. 明确哪些值是配置真相，哪些是运行期状态。
 4. 补充 bundle builder、loader、validator、manifest 或热更联动。
 5. 用 memory/json adapter 覆盖配置测试；真实 Luban 适配在业务项目验证。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [Config 模块用法](../../../aifd-config/README.md)
+- [生成工具与命令状态](../../../aifd-tools/README.md)

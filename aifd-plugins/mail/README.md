@@ -48,3 +48,10 @@ Store 增加 `PersonalMailboxVersion`。Manager 读取时校验持久化版本�
 以事务读取正文、元数据和版本，避免混合快照。其他 Store 实现需要适配新方法。
 接入方的消息路由、客户端和界面消费端需配套适配；现存邮件无需迁移。
 发送仍不支持业务去重键。邮箱容量默认 100，正文上限配置不改变容量或过期规则。
+
+## 相关文档
+
+- [项目首页](../../README.zh-CN.md)
+- [Runtime 模块开发](../../aifd-rules/skills/runtime-module-development/SKILL.md)
+- [业务 Feature 开发](../../aifd-rules/skills/feature-development/SKILL.md)
+- [runtime 组织原则](../../docs/scope-runtime.md)

@@ -18,7 +18,7 @@ description: 处理复杂框架能力或复杂业务 feature 设计时使用。�
 
 ## 工作流
 
-1. 先使用 `architecture-and-surface-routing` 判断主修改面。
+1. 先使用 [architecture-and-surface-routing](../architecture-and-surface-routing/SKILL.md) 判断主修改面。
 2. 冻结 L0-L3，不在术语和真相源未定时写代码。
 3. 按 L4 拆成最小可交付批次。
 4. 每批次只修改拥有职责的模块，并补齐必要联动。
@@ -46,3 +46,10 @@ description: 处理复杂框架能力或复杂业务 feature 设计时使用。�
 - 每个批次必须有可运行或可静态验证的验收项。
 - 配置、schema、持久化或 runtime 合约变更必须说明兼容策略。
 - 无法验证的项必须在交付中明确原因和残余风险。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [runtime 组织原则](../../../docs/scope-runtime.md)
+- [业务 Feature 开发](../feature-development/SKILL.md)
+- [项目与 Feature 代码评审](../runtime-feature-review/SKILL.md)

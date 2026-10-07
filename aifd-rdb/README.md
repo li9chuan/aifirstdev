@@ -184,3 +184,9 @@ if err := state.Save(ctx); err != nil {
 
 final-intent journal 不保证中间 `EXPIRE` 副作用，也不保证不同 entity 之间的事务顺序。
 它只保证 Redis 故障窗口内每个 Set key 或 Hash field 的最终保存/删除意图可被恢复。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [项目级编码约束](../aifd-rules/skills/project-coding-constraints/SKILL.md)
+- [项目与 Feature 代码评审](../aifd-rules/skills/runtime-feature-review/SKILL.md)

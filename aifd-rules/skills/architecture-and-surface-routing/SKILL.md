@@ -15,25 +15,25 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 4. 为主修改面选择后续 skill。
 5. 明确不应修改的模块，防止越层。
 
-模块分类和未来 `aifd-core` 准入的当前决策源是工作区 `docs/module-boundary.md`。
+模块分类和未来 `aifd-core` 准入的当前决策源是工作区 [模块边界](../../../docs/module-boundary.md)。
 
 ## 路由表
 
 - 最小公共类型、模块描述、服务角色：`aifd-contracts`。
-- proto 描述、消息兼容、默认框架 PB、生成检查：`aifd-schema`，使用 `schema-proto-workflow`。
-- Luban/config typed bundle 生命周期、热更、manifest diff、validator：`aifd-config`，使用 `config-table-workflow`。
+- proto 描述、消息兼容、默认框架 PB、生成检查：`aifd-schema`，使用 [schema-proto-workflow](../schema-proto-workflow/SKILL.md)。
+- Luban/config typed bundle 生命周期、热更、manifest diff、validator：`aifd-config`，使用 [config-table-workflow](../config-table-workflow/SKILL.md)。
 - LLM provider-neutral 调用门面、stream、usage、tool call、JSON 输出和 provider adapter：`aifd-llm`。
 - RPC message、session、route、dispatcher、adapter：`aifd-rpc`。
 - saver、store、codec、Redis/memory 持久化抽象：`aifd-rdb`。
-- service/root runtime、Root、module/lifecycle：`aifd-runtime`，使用 `runtime-module-development`。
+- service/root runtime、Root、module/lifecycle：`aifd-runtime`，使用 [runtime-module-development](../runtime-module-development/SKILL.md)。
 - 客户端连接、gateway、session、delivery，以及显式 proxy-broker embedded NATS
   生命周期 adapter：`aifd-proxy`。
 - 日志门面、指标、trace、audit、stat sink、KindRouter 和 observe-agent：`aifd-observe`。
-- 集成测试机器人、行为树、run group、report：`aifd-robot`，使用 `robot-module-development`。
-- CLI、update、proto/config 命令入口、本地开发工具链安装与诊断：`aifd-tools`，服务入口变更使用 `service-entrypoint-development`。
+- 集成测试机器人、行为树、run group、report：`aifd-robot`，使用 [robot-module-development](../robot-module-development/SKILL.md)。
+- CLI、update、proto/config 命令入口、本地开发工具链安装与诊断：`aifd-tools`，服务入口变更使用 [service-entrypoint-development](../service-entrypoint-development/SKILL.md)。
 - AI 规则、技能、模板、检查清单：`aifd-rules`。
 - 示例用法和业务形态接线：`aifd-examples`。其中 `minigame` 展示完整游戏后端框架链路，`desktool` 展示桌面工具形态。
-- Wails 桌面壳、Go binding、React + Ant Design 页面、桌面登录流程、桌面整包更新流程：业务项目或 `aifd-examples/desktool`，使用 `desktop-app-development`；组件 API 查询叠加 `ant-design-ui-development`。
+- Wails 桌面壳、Go binding、React + Ant Design 页面、桌面登录流程、桌面整包更新流程：业务项目或 `aifd-examples/desktool`，使用 [desktop-app-development](../desktop-app-development/SKILL.md)；组件 API 查询叠加 [ant-design-ui-development](../ant-design-ui-development/SKILL.md)。
 - 官方可选功能能力，例如 mail、friend、guild、ranking：优先落到 `aifd-plugins/<name>` 或业务项目插件包；runtime 只接收其实现的 `root.Module` 或 `service.Module` 接口。
 - 具体业务 feature、业务 proto、业务配置表、业务生成物：业务项目。
 - 业务 prompt、provider key、额度策略、审计落库和 prompt 管理平台：业务项目或单独业务服务，不进入 `aifd-llm`。
@@ -83,3 +83,9 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 - 基础设施模块不得 import runtime 或业务项目。
 - 业务项目可以组合框架模块，但不应 import 框架 internal 包。
 - 示例不是生产 feature；`minigame` 展示框架链路而不是完整玩法内容，`desktool` 展示桌面工具形态，不要把示例里的业务名提升为框架概念。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [模块边界与职责依据](../../../docs/module-boundary.md)
+- [框架模块与用法入口](../../../README.zh-CN.md)

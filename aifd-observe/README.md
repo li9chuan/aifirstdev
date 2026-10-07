@@ -81,3 +81,9 @@ agent 初始化失败默认只应记录 warn 并让业务继续启动。只有�
 
 小版本可以增加事件字段或 adapter，但必须保持现有 sink 契约兼容。改变事件语义或
 sink 行为时必须明确说明兼容性影响。
+
+## 相关文档
+
+- [项目首页](../README.zh-CN.md)
+- [项目级编码约束](../aifd-rules/skills/project-coding-constraints/SKILL.md)
+- [服务入口开发](../aifd-rules/skills/service-entrypoint-development/SKILL.md)

@@ -97,3 +97,10 @@ description: 开发 aifd-runtime、业务 runtime feature 模块或可选功能�
 - 可用 memory/local adapter 测试。
 - 恢复完成前拒绝状态推进。
 - 不要求首批实现完整业务闭环。
+
+## 相关文档
+
+- [skills 索引](../README.md)
+- [runtime 组织原则](../../../docs/scope-runtime.md)
+- [Runtime 模块用法](../../../aifd-runtime/README.md)
+- [Feature 目录模板](../../templates/root-service-feature.md)

@@ -103,7 +103,7 @@ message MseMailDeleteRead {
 message MailAddRequest {
   MailType type = 1;
   MailBase base = 2;
-  repeated int64 root_id_list = 3;
+  repeated int64 uid_list = 3;
   int32 save_days = 4;
   repeated int32 target_realms = 5;
   repeated string group_keys = 6;

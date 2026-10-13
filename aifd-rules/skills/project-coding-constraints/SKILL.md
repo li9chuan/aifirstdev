@@ -1,6 +1,6 @@
 ---
 name: project-coding-constraints
-description: 编码、整理、重构、命名调整、问题分析或 review 后修代码时使用。适用于 aiFirstDev 项目的职责边界、最小业务门面、框架复杂度下沉、service/root 命名、可选功能插件、公开 API 收窄、文件组织、锁与拷贝、持久化、注释、日志、错误、测试边界和项目经验沉淀。
+description: 编码、整理、重构、命名调整、问题分析或 review 后修代码时使用。适用于 aiFirstDev 项目的职责边界、最小业务门面、框架复杂度下沉、service/user 命名、可选功能插件、公开 API 收窄、文件组织、锁与拷贝、持久化、注释、日志、错误、测试边界和项目经验沉淀。
 ---
 
 # 项目级编码约束
@@ -11,7 +11,7 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 
 - 先选择最小职责归属模块：`contracts`、`llm`、`schema`、`config`、`rpc`、`rdb`、`proxy`、`observe`、`robot`、`runtime`、`tools`、`rules`、`examples` 或业务项目。
 - 基础设施模块只放抽象、契约、适配和通用流程；业务 feature 真相、业务 proto、业务配置、生成物和玩法规则留在业务项目。
-- 可选框架能力包必须由应用入口显式组合，import 必须无副作用；不能用隐藏全局注册绕过启动 wiring，也不要在 `aifd-runtime/root` 或 `aifd-runtime/service` 下为 mail、friend、guild、ranking 这类功能建子目录。
+- 可选框架能力包必须由应用入口显式组合，import 必须无副作用；不能用隐藏全局注册绕过启动 wiring，也不要在 `aifd-runtime/user` 或 `aifd-runtime/service` 下为 mail、friend、guild、ranking 这类功能建子目录。
 - proxy-broker embedded NATS 属于 `aifd-proxy/adapters/nats/broker` 的显式入口能力；业务服
   只连接 broker 集群，不拥有或隐式启动 broker 生命周期。
 - 不把业务逻辑堆到 RPC handler、proxy route、工具命令、入口 wiring 或临时胶水层；handler 应调用拥有状态的 module。
@@ -51,8 +51,8 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 
 ## 命名与 API
 
-- 公开框架命名必须像业务可理解的后端能力，而不是实现细节或部署形态。runtime 公共语言使用 `service/root`；业务服务按领域命名，例如游戏示例的 `game/world` 或工具项目的 `workspace/index/jobs`。
-- 不把游戏词汇提升为框架概念。`Player/Game/World` 只属于游戏示例或业务 proto；非游戏项目使用自己的领域名，框架使用 `Root` 表达被 runtime 管理的业务根文档对象。
+- 公开框架命名必须像业务可理解的后端能力，而不是实现细节或部署形态。runtime 公共语言使用 `service/user`；业务服务按领域命名，例如游戏示例的 `game/world` 或工具项目的 `workspace/index/jobs`。
+- 不把游戏词汇提升为框架概念。`Player/Game/World` 只属于游戏示例或业务 proto；非游戏项目使用自己的领域名，框架使用 `User` 和 `UID` 表达用户业务文档；其他非用户状态按真实领域归属 service module。
 - `Get*` 表示读取且不触发创建、加载或 hook；`Calc*` 表示纯计算；`Validate*` 只做校验；`Is/Can/Has/Should*` 返回布尔；`Build/Make/New*` 构建对象；`Clone*` 必须表达真实拷贝边界。
 - 公开 API 重命名时同步更新 contracts、示例、文档、rules、测试和静态旧名检查，避免框架语言出现两套入口。
 - 新增 helper 前先搜索现有工具、模块内惯例和框架公共抽象。

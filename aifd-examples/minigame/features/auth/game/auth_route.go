@@ -1,18 +1,19 @@
 package game
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
-	runtimeroot "github.com/li9chuan/aifirstdev/aifd-runtime/root"
+	runtimeuser "github.com/li9chuan/aifirstdev/aifd-runtime/user"
 	"google.golang.org/protobuf/proto"
 )
 
 // RegisterRPC 注册 game host 登录确认 route。
-func RegisterRPC(reg *rpc.Registry, service *runtimeroot.Runtime[*pbmsg.DBPlayer]) error {
+func RegisterRPC(reg *rpc.Registry, service *runtimeuser.Runtime[*pbmsg.DBPlayer]) error {
 	if service == nil {
 		return fmt.Errorf("game runtime is nil")
 	}
@@ -22,7 +23,15 @@ func RegisterRPC(reg *rpc.Registry, service *runtimeroot.Runtime[*pbmsg.DBPlayer
 			s.ResponseAs(auth.TopicMseAuth, &pbmsg.MseAuth{Ret: auth.RetInvalidAuth})
 			return
 		}
-		owner, isNew, err := service.Activate(s.Context(), payload.GetUid())
+		owner, err := service.LoadUser(s.Context(), payload.GetUid())
+		isNew := false
+		if errors.Is(err, runtimeuser.ErrNotFound) {
+			owner, err = service.CreateUser(s.Context(), payload.GetUid())
+			isNew = err == nil
+			if errors.Is(err, runtimeuser.ErrAlreadyExists) {
+				owner, err = service.LoadUser(s.Context(), payload.GetUid())
+			}
+		}
 		if err != nil {
 			s.ResponseAs(auth.TopicMseAuth, &pbmsg.MseAuth{Ret: auth.RetGameFailed})
 			return

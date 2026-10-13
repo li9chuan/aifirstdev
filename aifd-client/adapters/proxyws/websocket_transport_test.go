@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
+	coderws "github.com/coder/websocket"
 	proxycodec "github.com/li9chuan/aifirstdev/aifd-proxy/codec"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
 	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
-	coderws "github.com/coder/websocket"
 )
 
 func TestWebSocketTransportSendEncodesProxyPacket(t *testing.T) {

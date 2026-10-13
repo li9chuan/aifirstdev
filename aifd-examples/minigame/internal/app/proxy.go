@@ -1,11 +1,13 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/li9chuan/aifirstdev/aifd-auth/token"
 	authproxy "github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth/proxy"
+	proxylocal "github.com/li9chuan/aifirstdev/aifd-proxy/adapters/local"
 	proxynats "github.com/li9chuan/aifirstdev/aifd-proxy/adapters/nats"
 	proxyws "github.com/li9chuan/aifirstdev/aifd-proxy/adapters/websocket"
 	proxyc "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
@@ -39,15 +41,16 @@ func NewProxyApp(bus rpc.Bus, verifier *token.Verifier, configs ...proxyws.FileC
 	if verifier == nil {
 		return nil, fmt.Errorf("token verifier is nil")
 	}
-	gateway := proxyruntime.NewGateway(nil, proxyruntime.NewRPCUpstream(bus))
 	delivery := proxyruntime.NewDelivery()
+	gateway := proxyruntime.NewGateway(nil, proxyruntime.NewRPCUpstream(bus, delivery))
 	var downlink downlinkCloser
 	if localBus, ok := bus.(*rpc.LocalBus); ok {
-		downlink = NewLocalDownlinkBridge(localBus, gateway, delivery)
+		downlink = proxylocal.NewDownlink(localBus, gateway, delivery)
 	} else if provider, ok := bus.(natsConnProvider); ok {
 		downlink = proxynats.NewDownlink(provider.NatsConn(), gateway, delivery, proxynats.Config{})
 	}
 	wsCfg := proxyws.Config{
+		Bus:             bus,
 		Gateway:         gateway,
 		Delivery:        delivery,
 		Downlink:        downlink,
@@ -67,6 +70,11 @@ func NewProxyApp(bus rpc.Bus, verifier *token.Verifier, configs ...proxyws.FileC
 
 // Close 停止示例本地 downlink 桥。
 func (a *ProxyApp) Close() error {
+	if a != nil {
+		if server, ok := a.Handler.(*proxyws.Server); ok {
+			_ = server.Close(context.Background())
+		}
+	}
 	if a != nil && a.Downlink != nil {
 		return a.Downlink.Close()
 	}

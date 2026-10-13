@@ -7,7 +7,7 @@
 桌面示例当前面向 Windows amd64，使用 Wails 3 beta.28。
 
 aiFirstDev 是面向 AI 优先开发的轻量后端框架，框架包共享一个根 Go module 和整套版本，
-两个示例以独立 Go module 加入本地 workspace。当前 runtime 先覆盖游戏后端，但框架组织语言使用 service/root
+两个示例以独立 Go module 加入本地 workspace。当前 runtime 先覆盖游戏后端，但框架组织语言使用 user/service
 runtime，业务应用按领域命名自己的后端服务，便于扩展到 Wails 工具、桌面应用和其他业务后端。
 
 框架目录保持明确的职责、接口和依赖边界，业务项目按正常方式编写 feature 代码；
@@ -24,7 +24,7 @@ runtime，业务应用按领域命名自己的后端服务，便于扩展到 Wai
 - [aifd-robot](aifd-robot/README.md)：集成测试机器人、运行组、行为和统计。
 - [aifd-rpc](aifd-rpc/README.md)：RPC 契约、路由、分发器和适配。
 - [aifd-rdb](aifd-rdb/README.md)：持久化 saver 原语和存储适配。
-- [aifd-runtime](aifd-runtime/README.md)：service/root runtime、root store、module lifecycle 和配置/lifecycle 辅助。
+- [aifd-runtime](aifd-runtime/README.md)：user/service runtime、user store、module lifecycle 和配置/lifecycle 辅助。
 - [aifd-schema](aifd-schema/README.md)：proto/message 描述、兼容性检查和 RPC 绑定。
 - [aifd-tools](aifd-tools/README.md)：CLI、工具安装和预留的更新命令。
 - [aifd-rules](aifd-rules/README.md)：AI 规则、skills、模板和 checklist。
@@ -54,7 +54,7 @@ aifd-runtime           |
 `aifd-config`、`aifd-llm`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、
 `aifd-rpc`、`aifd-rdb` 和 `aifd-schema` 不理解 player、world、feature、DBPlayer、
 具体 `.proto` 文件、真实 Luban 表或业务 prompt 策略。`aifd-runtime` 负责提供
-`service.Service` 和 `root.Runtime`；游戏、玩家、世界等词汇只属于业务示例，不是框架公共 API。
+`service.Service` 和 `user.Runtime`；游戏、玩家、世界等词汇只属于业务示例，不是框架公共 API。
 
 当前仍处于新框架设计阶段。框架 API 优先破坏式收敛到最小业务门面，不为旧实验接口保留
 兼容 wrapper；复杂度应沉到框架层，业务项目只接触必要的业务参数和领域对象。
@@ -73,7 +73,7 @@ Scope runtime 的组织原则见 [docs/scope-runtime.md](docs/scope-runtime.md)�
 AI 优先指开发工作流：通过仓库规则、skills、模板和可复现检查，帮助 AI 在模块边界内开发。
 应用运行时不要求接入 LLM；`aifd-llm` 是可选模块。
 
-安装 Go 1.26 或更新版本和 Git，启动内存存储后端示例：
+安装 Go 1.27 或更新版本和 Git，启动内存存储后端示例：
 
 ```powershell
 git clone https://github.com/li9chuan/aifirstdev.git
@@ -112,7 +112,7 @@ go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.2.0
 
 ## 构建与验证
 
-需要 Go 1.26 或更新版本、Node.js 22.12 或更新版本及 npm，以及 PowerShell 5.1 或 7。
+需要 Go 1.27 或更新版本、Node.js 22.12 或更新版本及 npm，以及 PowerShell 5.1 或 7。
 将 `go`、`node`、`npm` 加入 PATH，在仓库根目录执行：
 
 ```powershell

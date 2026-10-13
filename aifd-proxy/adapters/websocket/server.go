@@ -5,16 +5,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	log "github.com/li9chuan/aifirstdev/aifd-observe/logging"
 	"net/http"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	coderws "github.com/coder/websocket"
 	proxycodec "github.com/li9chuan/aifirstdev/aifd-proxy/codec"
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
 	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
-	coderws "github.com/coder/websocket"
+	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
 )
 
 const (
@@ -70,17 +73,30 @@ func (f DuplicateHandlerFunc) ResolveDuplicate(ctx context.Context, req Duplicat
 	return f(ctx, req)
 }
 
-// SessionLifecycle 接收 proxy session 断线事件。
+// SessionLifecycle owns authenticated connection activation and shutdown notices.
 type SessionLifecycle interface {
-	OnDisconnect(context.Context, proxyruntime.Session) error
+	OnConnect(context.Context, proxyruntime.Session) error
+	OnDisconnect(context.Context, proxyruntime.Session, proxypb.SessionEndReason) error
 }
 
-// SessionLifecycleFunc 将函数适配为 SessionLifecycle。
-type SessionLifecycleFunc func(context.Context, proxyruntime.Session) error
+// SessionLifecycleFuncs adapts optional application lifecycle hooks.
+type SessionLifecycleFuncs struct {
+	Connected    func(context.Context, proxyruntime.Session) error
+	Disconnected func(context.Context, proxyruntime.Session, proxypb.SessionEndReason) error
+}
 
-// OnDisconnect 调用被包装的断线函数。
-func (f SessionLifecycleFunc) OnDisconnect(ctx context.Context, session proxyruntime.Session) error {
-	return f(ctx, session)
+func (f SessionLifecycleFuncs) OnConnect(ctx context.Context, session proxyruntime.Session) error {
+	if f.Connected == nil {
+		return nil
+	}
+	return f.Connected(ctx, session)
+}
+
+func (f SessionLifecycleFuncs) OnDisconnect(ctx context.Context, session proxyruntime.Session, reason proxypb.SessionEndReason) error {
+	if f.Disconnected == nil {
+		return nil
+	}
+	return f.Disconnected(ctx, session, reason)
 }
 
 // Config 配置 websocket 客户端入口。
@@ -100,11 +116,15 @@ type Config struct {
 	Downlink         proxy.DownlinkSubscriber
 	DuplicateHandler DuplicateHandler
 	Lifecycle        SessionLifecycle
+	HandshakeHandler proxy.HandshakeHandler
+	Bus              rpc.Bus
 }
 
 // Server 是 websocket client adapter，可直接作为 http.Handler 使用。
 type Server struct {
-	cfg Config
+	cfg          Config
+	membershipMu sync.Locker
+	closed       atomic.Bool
 }
 
 var connectionSeq atomic.Uint64
@@ -119,6 +139,15 @@ type loginHandlerValidator interface {
 
 // NewServer 创建 websocket client adapter。
 func NewServer(cfg Config) *Server {
+	if cfg.Delivery == nil {
+		cfg.Delivery = proxyruntime.NewDelivery()
+	}
+	if cfg.Gateway == nil && cfg.Bus != nil {
+		cfg.Gateway = proxyruntime.NewGateway(nil, proxyruntime.NewRPCUpstream(cfg.Bus, cfg.Delivery))
+	}
+	if cfg.Lifecycle == nil && cfg.Bus != nil {
+		cfg.Lifecycle = proxyruntime.NewRPCSessionLifecycle(cfg.Bus)
+	}
 	if cfg.MaxMessageBytes <= 0 {
 		cfg.MaxMessageBytes = defaultMaxMessageBytes
 	}
@@ -137,13 +166,34 @@ func NewServer(cfg Config) *Server {
 	if cfg.DuplicatePolicy == "" {
 		cfg.DuplicatePolicy = DuplicateKickOld
 	}
-	return &Server{cfg: cfg}
+	var membership sync.Locker = &sync.Mutex{}
+	if cfg.Gateway != nil {
+		membership = cfg.Gateway.MembershipLock()
+	}
+	return &Server{cfg: cfg, membershipMu: membership}
 }
 
 // ServeHTTP 接受 websocket 连接并启动 packet 读循环。
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if s != nil && s.closed.Load() {
+		http.Error(w, "proxy is closed", http.StatusServiceUnavailable)
+		return
+	}
 	if err := s.Validate(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var handshake proxy.HandshakeResult
+	if s.cfg.HandshakeHandler != nil {
+		var err error
+		handshake, err = s.cfg.HandshakeHandler.AuthenticateHandshake(r.Context(), proxy.AuthRequest{Token: r.URL.Query().Get("token"), RemoteAddr: r.RemoteAddr, Header: headerSnapshot(r.Header)})
+		if err != nil || handshake.Handled && handshake.Identity.UID <= 0 {
+			http.Error(w, "authentication failed", http.StatusUnauthorized)
+			return
+		}
+	}
+	if !handshake.Handled && s.cfg.LoginHandler == nil {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
 		return
 	}
 	ws, err := coderws.Accept(w, r, nil)
@@ -155,6 +205,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := s.cfg.Delivery.Add(conn); err != nil {
 		_ = conn.Close(r.Context())
 		return
+	}
+	defer s.cleanup(r.Context(), conn.ID())
+	if handshake.Handled {
+		if err := s.activateConnection(r.Context(), conn, handshake.Identity); err != nil {
+			return
+		}
+		if handshake.InitialMessage != nil {
+			initial := handshake.InitialMessage.Clone()
+			delete(initial.Header, rpc.HeaderClientInbox)
+			if err := conn.Send(r.Context(), initial); err != nil {
+				return
+			}
+		}
 	}
 	s.serveConn(r.Context(), conn, r)
 }
@@ -171,6 +234,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}()
 	select {
 	case <-ctx.Done():
+		_ = s.Close(context.Background())
 		shutdownErr := srv.Shutdown(context.Background())
 		if shutdownErr != nil {
 			return shutdownErr
@@ -186,7 +250,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 // Validate 检查 websocket server 的依赖、登录 topic 和 handler 配置。
 func (s *Server) Validate() error {
-	if s == nil || s.cfg.Gateway == nil || s.cfg.Delivery == nil || s.cfg.LoginHandler == nil {
+	if s == nil || s.cfg.Gateway == nil || s.cfg.Delivery == nil || s.cfg.LoginHandler == nil && s.cfg.HandshakeHandler == nil {
 		return ErrConfigMissing
 	}
 	if validator, ok := s.cfg.LoginHandler.(loginHandlerValidator); ok {
@@ -269,7 +333,7 @@ func (s *Server) serveConn(ctx context.Context, conn *Connection, req *http.Requ
 }
 
 func (s *Server) handleLogin(ctx context.Context, conn *Connection, req *http.Request, msg rpc.Message) (bool, error) {
-	if msg.Name != s.cfg.LoginTopic {
+	if msg.Name != s.cfg.LoginTopic || s.cfg.LoginHandler == nil {
 		_ = conn.CloseWithStatus(coderws.StatusPolicyViolation, "login required")
 		return false, ErrLoginRejected
 	}
@@ -294,23 +358,14 @@ func (s *Server) handleLogin(ctx context.Context, conn *Connection, req *http.Re
 		}
 		return true, nil
 	}
-	if err := s.applyDuplicatePolicy(ctx, conn, result.Identity); err != nil {
+	if err := s.activateConnection(ctx, conn, result.Identity); err != nil {
 		return false, err
-	}
-	if _, err := s.cfg.Gateway.AcceptIdentity(conn, result.Identity); err != nil {
-		_ = conn.CloseWithStatus(coderws.StatusPolicyViolation, err.Error())
-		return false, err
-	}
-	if s.cfg.Downlink != nil {
-		if err := s.cfg.Downlink.SubscribeUID(result.Identity.UID); err != nil {
-			_, _ = s.cfg.Gateway.DisconnectSession(conn.ID())
-			_ = conn.CloseWithStatus(coderws.StatusPolicyViolation, err.Error())
-			return false, err
-		}
 	}
 	if result.Response != nil {
 		preserveClientInbox(msg, result.Response)
-		_ = conn.Send(ctx, *result.Response)
+		if err := conn.Send(ctx, *result.Response); err != nil {
+			return false, err
+		}
 	}
 	if result.CloseAfterResponse {
 		_ = conn.Close(ctx)
@@ -341,82 +396,146 @@ func (s *Server) handlePublic(ctx context.Context, conn *Connection, req *http.R
 	return true, nil
 }
 
-func (s *Server) applyDuplicatePolicy(ctx context.Context, conn *Connection, identity proxy.Identity) error {
-	existing := s.cfg.Gateway.SessionsByUID(identity.UID)
-	if len(existing) == 0 {
-		return nil
-	}
+func (s *Server) duplicateDecision(ctx context.Context, conn *Connection, identity proxy.Identity) (DuplicateDecision, error) {
 	decision := DuplicateDecision{Policy: s.cfg.DuplicatePolicy}
-	if s.cfg.DuplicateHandler != nil {
-		custom, err := s.cfg.DuplicateHandler.ResolveDuplicate(ctx, DuplicateContext{
-			NewConnectionID: conn.ID(),
-			Identity:        identity,
-			Existing:        existing,
-		})
+	existing := s.cfg.Gateway.SessionsByUID(identity.UID)
+	if len(existing) > 0 && s.cfg.DuplicateHandler != nil {
+		custom, err := s.cfg.DuplicateHandler.ResolveDuplicate(ctx, DuplicateContext{NewConnectionID: conn.ID(), Identity: identity, Existing: existing})
 		if err != nil {
-			_ = conn.CloseWithStatus(coderws.StatusPolicyViolation, err.Error())
-			return err
+			return decision, err
 		}
 		if custom.Policy != "" {
 			decision.Policy = custom.Policy
 		}
-		decision.Response = custom.Response
-		decision.CloseAfterResponse = custom.CloseAfterResponse
+		decision.Response, decision.CloseAfterResponse = custom.Response, custom.CloseAfterResponse
 	}
+	return decision, nil
+}
+
+// activateConnection is shared by HTTP handshake and packet login. Membership and
+// first/last downlink subscription changes are serialized; business hooks and socket
+// writes run after releasing the membership lock.
+func (s *Server) activateConnection(ctx context.Context, conn *Connection, identity proxy.Identity) error {
+	decision, err := s.duplicateDecision(ctx, conn, identity)
+	if err != nil {
+		return err
+	}
+	s.membershipMu.Lock()
+	if s.closed.Load() {
+		s.membershipMu.Unlock()
+		return ErrConfigMissing
+	}
+	existing := s.cfg.Gateway.SessionsByUID(identity.UID)
+	var removed []proxyruntime.Session
 	switch decision.Policy {
 	case DuplicateAllow:
-		return nil
 	case DuplicateRejectNew:
+		if len(existing) > 0 {
+			err = ErrLoginRejected
+		}
+	case DuplicateKickOld:
+		for _, old := range existing {
+			if current, ok := s.cfg.Gateway.DisconnectSession(old.ConnectionID); ok {
+				removed = append(removed, current)
+			}
+		}
+	default:
+		err = fmt.Errorf("invalid duplicate policy %q", decision.Policy)
+	}
+	var session proxyruntime.Session
+	if err == nil {
+		session, err = s.cfg.Gateway.AcceptIdentity(conn, identity)
+		if err == nil && s.cfg.Downlink != nil && len(existing) == 0 {
+			err = s.cfg.Downlink.SubscribeUID(identity.UID)
+			if err != nil {
+				_, _ = s.cfg.Gateway.DisconnectSession(conn.ID())
+				if len(s.cfg.Gateway.ConnectionIDs(identity.UID)) == 0 {
+					_ = s.cfg.Downlink.UnsubscribeUID(identity.UID)
+				}
+			}
+		}
+	}
+	s.membershipMu.Unlock()
+	for _, old := range removed {
+		s.closeSessionAsync(ctx, old, proxypb.SessionEndReason_SESSION_END_REASON_REPLACED)
+	}
+	if err != nil {
 		if decision.Response != nil {
 			_ = conn.Send(ctx, *decision.Response)
 		}
-		if decision.CloseAfterResponse || decision.Response == nil {
-			_ = conn.Close(ctx)
-		}
-		return ErrLoginRejected
-	case DuplicateKickOld:
-		for _, session := range existing {
-			removed, ok := s.cfg.Gateway.DisconnectSession(session.ConnectionID)
-			if !ok {
-				continue
-			}
-			s.closeSessionAsync(ctx, removed)
-		}
-		return nil
-	default:
-		_ = conn.CloseWithStatus(coderws.StatusPolicyViolation, "invalid duplicate policy")
-		return fmt.Errorf("invalid duplicate policy %q", decision.Policy)
+		s.cleanup(ctx, conn.ID())
+		_ = conn.CloseWithStatus(coderws.StatusPolicyViolation, err.Error())
+		return err
 	}
+	if s.cfg.Lifecycle != nil {
+		if err := s.cfg.Lifecycle.OnConnect(ctx, session); err != nil {
+			s.cleanup(ctx, conn.ID())
+			_ = conn.CloseWithStatus(coderws.StatusPolicyViolation, err.Error())
+			return err
+		}
+	}
+	if _, ok := s.cfg.Gateway.Session(conn.ID()); s.closed.Load() || !ok {
+		s.cleanup(ctx, conn.ID())
+		return ErrLoginRejected
+	}
+	return nil
 }
 
 func (s *Server) cleanup(ctx context.Context, connID string) {
-	if session, ok := s.cfg.Gateway.DisconnectSession(connID); ok {
-		s.closeSession(ctx, session)
+	s.membershipMu.Lock()
+	session, ok := s.cfg.Gateway.DisconnectSession(connID)
+	s.membershipMu.Unlock()
+	if ok {
+		s.closeSession(ctx, session, proxypb.SessionEndReason_SESSION_END_REASON_DISCONNECTED)
 		return
 	}
 	_ = s.cfg.Delivery.Close(ctx, connID)
 }
 
-func (s *Server) closeSession(ctx context.Context, session proxyruntime.Session) {
-	_ = s.cfg.Delivery.Close(ctx, session.ConnectionID)
-	s.afterSessionDisconnect(ctx, session)
+func (s *Server) closeSession(ctx context.Context, session proxyruntime.Session, reason proxypb.SessionEndReason) {
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	_ = s.cfg.Delivery.Close(closeCtx, session.ConnectionID)
+	s.afterSessionDisconnect(closeCtx, session, reason)
 }
 
-func (s *Server) closeSessionAsync(ctx context.Context, session proxyruntime.Session) {
+func (s *Server) closeSessionAsync(ctx context.Context, session proxyruntime.Session, reason proxypb.SessionEndReason) {
 	go func(connID string) {
-		_ = s.cfg.Delivery.Close(context.Background(), connID)
+		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = s.cfg.Delivery.Close(closeCtx, connID)
 	}(session.ConnectionID)
-	s.afterSessionDisconnect(ctx, session)
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	s.afterSessionDisconnect(closeCtx, session, reason)
 }
 
-func (s *Server) afterSessionDisconnect(ctx context.Context, session proxyruntime.Session) {
+func (s *Server) afterSessionDisconnect(ctx context.Context, session proxyruntime.Session, reason proxypb.SessionEndReason) {
 	uid := session.Identity.UID
+	s.membershipMu.Lock()
 	if uid > 0 && len(s.cfg.Gateway.ConnectionIDs(uid)) == 0 && s.cfg.Downlink != nil {
 		_ = s.cfg.Downlink.UnsubscribeUID(uid)
 	}
+	s.membershipMu.Unlock()
 	if s.cfg.Lifecycle != nil {
-		_ = s.cfg.Lifecycle.OnDisconnect(ctx, session)
+		if err := s.cfg.Lifecycle.OnDisconnect(ctx, session, reason); err != nil {
+			log.Warnf("proxy close notice UID=%d connection=%s reason=%s: %v", uid, session.ConnectionID, reason.String(), err)
+		}
 	}
+}
+
+// Close closes authenticated sockets and emits per-connection shutdown notices.
+func (s *Server) Close(ctx context.Context) error {
+	s.closed.Store(true)
+	for _, current := range s.cfg.Gateway.Sessions() {
+		s.membershipMu.Lock()
+		removed, ok := s.cfg.Gateway.DisconnectSession(current.ConnectionID)
+		s.membershipMu.Unlock()
+		if ok {
+			s.closeSession(ctx, removed, proxypb.SessionEndReason_SESSION_END_REASON_SHUTDOWN)
+		}
+	}
+	return s.cfg.Delivery.CloseAll(ctx)
 }
 
 func (s *Server) isPing(topic string) bool {

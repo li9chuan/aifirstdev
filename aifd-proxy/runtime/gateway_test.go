@@ -1,7 +1,8 @@
-package runtime
+package runtime_test
 
 import (
 	"context"
+	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
 	"testing"
 
 	"github.com/li9chuan/aifirstdev/aifd-proxy/adapters/local"
@@ -12,10 +13,10 @@ import (
 func TestGatewayAcceptReceiveAndDeliver(t *testing.T) {
 	ctx := context.Background()
 	upstream := local.NewUpstreamRecorder()
-	gateway := NewGateway(proxy.AuthenticatorFunc(func(context.Context, proxy.AuthRequest) (proxy.Identity, error) {
+	gateway := proxyruntime.NewGateway(proxy.AuthenticatorFunc(func(context.Context, proxy.AuthRequest) (proxy.Identity, error) {
 		return proxy.Identity{UID: 1001, Account: "account-1", ServerID: 1}, nil
 	}), upstream)
-	delivery := NewDelivery()
+	delivery := proxyruntime.NewDelivery()
 	conn := local.NewConnection("conn-1")
 	if err := delivery.Add(conn); err != nil {
 		t.Fatalf("delivery Add error = %v", err)
@@ -60,7 +61,7 @@ func TestGatewayAcceptReceiveAndDeliver(t *testing.T) {
 }
 
 func TestGatewayAcceptIdentitySessionsByUIDAndDisconnectSession(t *testing.T) {
-	gateway := NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil }))
+	gateway := proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil }))
 	conn1 := local.NewConnection("conn-1")
 	conn2 := local.NewConnection("conn-2")
 	if _, err := gateway.AcceptIdentity(conn1, proxy.Identity{UID: 1001, Account: "a"}); err != nil {
@@ -85,7 +86,7 @@ func TestGatewayAcceptIdentitySessionsByUIDAndDisconnectSession(t *testing.T) {
 
 func TestDeliveryCloseClosesAndRemovesConnection(t *testing.T) {
 	ctx := context.Background()
-	delivery := NewDelivery()
+	delivery := proxyruntime.NewDelivery()
 	conn := local.NewConnection("conn-1")
 	if err := delivery.Add(conn); err != nil {
 		t.Fatalf("Add error = %v", err)
@@ -96,7 +97,7 @@ func TestDeliveryCloseClosesAndRemovesConnection(t *testing.T) {
 	if !conn.Closed() {
 		t.Fatal("connection not closed")
 	}
-	if err := delivery.Send(ctx, "conn-1", rpc.Message{Name: "MsePong"}); err != ErrConnectionNotFound {
-		t.Fatalf("Send after close error = %v, want ErrConnectionNotFound", err)
+	if err := delivery.Send(ctx, "conn-1", rpc.Message{Name: "MsePong"}); err != proxyruntime.ErrConnectionNotFound {
+		t.Fatalf("Send after close error = %v, want proxyruntime.ErrConnectionNotFound", err)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/li9chuan/aifirstdev/aifd-client/adapters/proxyws"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg"
+	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
 )
 
 const defaultTimeout = 10 * time.Second
@@ -94,6 +95,12 @@ func (c *Client) Login(ctx context.Context, req *pbmsg.MceAuth) (pbmsg.MseAuth, 
 		if rsp.GetRet() != auth.RetOK {
 			return rsp, fmt.Errorf("minigame auth failed ret=%d", rsp.GetRet())
 		}
+		if err:=c.rpc.StartHeartbeat(aifdclient.HeartbeatOptions{Probe:func(ctx context.Context)error{
+			var reply proxypb.MseSessionHeartbeat
+			if err:=c.rpc.Request(ctx,&proxypb.MceSessionHeartbeat{},&reply);err!=nil{return err}
+			if reply.GetServerTimeUnixMs()<=0{return fmt.Errorf("heartbeat clock is missing")}
+			return nil
+		},OnLost:func(error){_ = c.rpc.Close()}});err!=nil{return rsp,err}
 		return rsp, nil
 	}
 }

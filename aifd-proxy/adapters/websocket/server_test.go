@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
+	coderws "github.com/coder/websocket"
 	proxycodec "github.com/li9chuan/aifirstdev/aifd-proxy/codec"
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
 	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
 	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
-	coderws "github.com/coder/websocket"
 )
 
 func TestServerUsesLoginHandlerTopicWhenConfigEmpty(t *testing.T) {
@@ -431,8 +431,8 @@ func TestDuplicateKickOldClosesExistingConnection(t *testing.T) {
 	if ids := gateway.ConnectionIDs(1001); len(ids) != 1 {
 		t.Fatalf("ConnectionIDs = %v, want 1 connection", ids)
 	}
-	if got := downlink.unsubscriptions(); len(got) != 1 || got[0] != 1001 {
-		t.Fatalf("unsubscriptions = %v, want [1001]", got)
+	if got := downlink.unsubscriptions(); len(got) != 0 {
+		t.Fatalf("replacement dropped live UID subscription: %v", got)
 	}
 }
 
@@ -472,10 +472,10 @@ func TestCleanupUnsubscribesLastConnectionAndCallsLifecycle(t *testing.T) {
 		Gateway:  proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery: proxyruntime.NewDelivery(),
 		Downlink: downlink,
-		Lifecycle: SessionLifecycleFunc(func(_ context.Context, session proxyruntime.Session) error {
+		Lifecycle: SessionLifecycleFuncs{Disconnected: func(_ context.Context, session proxyruntime.Session, _ proxypb.SessionEndReason) error {
 			disconnected <- session
 			return nil
-		}),
+		}},
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) {
 			return proxy.LoginResult{
 				Identity: proxy.Identity{UID: 1001, Account: "account-1"},

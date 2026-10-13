@@ -33,6 +33,12 @@ protobuf message。业务状态变更应发生在拥有职责的 runtime 或 fea
 `Header`、`Bus`。成功回包使用 `s.Response(pb)`，失败回包使用 `s.Error(code, message)`，
 服务间调用通过 `s.Tell`、`s.Request`、`s.Forward` 表达。
 
+`Response/Error` 只完成原调用的响应通道；没有 responder 时明确失败，不使用 UID
+Push 兜底。`Forward` 保留原响应通道，异步取得被转发结果，避免同 UID runner 内
+嵌套阻塞。`Push/PushTo` 发布独立用户事件，自动清除客户端 inbox。Local/NATS
+保持相同语义。普通用户业务可使用 [UserRuntime](../aifd-runtime/README.md) 自动加载并
+注入 User；非用户路由仍使用本模块入口。
+
 推荐用法：
 
 - 业务 feature 的 `RegisterRPC` 接收 `*rpc.Registry`，由启动层统一 `rpc.Install` 到真实 bus。

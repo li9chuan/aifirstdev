@@ -47,9 +47,20 @@ cli, err := aifdclient.New(transport, aifdclient.Options{AwaitTimeout: 10 * time
 不解码业务响应。`Call/CallAs` 的远端失败通过 callback 报告：`rsp == nil`，`err != nil`；
 `Call` 的直接返回值仍表示本地发送结果。这些 await 调用均需先调用 `Start()`。
 
-旧服务端的空 `RPCError` 包返回 `INTERNAL / rpc request failed`。错误码和消息的 WS
-传输需要修复后的服务端 codec；旧 Go 客户端仍需升级。损坏的非空 `RPCError` body 按
+空 `RPCError` 包返回 `INTERNAL / rpc request failed`。错误码和消息由服务端 codec
+编码在 RPCError PB 中，客户端在业务解码前识别。损坏的非空 `RPCError` body 按
 协议解码失败结束连接和等待请求；普通的空 protobuf 成功回包仍然成功。
+
+认证成功后，`StartHeartbeat(HeartbeatOptions{Probe, OnLost})` 调度串行、有期限的
+端到端 Probe。业务用自己的强类型 Request 校验响应；无业务心跳可使用
+`MceSessionHeartbeat/MseSessionHeartbeat`。默认间隔 30 秒、超时 10 秒、连续失败
+2 次通知失联。Go Probe 必须遵守 Context，调度器不会强杀不合作的回调。
+StopHeartbeat 和显式 Close 取消当前 Probe，不报失联；异常断连或连续失败最多
+触发一次 OnLost，回调可安全 Close。Web SDK 提供相同语义及 AbortSignal。
+
+inbox 为 0 的 UID 事件通过 `On/OnAs` 独立消费，不完成待返回的 Call。不同设备
+可以使用相同 inbox；响应仍只回原连接。重连重新读取业务事实，不从在线 Push
+历史推断离线同步。详见 [业务调用规则](../aifd-rules/skills/feature-development/references/rpc-user-and-multidevice.md)。
 
 ## 相关文档
 

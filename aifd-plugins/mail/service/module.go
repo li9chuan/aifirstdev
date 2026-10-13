@@ -222,11 +222,11 @@ func (m *Module) Add(ctx context.Context, req *mailpb.MailAddRequest) mailpb.Mai
 }
 
 func (m *Module) addPersonal(ctx context.Context, req *mailpb.MailAddRequest) mailpb.MailAddResponse {
-	if len(req.GetRootIdList()) == 0 {
+	if len(req.GetUidList()) == 0 {
 		return failResponse(mail.RetInvalid, "personal mail requires root ids")
 	}
 	out := mailpb.MailAddResponse{Ret: mail.RetOK}
-	for _, rootID := range req.GetRootIdList() {
+	for _, rootID := range req.GetUidList() {
 		if rootID <= 0 {
 			continue
 		}

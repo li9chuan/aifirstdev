@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	coderws "github.com/coder/websocket"
 	proxycodec "github.com/li9chuan/aifirstdev/aifd-proxy/codec"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
-	coderws "github.com/coder/websocket"
 )
 
 var (

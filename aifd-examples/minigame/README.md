@@ -5,13 +5,13 @@
 `minigame` 是一个完整游戏后端框架示例，用于展示业务服务、proxy、account、runtime、
 rdb、config、observe、robot 和 split/all-in-one 入口如何组合成游戏后端框架链路。
 它不是完整玩法内容或真实线上运营系统。
-它按业务领域命名自己的 `game/world` 服务，内部组合框架的 `runtime/root` 和 `runtime/service`。
+它按业务领域命名自己的 `game/world` 服务，内部组合框架的 `runtime/user` 和 `runtime/service`。
 游戏里的 `DBPlayer` 只是业务 proto 名。
 
 ## 负责
 
 - `account demo login -> MAuthPayload + token -> proxy LoginHandler -> Game.AuthOK -> MseAuth` 登录流程。
-- `MceCounterAdd -> game root module -> DBPlayer -> MseCounterState` 业务功能接入方式。
+- `MceCounterAdd -> game user module -> DBPlayer -> MseCounterState` 业务功能接入方式。
 - counter world service module 的恢复、启动、内部 RPC 和独立 world 统计状态。
 - 内存配置快照、validator、observe memory recorder 的业务接入方式。
 - 业务项目自己的 `proto/`、`generated/pbmsg/`、`features/auth/` 和 `cmd/` 组织方式。
@@ -74,7 +74,7 @@ go run ./cmd/game --conf ./configs/service.example.toml
 ```
 
 `cmd/world` 只组 service lifecycle 和 `Counter.GlobalAdd` route；`cmd/game` 只组 game
-业务 route 和 root runtime；`cmd/proxy` 只组 WebSocket proxy、token verifier、
+业务 route 和 user runtime；`cmd/proxy` 只组 WebSocket proxy、token verifier、
 LoginHandler、RPC bus 和可选 embedded broker；`cmd/minigame` 才是 all-in-one demo。
 `--addr`、`--pprof` 和 `--metrics` 这类实例参数仍由命令行提供；共享配置文件只放 log、
 NATS、Redis、proxy 和 proxy-broker 行为配置。`cmd/game` 和 `cmd/world` 可用 `--nats`

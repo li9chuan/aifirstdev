@@ -14,7 +14,7 @@ import (
 	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/mailbox"
 	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/store"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
-	runtimeroot "github.com/li9chuan/aifirstdev/aifd-runtime/root"
+	runtimeuser "github.com/li9chuan/aifirstdev/aifd-runtime/user"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -24,14 +24,14 @@ const (
 
 // GroupResolver returns the group mail keys a root should receive.
 type GroupResolver[T proto.Message] interface {
-	MailGroupKeys(context.Context, *runtimeroot.Root[T]) ([]string, error)
+	MailGroupKeys(context.Context, *runtimeuser.User[T]) ([]string, error)
 }
 
 // GroupResolverFunc adapts a function into GroupResolver.
-type GroupResolverFunc[T proto.Message] func(context.Context, *runtimeroot.Root[T]) ([]string, error)
+type GroupResolverFunc[T proto.Message] func(context.Context, *runtimeuser.User[T]) ([]string, error)
 
 // MailGroupKeys calls the wrapped function.
-func (f GroupResolverFunc[T]) MailGroupKeys(ctx context.Context, root *runtimeroot.Root[T]) ([]string, error) {
+func (f GroupResolverFunc[T]) MailGroupKeys(ctx context.Context, root *runtimeuser.User[T]) ([]string, error) {
 	if f == nil {
 		return nil, nil
 	}
@@ -56,7 +56,7 @@ type Module[T proto.Message] struct {
 	observe       observe.Sink
 	clock         mail.Clock
 	groupResolver GroupResolver[T]
-	moduleCtx     runtimeroot.ModuleContext[T]
+	moduleCtx     runtimeuser.ModuleContext[T]
 	realmID       int32
 	listLimit     int
 }
@@ -81,12 +81,12 @@ func NewModule[T proto.Message](opts Options[T]) *Module[T] {
 	return module
 }
 
-// Descriptor returns the root module descriptor.
+// Descriptor returns the user module descriptor.
 func (m *Module[T]) Descriptor() base.ModuleDescriptor {
 	return base.ModuleDescriptor{
 		ID:      "aifd.plugins.mail.root",
 		Version: "v0.1.0",
-		Kind:    base.ModuleKindRoot,
+		Kind:    base.ModuleKindUser,
 		Provides: []base.Capability{
 			{Kind: "rpc", Name: mail.TopicMceMailGet},
 			{Kind: "rpc", Name: mail.TopicMceMailList},
@@ -97,25 +97,20 @@ func (m *Module[T]) Descriptor() base.ModuleDescriptor {
 	}
 }
 
-// BindModuleContext stores the active root lookup for optional group resolution.
-func (m *Module[T]) BindModuleContext(moduleCtx runtimeroot.ModuleContext[T]) error {
+// BindModuleContext stores the resident user lookup for optional group resolution.
+func (m *Module[T]) BindModuleContext(moduleCtx runtimeuser.ModuleContext[T]) error {
 	if m == nil {
-		return fmt.Errorf("mail root module is nil")
+		return fmt.Errorf("mail user module is nil")
 	}
 	m.moduleCtx = moduleCtx
 	return nil
 }
 
 // OnLoad validates dependencies before a root can use mailbox RPCs.
-func (m *Module[T]) OnLoad(context.Context, *runtimeroot.Root[T]) error {
+func (m *Module[T]) OnLoad(context.Context, *runtimeuser.User[T]) error {
 	if m == nil || m.mailbox == nil {
 		return fmt.Errorf("mail root mailbox manager is nil")
 	}
-	return nil
-}
-
-// OnActivate currently has no root activation side effects.
-func (m *Module[T]) OnActivate(context.Context, *runtimeroot.Root[T]) error {
 	return nil
 }
 
@@ -124,36 +119,39 @@ func (m *Module[T]) RegisterRPC(reg *rpc.Registry) error {
 	if m == nil || m.mailbox == nil {
 		return fmt.Errorf("mail root mailbox manager is nil")
 	}
-	if err := rpc.Client(reg, mail.TopicMceMailGet, func(s *rpc.Session, req *mailpb.MceMailGet) {
+	runtime := m.moduleCtx.Runtime()
+	if runtime == nil {
+		return fmt.Errorf("mail user runtime is missing")
+	}
+	if err := runtime.Client(mail.TopicMceMailGet, func(s *rpc.Session, _ *runtimeuser.User[T], req *mailpb.MceMailGet) {
 		s.ResponseAs(mail.TopicMseMailGet, m.Get(s.Context(), s.UID(), req))
 	}); err != nil {
 		return err
 	}
-	if err := rpc.Client(reg, mail.TopicMceMailList, func(s *rpc.Session, req *mailpb.MceMailList) {
-		activeRoot, _ := m.moduleCtx.GetRoot(s.UID())
+	if err := runtime.Client(mail.TopicMceMailList, func(s *rpc.Session, activeRoot *runtimeuser.User[T], req *mailpb.MceMailList) {
 		s.ResponseAs(mail.TopicMseMailList, m.List(s.Context(), s.UID(), activeRoot, req))
 	}); err != nil {
 		return err
 	}
-	if err := rpc.Client(reg, mail.TopicMceMailRead, func(s *rpc.Session, req *mailpb.MceMailRead) {
+	if err := runtime.Client(mail.TopicMceMailRead, func(s *rpc.Session, _ *runtimeuser.User[T], req *mailpb.MceMailRead) {
 		s.ResponseAs(mail.TopicMseMailRead, m.Read(s.Context(), s.UID(), req))
 	}); err != nil {
 		return err
 	}
-	if err := rpc.Client(reg, mail.TopicMceMailClaim, func(s *rpc.Session, req *mailpb.MceMailClaim) {
+	if err := runtime.Client(mail.TopicMceMailClaim, func(s *rpc.Session, _ *runtimeuser.User[T], req *mailpb.MceMailClaim) {
 		s.ResponseAs(mail.TopicMseMailClaim, m.Claim(s.Context(), s.UID(), req))
 	}); err != nil {
 		return err
 	}
-	return rpc.Client(reg, mail.TopicMceMailDeleteRead, func(s *rpc.Session, req *mailpb.MceMailDeleteRead) {
+	return runtime.Client(mail.TopicMceMailDeleteRead, func(s *rpc.Session, _ *runtimeuser.User[T], req *mailpb.MceMailDeleteRead) {
 		s.ResponseAs(mail.TopicMseMailDeleteRead, m.DeleteRead(s.Context(), s.UID(), req))
 	})
 }
 
 // List syncs shared mail into a root mailbox and returns personal mail after the requested cursor.
-func (m *Module[T]) List(ctx context.Context, rootID int64, activeRoot *runtimeroot.Root[T], req *mailpb.MceMailList) *mailpb.MseMailList {
-	if rootID <= 0 {
-		return &mailpb.MseMailList{Ret: mail.RetInvalid, Message: "root id is invalid"}
+func (m *Module[T]) List(ctx context.Context, uid int64, activeRoot *runtimeuser.User[T], req *mailpb.MceMailList) *mailpb.MseMailList {
+	if uid <= 0 {
+		return &mailpb.MseMailList{Ret: mail.RetInvalid, Message: "user UID is invalid"}
 	}
 	if req == nil {
 		req = &mailpb.MceMailList{}
@@ -166,14 +164,14 @@ func (m *Module[T]) List(ctx context.Context, rootID int64, activeRoot *runtimer
 	if err != nil {
 		return &mailpb.MseMailList{Ret: mail.RetInternal, Message: err.Error()}
 	}
-	if err := m.mailbox.SyncShared(ctx, rootID, m.realmID, groupKeys, m.listLimit); err != nil {
+	if err := m.mailbox.SyncShared(ctx, uid, m.realmID, groupKeys, m.listLimit); err != nil {
 		return &mailpb.MseMailList{Ret: mail.RetInternal, Message: err.Error()}
 	}
-	list, err := m.mailbox.List(rootID, req.GetAfterMailId(), limit)
+	list, err := m.mailbox.List(uid, req.GetAfterMailId(), limit)
 	if err != nil {
 		return &mailpb.MseMailList{Ret: mail.RetInternal, Message: err.Error()}
 	}
-	m.record(ctx, "mail.list", rootID)
+	m.record(ctx, "mail.list", uid)
 	if req.GetSummaryOnly() {
 		for i := range list {
 			list[i] = store.SummaryMail(list[i])
@@ -183,11 +181,11 @@ func (m *Module[T]) List(ctx context.Context, rootID int64, activeRoot *runtimer
 }
 
 // Get returns a live mail owned by the authenticated root without marking it read.
-func (m *Module[T]) Get(ctx context.Context, rootID int64, req *mailpb.MceMailGet) *mailpb.MseMailGet {
-	if rootID <= 0 || req.GetMailId() <= 0 {
+func (m *Module[T]) Get(ctx context.Context, uid int64, req *mailpb.MceMailGet) *mailpb.MseMailGet {
+	if uid <= 0 || req.GetMailId() <= 0 {
 		return &mailpb.MseMailGet{Ret: mail.RetInvalid, Message: "invalid mail identity"}
 	}
-	data, found, err := m.mailbox.Get(rootID, req.GetMailId())
+	data, found, err := m.mailbox.Get(uid, req.GetMailId())
 	if err != nil {
 		return &mailpb.MseMailGet{Ret: mail.RetInternal, Message: "mail read failed"}
 	}
@@ -198,11 +196,11 @@ func (m *Module[T]) Get(ctx context.Context, rootID int64, req *mailpb.MceMailGe
 }
 
 // Read marks mails as read when they do not have unclaimed attachments.
-func (m *Module[T]) Read(ctx context.Context, rootID int64, req *mailpb.MceMailRead) *mailpb.MseMailRead {
+func (m *Module[T]) Read(ctx context.Context, uid int64, req *mailpb.MceMailRead) *mailpb.MseMailRead {
 	if req == nil {
 		req = &mailpb.MceMailRead{}
 	}
-	readIDs, err := m.mailbox.MarkRead(ctx, rootID, req.GetMailIdList())
+	readIDs, err := m.mailbox.MarkRead(ctx, uid, req.GetMailIdList())
 	if err != nil {
 		return &mailpb.MseMailRead{Ret: mail.RetInternal, Message: err.Error()}
 	}
@@ -210,13 +208,13 @@ func (m *Module[T]) Read(ctx context.Context, rootID int64, req *mailpb.MceMailR
 }
 
 // Claim grants unclaimed attachments and marks mails as read and claimed.
-func (m *Module[T]) Claim(ctx context.Context, rootID int64, req *mailpb.MceMailClaim) *mailpb.MseMailClaim {
+func (m *Module[T]) Claim(ctx context.Context, uid int64, req *mailpb.MceMailClaim) *mailpb.MseMailClaim {
 	if req == nil {
 		req = &mailpb.MceMailClaim{}
 	}
 	claimedIDs := make([]int64, 0, len(req.GetMailIdList()))
 	for _, mailID := range req.GetMailIdList() {
-		data, ok, err := m.mailbox.Get(rootID, mailID)
+		data, ok, err := m.mailbox.Get(uid, mailID)
 		if err != nil {
 			return &mailpb.MseMailClaim{Ret: mail.RetInternal, Message: err.Error()}
 		}
@@ -224,11 +222,11 @@ func (m *Module[T]) Claim(ctx context.Context, rootID int64, req *mailpb.MceMail
 			continue
 		}
 		if m.awarder != nil {
-			if err := m.awarder.AwardMail(ctx, rootID, store.CloneMail(data)); err != nil {
+			if err := m.awarder.AwardMail(ctx, uid, store.CloneMail(data)); err != nil {
 				return &mailpb.MseMailClaim{Ret: mail.RetInternal, Message: err.Error()}
 			}
 		}
-		changed, err := m.mailbox.MarkClaimed(ctx, rootID, mailID)
+		changed, err := m.mailbox.MarkClaimed(ctx, uid, mailID)
 		if err != nil {
 			return &mailpb.MseMailClaim{Ret: mail.RetInternal, Message: err.Error()}
 		}
@@ -236,23 +234,23 @@ func (m *Module[T]) Claim(ctx context.Context, rootID int64, req *mailpb.MceMail
 			claimedIDs = append(claimedIDs, mailID)
 		}
 	}
-	m.record(ctx, "mail.claim", rootID)
+	m.record(ctx, "mail.claim", uid)
 	return &mailpb.MseMailClaim{Ret: mail.RetOK, MailIdList: claimedIDs}
 }
 
 // DeleteRead deletes read mails. An empty request list means all read mails.
-func (m *Module[T]) DeleteRead(ctx context.Context, rootID int64, req *mailpb.MceMailDeleteRead) *mailpb.MseMailDeleteRead {
+func (m *Module[T]) DeleteRead(ctx context.Context, uid int64, req *mailpb.MceMailDeleteRead) *mailpb.MseMailDeleteRead {
 	if req == nil {
 		req = &mailpb.MceMailDeleteRead{}
 	}
-	deleted, err := m.mailbox.DeleteRead(ctx, rootID, req.GetMailIdList())
+	deleted, err := m.mailbox.DeleteRead(ctx, uid, req.GetMailIdList())
 	if err != nil {
 		return &mailpb.MseMailDeleteRead{Ret: mail.RetInternal, Message: err.Error()}
 	}
 	return &mailpb.MseMailDeleteRead{Ret: mail.RetOK, MailIdList: deleted}
 }
 
-func (m *Module[T]) groupKeys(ctx context.Context, root *runtimeroot.Root[T], requestGroups []string) ([]string, error) {
+func (m *Module[T]) groupKeys(ctx context.Context, root *runtimeuser.User[T], requestGroups []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(requestGroups))
 	out := make([]string, 0, len(requestGroups))
 	for _, groupKey := range requestGroups {
@@ -289,12 +287,12 @@ func (m *Module[T]) nowUnix() int64 {
 	return m.clock.Now().Unix()
 }
 
-func (m *Module[T]) record(ctx context.Context, name string, rootID int64) {
+func (m *Module[T]) record(ctx context.Context, name string, uid int64) {
 	if m == nil || m.observe == nil {
 		return
 	}
 	_ = m.observe.Write(ctx, []observe.Event{observe.Metric(name, 1, map[string]string{
-		"root_id": strconv.FormatInt(rootID, 10),
+		"root_id": strconv.FormatInt(uid, 10),
 	})})
 }
 

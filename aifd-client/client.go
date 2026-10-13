@@ -75,6 +75,8 @@ type Client struct {
 	terminalErr    error
 	done           chan struct{}
 	wg             sync.WaitGroup
+	heartbeatMu    sync.Mutex
+	heartbeat      *heartbeatRun
 }
 
 // New 创建客户端侧 protobuf 调用门面。
@@ -264,6 +266,7 @@ func (c *Client) Start() error {
 func (c *Client) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
+		c.StopHeartbeat()
 		c.signalTermination(ErrClosed)
 		err = c.transport.Close(context.Background())
 		c.wg.Wait()

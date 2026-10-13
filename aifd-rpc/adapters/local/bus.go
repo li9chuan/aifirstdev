@@ -36,8 +36,10 @@ type Bus struct {
 	runner     atomic.Bool
 	deliveryWG sync.WaitGroup
 
-	mu     sync.Mutex
-	pushes []PushedMessage
+	mu              sync.Mutex
+	pushes          []PushedMessage
+	pushSubscribers map[int64]map[uint64]func(context.Context, rpc.Message) error
+	nextSubscriber  uint64
 }
 
 // NewBus 创建带 local router、callback cache 和 stats 的进程内 bus。
@@ -49,10 +51,11 @@ func NewBus(cfg Config) *Bus {
 		cfg.DefaultTimeout = 15 * time.Second
 	}
 	return &Bus{
-		router:     rpcruntime.NewRouter(),
-		deliveries: make(chan rpc.Delivery, cfg.Buffer),
-		callbacks:  rpcruntime.NewCallbackCache(cfg.DefaultTimeout),
-		stats:      rpcruntime.NewStatsCollector(cfg.ServiceName, cfg.StatsWindow),
+		pushSubscribers: make(map[int64]map[uint64]func(context.Context, rpc.Message) error),
+		router:          rpcruntime.NewRouter(),
+		deliveries:      make(chan rpc.Delivery, cfg.Buffer),
+		callbacks:       rpcruntime.NewCallbackCache(cfg.DefaultTimeout),
+		stats:           rpcruntime.NewStatsCollector(cfg.ServiceName, cfg.StatsWindow),
 	}
 }
 
@@ -168,12 +171,20 @@ func (b *Bus) RequestPB(ctx context.Context, uid int64, name string, req proto.M
 	return response.DecodePB(rsp)
 }
 
-// Push 为目标 uid 记录克隆后的下行消息。
-func (b *Bus) Push(_ context.Context, uid int64, msg rpc.Message) error {
+// Push publishes an inbox-free UID event to all local subscribers. The bounded
+// recent history is for tests/inspection, not a delivery queue or offline mailbox.
+func (b *Bus) Push(ctx context.Context, uid int64, msg rpc.Message) error {
 	if b.closed.Load() {
 		return ErrBusClosed
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	out := msg.Clone()
+	delete(out.Header, rpc.HeaderClientInbox)
 	if out.Header == nil {
 		out.Header = map[string]string{}
 	}
@@ -181,9 +192,56 @@ func (b *Bus) Push(_ context.Context, uid int64, msg rpc.Message) error {
 		out.Header[rpc.HeaderResponse] = out.Name
 	}
 	b.mu.Lock()
+	if b.closed.Load() {
+		b.mu.Unlock()
+		return ErrBusClosed
+	}
+	if len(b.pushes) == 256 {
+		copy(b.pushes, b.pushes[1:])
+		b.pushes = b.pushes[:255]
+	}
 	b.pushes = append(b.pushes, PushedMessage{UID: uid, Message: out})
+	handlers := make([]func(context.Context, rpc.Message) error, 0, len(b.pushSubscribers[uid]))
+	for _, handler := range b.pushSubscribers[uid] {
+		handlers = append(handlers, handler)
+	}
 	b.mu.Unlock()
-	return nil
+	var joined error
+	for _, handler := range handlers {
+		joined = errors.Join(joined, handler(ctx, out.Clone()))
+	}
+	return joined
+}
+
+// SubscribePush is adapter-level local PubSub wiring. Each subscriber receives
+// every event for its UID; cancellation is idempotent and does not consume peers' events.
+func (b *Bus) SubscribePush(uid int64, handler func(context.Context, rpc.Message) error) (func(), error) {
+	if uid <= 0 || handler == nil {
+		return nil, fmt.Errorf("invalid local UID push subscription")
+	}
+	b.mu.Lock()
+	if b.closed.Load() {
+		b.mu.Unlock()
+		return nil, ErrBusClosed
+	}
+	b.nextSubscriber++
+	id := b.nextSubscriber
+	if b.pushSubscribers[uid] == nil {
+		b.pushSubscribers[uid] = make(map[uint64]func(context.Context, rpc.Message) error)
+	}
+	b.pushSubscribers[uid][id] = handler
+	b.mu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			delete(b.pushSubscribers[uid], id)
+			if len(b.pushSubscribers[uid]) == 0 {
+				delete(b.pushSubscribers, uid)
+			}
+		})
+	}, nil
 }
 
 // PushPB marshal protobuf push 消息，并通过 Push 记录。
@@ -225,6 +283,9 @@ func (b *Bus) Close(ctx context.Context) error {
 	if b.closed.Swap(true) {
 		return nil
 	}
+	b.mu.Lock()
+	b.pushSubscribers = make(map[int64]map[uint64]func(context.Context, rpc.Message) error)
+	b.mu.Unlock()
 	b.callbacks.Close()
 	close(b.deliveries)
 	if !b.runner.Load() {
@@ -233,7 +294,7 @@ func (b *Bus) Close(ctx context.Context) error {
 	return waitDeliveries(ctx, &b.deliveryWG)
 }
 
-// Pushes 返回 Push 记录的下行消息克隆。
+// Pushes returns at most the latest 256 events as independent inspection copies.
 func (b *Bus) Pushes() []PushedMessage {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -285,14 +346,7 @@ func (b *Bus) enqueue(ctx context.Context, uid int64, inbox string, clientInbox 
 				}
 				return err
 			}
-			if effectiveClientInbox > 0 {
-				if rsp.Header == nil {
-					rsp.Header = map[string]string{}
-				}
-				rsp.Header[rpc.HeaderClientInbox] = strconv.Itoa(effectiveClientInbox)
-				return b.Push(ctx, uid, rsp)
-			}
-			return nil
+			return rpcruntime.ErrSessionResponderMissing
 		},
 		Push: b.Push,
 	})

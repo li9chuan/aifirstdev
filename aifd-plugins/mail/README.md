@@ -1,7 +1,7 @@
 # aifd-plugins/mail
 
 `aifd-plugins/mail` 是 AIFD 官方可选邮件插件。它通过 `runtime/service.Module`
-和 `runtime/root.Module[T]` 显式组合进业务入口，不在 import 时自动注册 route、
+和 `runtime/user.Module[T]` 显式组合进业务入口，不在 import 时自动注册 route、
 启动 worker 或创建 Redis 连接。
 
 ## 负责
@@ -23,7 +23,7 @@
 生产真相源是 `store.RedisStore`。`ttlcache` 只缓存近期 mailbox、global/group mail，
 淘汰不会落盘，也不能影响正确性。所有写入必须先成功写入 Store，再更新或失效缓存。
 
-领取附件通过 `mail.Awarder` 注入，业务实现必须按 `rootID + mailID` 保证幂等。
+领取附件通过 `mail.Awarder` 注入，业务实现必须按 `uid + mailID` 保证幂等。
 
 ## 邮件内容
 

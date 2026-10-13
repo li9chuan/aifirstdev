@@ -80,3 +80,16 @@ func (d *Delivery) Broadcast(ctx context.Context, connIDs []string, msg rpc.Mess
 	}
 	return joined
 }
+
+// CloseAll also closes connections that have not authenticated yet.
+func (d *Delivery) CloseAll(ctx context.Context) error {
+	d.mu.Lock()
+	current := d.conns
+	d.conns = make(map[string]proxy.Connection)
+	d.mu.Unlock()
+	var joined error
+	for _, conn := range current {
+		joined = errors.Join(joined, conn.Close(ctx))
+	}
+	return joined
+}

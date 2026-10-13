@@ -261,6 +261,7 @@ func (b *Bus) Push(ctx context.Context, uid int64, msg rpc.Message) error {
 	}
 	nmsg := natsgo.NewMsg(b.clientSubject(uid))
 	applyMessageToNATS(nmsg, msg)
+	nmsg.Header.Del(rpc.HeaderClientInbox)
 	if nmsg.Header.Get(rpc.HeaderResponse) == "" {
 		nmsg.Header.Set(rpc.HeaderResponse, msg.Name)
 	}
@@ -382,14 +383,7 @@ func (b *Bus) handleRouteMessage(route rpc.Route, nmsg *natsgo.Msg) {
 				}
 				return b.nc.PublishMsg(out)
 			}
-			if clientInbox > 0 {
-				if rsp.Header == nil {
-					rsp.Header = map[string]string{}
-				}
-				rsp.Header[rpc.HeaderClientInbox] = strconv.Itoa(clientInbox)
-				return b.Push(ctx, uid, rsp)
-			}
-			return nil
+			return rpcruntime.ErrSessionResponderMissing
 		},
 		Push: b.Push,
 	})

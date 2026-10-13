@@ -153,6 +153,92 @@ describe("ProxyWebSocketClient", () => {
   });
 });
 
+describe("multidevice replies and heartbeat lifecycle", () => {
+  it("keeps equal inbox numbers local and dispatches pushes independently", async () => {
+    const first = new MockWebSocket();
+    const second = new MockWebSocket();
+    const pushA = vi.fn();
+    const pushB = vi.fn();
+    const aPromise = ProxyWebSocketClient.connect("ws://example.test/ws", { webSocketFactory: () => first as unknown as WebSocket, onPush: pushA });
+    const bPromise = ProxyWebSocketClient.connect("ws://example.test/ws", { webSocketFactory: () => second as unknown as WebSocket, onPush: pushB });
+    first.open(); second.open();
+    const [a, b] = await Promise.all([aPromise, bPromise]);
+    try {
+      let aSettled = false; let bSettled = false;
+      const aReply = a.call("MceCommand", "MceCommand", new Uint8Array()).then(packet => { aSettled = true; return packet; });
+      const bReply = b.call("MceCommand", "MceCommand", new Uint8Array()).then(packet => { bSettled = true; return packet; });
+      const inbox = decodePacket(first.sent[0]).inbox;
+      expect(decodePacket(second.sent[0]).inbox).toBe(inbox);
+      const changed = encodePacket("MseChanged", "MseChanged", 0, new Uint8Array([1]));
+      first.receive(changed); second.receive(changed);
+      await Promise.resolve();
+      expect(pushA).toHaveBeenCalledOnce(); expect(pushB).toHaveBeenCalledOnce();
+      expect(aSettled).toBe(false); expect(bSettled).toBe(false);
+      first.receive(encodePacket("MseResult", "MseResult", inbox, new Uint8Array([2])));
+      await expect(aReply).resolves.toMatchObject({ body: new Uint8Array([2]) });
+      expect(bSettled).toBe(false);
+      second.receive(encodePacket("MseResult", "MseResult", inbox, new Uint8Array([3])));
+      await expect(bReply).resolves.toMatchObject({ body: new Uint8Array([3]) });
+    } finally { a.close(); b.close(); }
+  });
+
+  it("times out probes, resets misses on success and reports loss once", async () => {
+    vi.useFakeTimers();
+    const socket = new MockWebSocket();
+    const connected = ProxyWebSocketClient.connect("ws://example.test/ws", { webSocketFactory: () => socket as unknown as WebSocket });
+    socket.open();
+    const client = await connected;
+    try {
+      const lost = vi.fn(); let count = 0;
+      const probe = vi.fn(async () => { if (++count === 2) { return; } throw new Error("business heartbeat rejected"); });
+      client.startHeartbeat({ intervalMs: 10, timeoutMs: 5, maxMisses: 2, probe, onLost: lost });
+      expect(() => client.startHeartbeat({ probe })).toThrow(/already running/);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(probe).toHaveBeenCalledTimes(4);
+      expect(lost).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+
+  it("stopping heartbeat aborts its pending call and suppresses late loss", async () => {
+    vi.useFakeTimers();
+    const socket = new MockWebSocket();
+    const connected = ProxyWebSocketClient.connect("ws://example.test/ws", { webSocketFactory: () => socket as unknown as WebSocket });
+    socket.open();
+    const client = await connected;
+    try {
+      const lost = vi.fn();
+      client.startHeartbeat({ intervalMs: 10, timeoutMs: 100, maxMisses: 1,
+        probe: async signal => { await client.call("MceHeartbeat", "MceHeartbeat", new Uint8Array(), 100, signal); }, onLost: lost });
+      await vi.advanceTimersByTimeAsync(11);
+      expect(socket.sent).toHaveLength(1);
+      client.stopHeartbeat();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(lost).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+
+  it("bounds a nonresponding probe and reports an unexpected socket close", async () => {
+    vi.useFakeTimers();
+    const socket = new MockWebSocket();
+    const connected = ProxyWebSocketClient.connect("ws://example.test/ws", { webSocketFactory: () => socket as unknown as WebSocket });
+    socket.open();
+    const client = await connected;
+    try {
+      const timedOut = vi.fn();
+      client.startHeartbeat({ intervalMs: 10, timeoutMs: 5, maxMisses: 1, probe: () => new Promise<void>(() => {}), onLost: timedOut });
+      await vi.advanceTimersByTimeAsync(16);
+      expect(timedOut).toHaveBeenCalledOnce();
+      const disconnected = vi.fn();
+      client.startHeartbeat({ probe: async () => {}, onLost: disconnected });
+      socket.serverClose();
+      expect(disconnected).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+});
+
 class MockWebSocket {
   readyState = 0;
   binaryType = "blob";

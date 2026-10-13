@@ -246,34 +246,19 @@ func TestSessionRequestAndForward(t *testing.T) {
 		t.Fatalf("NewMessagePB forward error = %v", err)
 	}
 	forwardMsg.Header = map[string]string{contracts.HeaderClientInbox: "123"}
-	if err := bus.Tell(ctx, 9, forwardMsg); err != nil {
-		t.Fatalf("Tell forward error = %v", err)
+	forwardRsp, err := bus.Request(ctx, 9, forwardMsg, contracts.RequestOptions{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("Request forward error = %v", err)
 	}
-	deadline := time.After(time.Second)
-	for {
-		select {
-		case <-deadline:
-			t.Fatal("forward push timeout")
-		default:
-			pushes := bus.Pushes()
-			if len(pushes) == 0 {
-				time.Sleep(10 * time.Millisecond)
-				continue
-			}
-			if pushes[0].UID != 9 {
-				t.Fatalf("forward push uid = %d, want 9", pushes[0].UID)
-			}
-			if pushes[0].Message.Header[contracts.HeaderClientInbox] != "123" {
-				t.Fatalf("forward client inbox = %q, want 123", pushes[0].Message.Header[contracts.HeaderClientInbox])
-			}
-			if pushes[0].Message.Header[contracts.HeaderResponse] != "StringValue" {
-				t.Fatalf("forward rsp header = %q, want StringValue", pushes[0].Message.Header[contracts.HeaderResponse])
-			}
-			if pushes[0].Message.Header[contracts.HeaderPBType] != "StringValue" {
-				t.Fatalf("forward pbType header = %q, want StringValue", pushes[0].Message.Header[contracts.HeaderPBType])
-			}
-			return
-		}
+	var forwarded wrapperspb.StringValue
+	if err := forwardRsp.DecodePB(&forwarded); err != nil {
+		t.Fatal(err)
+	}
+	if forwarded.GetValue() != "hello:world" || forwardRsp.Header[contracts.HeaderClientInbox] != "123" {
+		t.Fatalf("forward reply = %#v body=%q", forwardRsp, forwarded.GetValue())
+	}
+	if len(bus.Pushes()) != 0 {
+		t.Fatal("Forward broadcast a request reply to the UID")
 	}
 }
 

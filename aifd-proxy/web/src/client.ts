@@ -18,10 +18,31 @@ export type ProxyWebSocketClientOptions = {
   onStaleReply?: (packet: Packet) => void;
 };
 
+// Start only after authentication. Probe owns the business PB and must validate
+// its reply; pass signal to call() so stopped probes release their pending inbox.
+export type HeartbeatOptions = {
+  intervalMs?: number;
+  timeoutMs?: number;
+  maxMisses?: number;
+  probe: (signal: AbortSignal) => Promise<void>;
+  onLost?: (error: Error) => void;
+};
+
+type HeartbeatRun = {
+  options: HeartbeatOptions;
+  intervalMs: number;
+  timeoutMs: number;
+  maxMisses: number;
+  misses: number;
+  controller: AbortController;
+  timer?: ReturnType<typeof setTimeout>;
+};
+
 type PendingRequest = {
   resolve: (packet: Packet) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  cleanupAbort?: () => void;
 };
 
 const defaultOpenTimeoutMs = 10_000;
@@ -34,6 +55,7 @@ export class ProxyWebSocketClient {
   private readonly pending = new Map<number, PendingRequest>();
   private nextInbox = 1;
   private closed = false;
+  private heartbeat?: HeartbeatRun;
 
   private constructor(
     private readonly socket: WebSocket,
@@ -49,22 +71,36 @@ export class ProxyWebSocketClient {
     return client;
   }
 
-  call(topic: string, pbType: string, body: Uint8Array, timeoutMs = this.options.requestTimeoutMs ?? defaultRequestTimeoutMs) {
+  call(topic: string, pbType: string, body: Uint8Array, timeoutMs = this.options.requestTimeoutMs ?? defaultRequestTimeoutMs, signal?: AbortSignal) {
     if (this.closed || this.socket.readyState !== websocketOpenState) {
       return Promise.reject(new Error("proxy websocket is not open"));
     }
+    if (signal?.aborted) { return Promise.reject(asError(signal.reason ?? "proxy request aborted")); }
     const inbox = this.allocateInbox();
     return new Promise<Packet>((resolve, reject) => {
+      const abort = () => {
+        const request = this.pending.get(inbox);
+        if (!request) { return; }
+        this.pending.delete(inbox);
+        clearTimeout(request.timer);
+        request.cleanupAbort?.();
+        reject(asError(signal?.reason ?? "proxy request aborted"));
+      };
+      const cleanupAbort = signal ? () => signal.removeEventListener("abort", abort) : undefined;
       const timer = setTimeout(() => {
         this.pending.delete(inbox);
+        cleanupAbort?.();
         reject(new Error(`proxy request timed out: ${topic}`));
       }, timeoutMs);
-      this.pending.set(inbox, { resolve, reject, timer });
+      this.pending.set(inbox, { resolve, reject, timer, cleanupAbort });
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) { abort(); return; }
       try {
         this.socket.send(encodePacket(topic, pbType, inbox, body));
       } catch (error) {
         clearTimeout(timer);
         this.pending.delete(inbox);
+        cleanupAbort?.();
         reject(asError(error));
       }
     });
@@ -81,9 +117,46 @@ export class ProxyWebSocketClient {
     if (this.closed) {
       return;
     }
+    this.stopHeartbeat();
     this.closed = true;
     this.rejectAll(new Error("proxy websocket closed"));
     this.socket.close(code, reason);
+  }
+
+  // The scheduler serializes probes and never substitutes a proxy-local Pong.
+  startHeartbeat(options: HeartbeatOptions): void {
+    if (this.closed || this.socket.readyState !== websocketOpenState) { throw new Error("proxy websocket is not open"); }
+    if (this.heartbeat) { throw new Error("proxy heartbeat already running"); }
+    if (typeof options.probe !== "function") { throw new Error("heartbeat probe is required"); }
+    const current: HeartbeatRun = {
+      options, intervalMs: options.intervalMs ?? 30_000, timeoutMs: options.timeoutMs ?? 10_000,
+      maxMisses: options.maxMisses ?? 2, misses: 0, controller: new AbortController()
+    };
+    if (current.intervalMs <= 0 || current.timeoutMs <= 0 || current.maxMisses < 1) { throw new Error("invalid heartbeat timing"); }
+    this.heartbeat = current;
+    current.timer = setTimeout(() => void this.heartbeatTick(current), current.intervalMs);
+  }
+
+  stopHeartbeat(): void {
+    const current = this.heartbeat;
+    this.heartbeat = undefined;
+    if (!current) { return; }
+    clearTimeout(current.timer);
+    current.controller.abort(new Error("heartbeat stopped"));
+  }
+
+  private async heartbeatTick(current: HeartbeatRun): Promise<void> {
+    let failure: Error | undefined;
+    try { await runHeartbeatProbe(current.options.probe, current.controller.signal, current.timeoutMs); }
+    catch (error) { failure = asError(error); }
+    if (this.heartbeat !== current || current.controller.signal.aborted || this.closed) { return; }
+    current.misses = failure ? current.misses + 1 : 0;
+    if (failure && current.misses >= current.maxMisses) {
+      this.stopHeartbeat();
+      current.options.onLost?.(failure);
+      return;
+    }
+    current.timer = setTimeout(() => void this.heartbeatTick(current), current.intervalMs);
   }
 
   private bindSocket(): void {
@@ -91,13 +164,18 @@ export class ProxyWebSocketClient {
       try {
         this.handlePacket(decodePacket(event.data as ArrayBuffer));
       } catch (error) {
+        const heartbeat = this.heartbeat;
         this.rejectAll(asError(error));
         this.close(1002, "invalid proxy packet");
+        heartbeat?.options.onLost?.(asError(error));
       }
     };
     this.socket.onclose = () => {
+      const heartbeat = this.heartbeat;
+      this.stopHeartbeat();
       this.closed = true;
       this.rejectAll(new Error("proxy websocket closed"));
+      heartbeat?.options.onLost?.(new Error("proxy websocket closed"));
     };
     this.socket.onerror = () => {
       if (this.socket.readyState !== websocketOpenState) {
@@ -158,6 +236,7 @@ export class ProxyWebSocketClient {
     }
     this.pending.delete(packet.inbox);
     clearTimeout(pending.timer);
+    pending.cleanupAbort?.();
     if (error) {
       pending.reject(error);
     } else {
@@ -179,6 +258,7 @@ export class ProxyWebSocketClient {
   private rejectAll(error: Error): void {
     for (const [inbox, pending] of this.pending) {
       clearTimeout(pending.timer);
+      pending.cleanupAbort?.();
       pending.reject(error);
       this.pending.delete(inbox);
     }
@@ -187,4 +267,25 @@ export class ProxyWebSocketClient {
 
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
+}
+
+async function runHeartbeatProbe(probe: HeartbeatOptions["probe"], parent: AbortSignal, timeoutMs: number): Promise<void> {
+  const controller = new AbortController();
+  let cleanup = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    const stop = () => { controller.abort(parent.reason); reject(asError(parent.reason ?? "heartbeat stopped")); };
+    parent.addEventListener("abort", stop, { once: true });
+    cleanup = () => parent.removeEventListener("abort", stop);
+    if (parent.aborted) { stop(); }
+  });
+  let timer: ReturnType<typeof setTimeout>;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error("heartbeat probe timed out");
+      controller.abort(error);
+      reject(error);
+    }, timeoutMs);
+  });
+  try { await Promise.race([Promise.resolve().then(() => probe(controller.signal)), aborted, timedOut]); }
+  finally { clearTimeout(timer!); cleanup(); }
 }

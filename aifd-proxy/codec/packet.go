@@ -87,6 +87,9 @@ func HeadFromMessage(msg rpc.Message) (*proxypb.MsgHead, error) {
 	if pbType == "" {
 		pbType = topic
 	}
+	if msg.Header[rpc.HeaderStatus] != "" {
+		topic, pbType = "RPCError", "RPCError"
+	}
 	inbox, err := parseInbox(msg.Header)
 	if err != nil {
 		return nil, err

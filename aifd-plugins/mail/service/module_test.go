@@ -26,10 +26,10 @@ func TestServiceAddPersonalGlobalAndGroup(t *testing.T) {
 	}
 
 	personalRsp := module.Add(ctx, &mailpb.MailAddRequest{
-		Type:       mailpb.MailType_MAIL_TYPE_PERSONAL,
-		Base:       &mailpb.MailBase{TemplateId: 1},
-		RootIdList: []int64{1001, 1002},
-		SaveDays:   1,
+		Type:     mailpb.MailType_MAIL_TYPE_PERSONAL,
+		Base:     &mailpb.MailBase{TemplateId: 1},
+		UidList:  []int64{1001, 1002},
+		SaveDays: 1,
 	})
 	if personalRsp.GetRet() != mail.RetOK || len(personalRsp.GetMailIdList()) != 2 {
 		t.Fatalf("personal rsp = %+v, want two ids", personalRsp)
@@ -104,9 +104,9 @@ func TestServiceAddCustomMail(t *testing.T) {
 
 	customContent := &mailpb.MailCustomContent{Title: "系统通知", Body: "这是一封自定义邮件。"}
 	rsp := module.Add(ctx, &mailpb.MailAddRequest{
-		Type:       mailpb.MailType_MAIL_TYPE_PERSONAL,
-		Base:       &mailpb.MailBase{CustomContent: customContent},
-		RootIdList: []int64{1001},
+		Type:    mailpb.MailType_MAIL_TYPE_PERSONAL,
+		Base:    &mailpb.MailBase{CustomContent: customContent},
+		UidList: []int64{1001},
 	})
 	if rsp.GetRet() != mail.RetOK || len(rsp.GetMailIdList()) != 1 {
 		t.Fatalf("custom mail ret=%d ids=%v message=%q, want one id", rsp.GetRet(), rsp.GetMailIdList(), rsp.GetMessage())
@@ -174,9 +174,9 @@ func TestServiceRejectsInvalidMailContent(t *testing.T) {
 				t.Fatalf("Recover error = %v", err)
 			}
 			rsp := module.Add(ctx, &mailpb.MailAddRequest{
-				Type:       mailpb.MailType_MAIL_TYPE_PERSONAL,
-				Base:       tt.base,
-				RootIdList: []int64{1001},
+				Type:    mailpb.MailType_MAIL_TYPE_PERSONAL,
+				Base:    tt.base,
+				UidList: []int64{1001},
 			})
 			if rsp.GetRet() != mail.RetInvalid || rsp.GetMessage() != tt.message {
 				t.Fatalf("ret=%d message=%q, want ret=%d message=%q", rsp.GetRet(), rsp.GetMessage(), mail.RetInvalid, tt.message)
@@ -205,8 +205,8 @@ func TestServicePushesCompleteMailAndKeepsNewestLimit(t *testing.T) {
 	}
 	for i := 1; i <= 3; i++ {
 		rsp := module.Add(ctx, &mailpb.MailAddRequest{
-			Type:       mailpb.MailType_MAIL_TYPE_PERSONAL,
-			RootIdList: []int64{1001},
+			Type:    mailpb.MailType_MAIL_TYPE_PERSONAL,
+			UidList: []int64{1001},
 			Base: &mailpb.MailBase{CustomContent: &mailpb.MailCustomContent{
 				Title: "通知", Body: "完整正文",
 			}},
@@ -247,9 +247,9 @@ func TestServicePushFailureDoesNotRollbackMail(t *testing.T) {
 		t.Fatalf("Recover error = %v", err)
 	}
 	rsp := module.Add(ctx, &mailpb.MailAddRequest{
-		Type:       mailpb.MailType_MAIL_TYPE_PERSONAL,
-		RootIdList: []int64{1001},
-		Base:       &mailpb.MailBase{CustomContent: &mailpb.MailCustomContent{Title: "通知", Body: "正文"}},
+		Type:    mailpb.MailType_MAIL_TYPE_PERSONAL,
+		UidList: []int64{1001},
+		Base:    &mailpb.MailBase{CustomContent: &mailpb.MailCustomContent{Title: "通知", Body: "正文"}},
 	})
 	if rsp.GetRet() != mail.RetOK || len(rsp.GetMailIdList()) != 1 {
 		t.Fatalf("Add response = %+v, want stored despite push failure", rsp)

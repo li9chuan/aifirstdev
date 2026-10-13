@@ -969,7 +969,7 @@ type MailAddRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          MailType               `protobuf:"varint,1,opt,name=type,proto3,enum=aifd.plugins.mail.MailType" json:"type,omitempty"`
 	Base          *MailBase              `protobuf:"bytes,2,opt,name=base,proto3" json:"base,omitempty"`
-	RootIdList    []int64                `protobuf:"varint,3,rep,packed,name=root_id_list,json=rootIdList,proto3" json:"root_id_list,omitempty"`
+	UidList       []int64                `protobuf:"varint,3,rep,packed,name=uid_list,json=uidList,proto3" json:"uid_list,omitempty"`
 	SaveDays      int32                  `protobuf:"varint,4,opt,name=save_days,json=saveDays,proto3" json:"save_days,omitempty"`
 	TargetRealms  []int32                `protobuf:"varint,5,rep,packed,name=target_realms,json=targetRealms,proto3" json:"target_realms,omitempty"`
 	GroupKeys     []string               `protobuf:"bytes,6,rep,name=group_keys,json=groupKeys,proto3" json:"group_keys,omitempty"`
@@ -1022,9 +1022,9 @@ func (x *MailAddRequest) GetBase() *MailBase {
 	return nil
 }
 
-func (x *MailAddRequest) GetRootIdList() []int64 {
+func (x *MailAddRequest) GetUidList() []int64 {
 	if x != nil {
-		return x.RootIdList
+		return x.UidList
 	}
 	return nil
 }
@@ -1335,12 +1335,11 @@ const file_mail_proto_rawDesc = "" +
 	"\x03ret\x18\x01 \x01(\x05R\x03ret\x12 \n" +
 	"\fmail_id_list\x18\x02 \x03(\x03R\n" +
 	"mailIdList\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\x99\x02\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x92\x02\n" +
 	"\x0eMailAddRequest\x12/\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x1b.aifd.plugins.mail.MailTypeR\x04type\x12/\n" +
-	"\x04base\x18\x02 \x01(\v2\x1b.aifd.plugins.mail.MailBaseR\x04base\x12 \n" +
-	"\froot_id_list\x18\x03 \x03(\x03R\n" +
-	"rootIdList\x12\x1b\n" +
+	"\x04base\x18\x02 \x01(\v2\x1b.aifd.plugins.mail.MailBaseR\x04base\x12\x19\n" +
+	"\buid_list\x18\x03 \x03(\x03R\auidList\x12\x1b\n" +
 	"\tsave_days\x18\x04 \x01(\x05R\bsaveDays\x12#\n" +
 	"\rtarget_realms\x18\x05 \x03(\x05R\ftargetRealms\x12\x1d\n" +
 	"\n" +

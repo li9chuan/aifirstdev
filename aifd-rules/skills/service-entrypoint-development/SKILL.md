@@ -29,7 +29,7 @@ description: 开发或调整服务入口、CLI 入口、启动链、配置加载
 - `cmd/proxy` 只组 WebSocket proxy、LoginHandler、下行订阅和外部 RPC bus；不创建 game/world 业务服务。
 - `cmd/proxy` 可以显式组装 proxy-broker embedded NATS server，并让自身 RPC bus 使用
   in-process NATS connection；broker 生命周期关闭顺序应排在 proxy 和 rpc-bus 之后。
-- `cmd/game` 只组 root runtime、root Store、root module、业务 game route 和外部 RPC bus；不监听客户端连接。
+- `cmd/game` 只组 user runtime、root Store、user module、业务 game route 和外部 RPC bus；不监听客户端连接。
 - `cmd/world` 只组 service lifecycle、service module、恢复/启动顺序和外部 RPC bus；不创建 proxy/game。
 - `cmd/game`、`cmd/world` 和其他业务服只作为 NATS client 连接 broker 集群，不隐式启动
   embedded broker。

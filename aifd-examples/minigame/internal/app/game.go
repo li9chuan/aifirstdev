@@ -9,13 +9,13 @@ import (
 	observe "github.com/li9chuan/aifirstdev/aifd-observe/contracts"
 	rdb "github.com/li9chuan/aifirstdev/aifd-rdb"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
-	runtimeroot "github.com/li9chuan/aifirstdev/aifd-runtime/root"
+	runtimeuser "github.com/li9chuan/aifirstdev/aifd-runtime/user"
 )
 
 // GameApp 持有 minigame 游戏侧 root runtime 和业务 RPC 注册表。
 type GameApp struct {
 	Registry *rpc.Registry
-	Runtime  *runtimeroot.Runtime[*pbmsg.DBPlayer]
+	Runtime  *runtimeuser.Runtime[*pbmsg.DBPlayer]
 	Counter  *countergame.Module
 }
 
@@ -23,6 +23,7 @@ type gameOptions struct {
 	db      *rdb.DB
 	config  countergame.Config
 	observe observe.Sink
+	bus     rpc.Bus
 }
 
 // GameOption 配置 minigame game host。
@@ -49,6 +50,9 @@ func WithGameDB(db *rdb.DB) GameOption {
 	}
 }
 
+// WithGameBus binds internal RPC abilities to the user runtime.
+func WithGameBus(bus rpc.Bus) GameOption { return func(opts *gameOptions) { opts.bus = bus } }
+
 // NewGameApp 创建 game host，并注册登录确认 route。
 func NewGameApp(reg *rpc.Registry, options ...GameOption) (*GameApp, error) {
 	if reg == nil {
@@ -60,9 +64,9 @@ func NewGameApp(reg *rpc.Registry, options ...GameOption) (*GameApp, error) {
 			option(&opts)
 		}
 	}
-	store, err := runtimeroot.NewStore(runtimeroot.StoreOptions[*pbmsg.DBPlayer]{
+	store, err := runtimeuser.NewStore(runtimeuser.StoreOptions[*pbmsg.DBPlayer]{
 		DB:  opts.db,
-		Key: gameRootKey,
+		Key: gameUserKey,
 		New: newDBPlayer,
 	})
 	if err != nil {
@@ -72,8 +76,8 @@ func NewGameApp(reg *rpc.Registry, options ...GameOption) (*GameApp, error) {
 		Config:  opts.config,
 		Observe: opts.observe,
 	})
-	modules := runtimeroot.NewManager[*pbmsg.DBPlayer](counterModule)
-	runtime := runtimeroot.NewRuntime(reg, store, modules)
+	modules := runtimeuser.NewManager[*pbmsg.DBPlayer](counterModule)
+	runtime := runtimeuser.NewRuntime(reg, store, modules, runtimeuser.WithBus(opts.bus), runtimeuser.WithDefaultHeartbeat())
 	if err := runtime.RegisterRPC(); err != nil {
 		return nil, err
 	}
@@ -83,10 +87,10 @@ func NewGameApp(reg *rpc.Registry, options ...GameOption) (*GameApp, error) {
 	return &GameApp{Registry: reg, Runtime: runtime, Counter: counterModule}, nil
 }
 
-func gameRootKey(rootID int64) string {
-	return "minigame:game:" + strconv.FormatInt(rootID, 10)
+func gameUserKey(uid int64) string {
+	return "minigame:game:" + strconv.FormatInt(uid, 10)
 }
 
-func newDBPlayer(rootID int64) *pbmsg.DBPlayer {
-	return &pbmsg.DBPlayer{Uid: rootID}
+func newDBPlayer(uid int64) *pbmsg.DBPlayer {
+	return &pbmsg.DBPlayer{Uid: uid}
 }

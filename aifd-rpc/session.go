@@ -5,8 +5,10 @@ import (
 	"errors"
 	"strconv"
 	"sync"
+	"time"
 
 	contracts "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
+	rpcruntime "github.com/li9chuan/aifirstdev/aifd-rpc/runtime"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -20,6 +22,17 @@ type Session struct {
 	message   contracts.Message
 	mu        sync.Mutex
 	responded bool
+}
+
+// NewSession constructs a trusted service-internal invocation. It has no client
+// connection or reply channel; Response and Error fail explicitly. Request, Tell
+// and UID-wide Push use the supplied bus. Never construct identity from client input.
+func NewSession(ctx context.Context, uid int64, bus contracts.Bus) *Session {
+	opts := rpcruntime.SessionOptions{UID: uid}
+	if bus != nil {
+		opts.Push = bus.Push
+	}
+	return newSession(ctx, bus, rpcruntime.NewSession(opts), contracts.Message{})
 }
 
 func newSession(ctx context.Context, bus contracts.Bus, base contracts.Session, msg contracts.Message) *Session {
@@ -180,18 +193,28 @@ func (s *Session) Request(topic string, req proto.Message, rsp proto.Message, op
 
 // Forward 将当前 RPC 责任转移给目标 route，并保留前端 await inbox。
 func (s *Session) Forward(topic string, req proto.Message, options ...CallOption) Result {
-	msg, result := s.outboundMessage(topic, req, true)
+	msg, result := s.outboundMessage(topic, req, false)
 	if !result.OK() {
 		return result
 	}
-	if s.ClientInbox() > 0 {
-		if result := s.markResponded(); !result.OK() {
-			return result
-		}
+	if result := s.markResponded(); !result.OK() {
+		return result
 	}
 	ctx, cancel := s.callContext(options)
 	defer cancel()
-	if err := s.bus.Tell(ctx, s.UID(), msg); err != nil {
+	timeout := 15 * time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = time.Until(deadline)
+	}
+	respond := func(rsp contracts.Message) error { s.decorateResponse(&rsp); return s.base.Respond(s.ctx, rsp) }
+	if err := s.bus.Call(ctx, s.UID(), msg, func(_ context.Context, _ contracts.Session, rsp contracts.Message) error {
+		return respond(rsp)
+	}, contracts.CallOptions{Timeout: timeout, OnTimeout: func(context.Context) error {
+		return respond(contracts.Message{Name: errorMessageName, Header: map[string]string{contracts.HeaderStatus: CodeTimeout, contracts.HeaderErrorMessage: "forwarded RPC timed out"}})
+	}}); err != nil {
+		s.mu.Lock()
+		s.responded = false
+		s.mu.Unlock()
 		return failFromError(err)
 	}
 	return okResult()

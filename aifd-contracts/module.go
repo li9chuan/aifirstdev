@@ -12,7 +12,7 @@ const (
 type ModuleKind string
 
 const (
-	ModuleKindRoot    ModuleKind = "root"
+	ModuleKindUser    ModuleKind = "user"
 	ModuleKindService ModuleKind = "service"
 	ModuleKindAdapter ModuleKind = "adapter"
 )

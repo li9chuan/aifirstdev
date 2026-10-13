@@ -27,7 +27,7 @@ func TestLongMailSummaryDetailOwnershipAndExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := strings.Repeat("长正文", 4000)
-	sent := sender.Add(ctx, &mailpb.MailAddRequest{Type: mailpb.MailType_MAIL_TYPE_PERSONAL, RootIdList: []int64{7}, SaveDays: 3, Base: &mailpb.MailBase{CustomContent: &mailpb.MailCustomContent{Title: "周报", Body: body}}})
+	sent := sender.Add(ctx, &mailpb.MailAddRequest{Type: mailpb.MailType_MAIL_TYPE_PERSONAL, UidList: []int64{7}, SaveDays: 3, Base: &mailpb.MailBase{CustomContent: &mailpb.MailCustomContent{Title: "周报", Body: body}}})
 	if sent.GetRet() != mail.RetOK {
 		t.Fatal(sent.String())
 	}

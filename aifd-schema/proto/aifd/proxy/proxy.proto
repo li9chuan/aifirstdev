@@ -34,3 +34,38 @@ message RPCError {
   string code = 1;
   string message = 2;
 }
+
+// ClientSessionRef identifies one authenticated connection across proxy restarts.
+message ClientSessionRef {
+  string proxy_instance_id = 1;
+  string connection_id = 2;
+}
+
+// OpenClientSessionRequest is sent only by a trusted proxy. UID is RPC metadata.
+message OpenClientSessionRequest {
+  ClientSessionRef session = 1;
+}
+
+message OpenClientSessionResponse {}
+
+enum SessionEndReason {
+  SESSION_END_REASON_UNSPECIFIED = 0;
+  SESSION_END_REASON_DISCONNECTED = 1;
+  SESSION_END_REASON_REPLACED = 2;
+  SESSION_END_REASON_EXPIRED = 3;
+  SESSION_END_REASON_SHUTDOWN = 4;
+}
+
+// ClientSessionClosed closes only the referenced connection, never the entire UID.
+message ClientSessionClosed {
+  ClientSessionRef session = 1;
+  SessionEndReason reason = 2;
+}
+
+// MceSessionHeartbeat is the optional framework heartbeat request.
+message MceSessionHeartbeat {}
+
+// MseSessionHeartbeat completes the original request; it is not a UID broadcast.
+message MseSessionHeartbeat {
+  int64 server_time_unix_ms = 1;
+}

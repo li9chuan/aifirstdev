@@ -30,7 +30,7 @@
 
 从[Agent 高频规则](AGENTS.md)和[skills 索引](skills/README.md)选择任务入口：
 
-- 开发业务功能：[Feature 开发](skills/feature-development/SKILL.md)，配套[目录模板](templates/root-service-feature.md)。
+- 开发业务功能：[Feature 开发](skills/feature-development/SKILL.md)，配套[目录模板](templates/user-service-feature.md)。
 - 审查项目或模块：[项目与 Feature 代码评审](skills/runtime-feature-review/SKILL.md)，按范围使用[评审清单](checklists/review.md)。
 - 确定修改归属：[架构与修改面路由](skills/architecture-and-surface-routing/SKILL.md)。
 

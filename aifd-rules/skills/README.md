@@ -1,4 +1,4 @@
-﻿# aiFirstDev Skills Map
+# aiFirstDev Skills Map
 
 这份索引用于选择 aiFirstDev 的项目级和框架级 skill。具体业务项目可以在此基础上追加自己的业务 skill。
 
@@ -17,7 +17,7 @@
 - [runtime-feature-review](runtime-feature-review/SKILL.md)
   - 项目级代码审查入口；按范围引用已有规则与清单，检查模块边界、运行行为、测试和文档一致性，并以 findings-first 输出。
 - [project-coding-constraints](project-coding-constraints/SKILL.md)
-  - 用于职责边界、最小业务门面、框架复杂度下沉、service/root 命名、文件组织、锁与拷贝、持久化、日志、错误和项目经验沉淀；遇到 `share` / `common` / `core` / `kit` 类小工具归属争议时必须读取，并参考工作区 [模块边界](../../docs/module-boundary.md)。
+  - 用于职责边界、最小业务门面、框架复杂度下沉、service/user 命名、文件组织、锁与拷贝、持久化、日志、错误和项目经验沉淀；遇到 `share` / `common` / `core` / `kit` 类小工具归属争议时必须读取，并参考工作区 [模块边界](../../docs/module-boundary.md)。
 - [architecture-and-surface-routing](architecture-and-surface-routing/SKILL.md)
   - 用于判断需求应落在 `contracts/llm/config/schema/rpc/rdb/runtime/proxy/observe/robot/tools/rules/examples` 还是业务项目；runtime 边界、基础工具集、`aifd-core` 准入、observe-agent 和 `aifd-auth` / `aifd-account` / `aifd-proxy` / `aifd-llm` 归属不清时先用它定主修改面。
 - [complex-backend-workflow](complex-backend-workflow/SKILL.md)
@@ -37,7 +37,7 @@
   - 用于 CLI、service、gateway、worker、example 的启动链和进程级 wiring；proxy/game/world
     split-mode 入口和 config/observe 注入模板优先读取它。
 - [runtime-module-development](runtime-module-development/SKILL.md)
-  - 用于 `aifd-runtime` 的 service/root/Root/module/lifecycle 和业务 runtime feature 接入；重点判断 runtime 只拥有生命周期和模块编排，不拥有具体业务状态与协议。
+  - 用于 `aifd-runtime` 的 user/service/User/module/lifecycle 和业务 runtime feature 接入；重点判断 runtime 只拥有生命周期和模块编排，不拥有具体业务状态与协议。
 - [robot-module-development](robot-module-development/SKILL.md)
   - 用于 `aifd-robot` 的 AgentModule、行为树、消息路由、callback、scenario 和 report。
 - [desktop-app-development](desktop-app-development/SKILL.md)
@@ -45,7 +45,7 @@
 - [ant-design-ui-development](ant-design-ui-development/SKILL.md)
   - 用于 Ant Design React UI 开发；需要查询组件 API、demo、token、semantic DOM、doctor/lint/migrate、MCP、CLI、LLMs.txt 或 X Skills 边界时读取。
 - [feature-development](feature-development/SKILL.md)
-  - 用于业务项目 feature 的 root/service 归属、目录、协议配置和测试接入。
+  - 用于业务项目 feature 的 user/service 归属、目录、协议配置和测试接入。
 
 ## 前端和桌面开发
 
@@ -70,4 +70,4 @@
 
 - [规则与资料入口](../README.md)
 - [评审检查清单](../checklists/review.md)
-- [Root / Service Feature 模板](../templates/root-service-feature.md)
+- [User / Service Feature 模板](../templates/user-service-feature.md)

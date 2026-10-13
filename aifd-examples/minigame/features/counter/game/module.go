@@ -10,7 +10,7 @@ import (
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg"
 	observe "github.com/li9chuan/aifirstdev/aifd-observe/contracts"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
-	runtimeroot "github.com/li9chuan/aifirstdev/aifd-runtime/root"
+	runtimeuser "github.com/li9chuan/aifirstdev/aifd-runtime/user"
 )
 
 const defaultLimit int32 = 10
@@ -22,7 +22,7 @@ type Config interface {
 
 // Module 是 minigame 的计数器 game module。
 type Module struct {
-	moduleCtx runtimeroot.ModuleContext[*pbmsg.DBPlayer]
+	moduleCtx runtimeuser.ModuleContext[*pbmsg.DBPlayer]
 	config    Config
 	observe   observe.Sink
 }
@@ -39,11 +39,11 @@ func NewModule(opts Options) *Module {
 }
 
 // BindModuleContext 绑定 runtime 提供的 active owner 查询入口。
-func (m *Module) BindModuleContext(moduleCtx runtimeroot.ModuleContext[*pbmsg.DBPlayer]) error {
+func (m *Module) BindModuleContext(moduleCtx runtimeuser.ModuleContext[*pbmsg.DBPlayer]) error {
 	if m == nil {
 		return fmt.Errorf("counter module is nil")
 	}
-	if !moduleCtx.HasRootLookup() {
+	if !moduleCtx.HasUserLookup() {
 		return fmt.Errorf("counter root lookup is nil")
 	}
 	m.moduleCtx = moduleCtx
@@ -55,7 +55,7 @@ func (m *Module) Descriptor() base.ModuleDescriptor {
 	return base.ModuleDescriptor{
 		ID:      "minigame.counter.game",
 		Version: "v0.1.0",
-		Kind:    base.ModuleKindRoot,
+		Kind:    base.ModuleKindUser,
 		Provides: []base.Capability{
 			{Kind: "rpc", Name: counter.TopicMceCounterAdd},
 		},
@@ -63,7 +63,7 @@ func (m *Module) Descriptor() base.ModuleDescriptor {
 }
 
 // OnLoad 确保业务 DBPlayer 中存在 counter 子状态。
-func (m *Module) OnLoad(ctx context.Context, owner *runtimeroot.Root[*pbmsg.DBPlayer]) error {
+func (m *Module) OnLoad(ctx context.Context, owner *runtimeuser.User[*pbmsg.DBPlayer]) error {
 	var missing bool
 	if err := owner.Read(func(db *pbmsg.DBPlayer) {
 		missing = db.GetCounter() == nil
@@ -81,34 +81,19 @@ func (m *Module) OnLoad(ctx context.Context, owner *runtimeroot.Root[*pbmsg.DBPl
 	})
 }
 
-// OnActivate 当前示例没有 owner 激活侧状态推进。
-func (m *Module) OnActivate(context.Context, *runtimeroot.Root[*pbmsg.DBPlayer]) error {
-	return nil
-}
-
 // RegisterRPC 注册客户端 counter 请求。
 func (m *Module) RegisterRPC(reg *rpc.Registry) error {
-	if m == nil || !m.moduleCtx.HasRootLookup() {
+	if m == nil || m.moduleCtx.Runtime() == nil {
 		return fmt.Errorf("counter module context is not bound")
 	}
-	return rpc.Client(reg, counter.TopicMceCounterAdd, func(s *rpc.Session, req *pbmsg.MceCounterAdd) {
-		m.handleAdd(s, req)
+	return m.moduleCtx.Runtime().Client(counter.TopicMceCounterAdd, func(s *rpc.Session, owner *runtimeuser.User[*pbmsg.DBPlayer], req *pbmsg.MceCounterAdd) {
+		m.handleAdd(s, owner, req)
 	})
 }
 
-func (m *Module) handleAdd(s *rpc.Session, req *pbmsg.MceCounterAdd) {
+func (m *Module) handleAdd(s *rpc.Session, owner *runtimeuser.User[*pbmsg.DBPlayer], req *pbmsg.MceCounterAdd) {
 	uid := s.UID()
 	limit := m.counterLimit()
-	owner, ok := m.owner(uid)
-	if !ok {
-		m.record(s.Context(), uid, "offline")
-		s.ResponseAs(counter.TopicMseCounterState, &pbmsg.MseCounterState{
-			Uid:     uid,
-			Limit:   limit,
-			Message: "player offline",
-		})
-		return
-	}
 	delta := req.GetDelta()
 	if delta <= 0 {
 		m.respondCurrent(s, owner, limit, "invalid delta")
@@ -150,24 +135,24 @@ func (m *Module) handleAdd(s *rpc.Session, req *pbmsg.MceCounterAdd) {
 	})
 }
 
-func (m *Module) respondCurrent(s *rpc.Session, owner *runtimeroot.Root[*pbmsg.DBPlayer], limit int32, message string) {
+func (m *Module) respondCurrent(s *rpc.Session, owner *runtimeuser.User[*pbmsg.DBPlayer], limit int32, message string) {
 	var value int32
 	_ = owner.Read(func(db *pbmsg.DBPlayer) {
 		value = db.GetCounter().GetValue()
 	})
 	s.ResponseAs(counter.TopicMseCounterState, &pbmsg.MseCounterState{
-		Uid:     owner.ID(),
+		Uid:     owner.UID(),
 		Value:   value,
 		Limit:   limit,
 		Message: message,
 	})
 }
 
-func (m *Module) owner(uid int64) (*runtimeroot.Root[*pbmsg.DBPlayer], bool) {
-	if m == nil || !m.moduleCtx.HasRootLookup() {
+func (m *Module) owner(uid int64) (*runtimeuser.User[*pbmsg.DBPlayer], bool) {
+	if m == nil || !m.moduleCtx.HasUserLookup() {
 		return nil, false
 	}
-	return m.moduleCtx.GetRoot(uid)
+	return m.moduleCtx.GetUser(uid)
 }
 
 func (m *Module) counterLimit() int32 {

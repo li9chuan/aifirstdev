@@ -93,8 +93,33 @@ websocket.NewServer(websocket.Config{
 - `DuplicateAllow`：允许同 UID 多连接。
 - `DuplicateRejectNew`：保留旧连接，拒绝新连接。
 
-需要更细的规则时，实现 `DuplicateHandler`。断线时可以实现 `SessionLifecycle`，由业务
-自行决定是否通知 game/runtime offline；proxy 不写死 offline RPC。
+需要更细的规则时实现 `DuplicateHandler`。配置 `Bus` 时，框架默认通过 Open/Close RPC
+维护业务 owner 的连接租约；高级适配可显式替换 `SessionLifecycle` 的 OnConnect/OnDisconnect。
+
+### 握手、租约与多设备
+
+`Config.HandshakeHandler` 可在 upgrade 前鉴权 HTTP 凭据。没有适用凭据返回
+`Handled=false`，继续登录包入口；已提供凭据认证失败返回 error，不能降级。业务返回
+Identity 和可选 InitialMessage，消息内容属于业务。两种认证共用重复登录策略、UID
+订阅、连接 Open、读循环和幂等清理。订阅、Open 或就绪消息失败会回滚连接。
+
+配置 `Bus` 后，Server 可默认创建 Delivery、Gateway、RPCUpstream 和标准生命周期桥。
+显式分组接线使用 `NewRPCUpstream(bus, delivery)`。有客户端 inbox 的请求通过
+Bus.Request 取得结果，再送回原连接；没有 inbox 使用 Tell。成功或错误都不改投
+同 UID 的其他连接。传输 Status（包括 NATS 无响应服务）统一编码为 RPCError。
+
+UID 事件 `Push/PushTo` 的 inbox 为 0，向所有持有该 UID 连接的 Proxy 发布。
+NATS Downlink 使用普通 PubSub；local Downlink 订阅 local Bus 的 UID 事件，不轮询
+Pushes 历史。第一条连接订阅，最后一条关闭后退订，成员变更与订阅寿命共同协调。
+
+`ClientSessionRef` 由 Proxy 启动实例 ID 和连接 ID 组成，只通过可信内部 metadata
+携带，不进入客户端 MsgHead。Open 有最长 15 秒的期限，Close/过期引用保留至少
+相同长度的退休窗口，拒绝队列中迟到的 Open。续期只能作用于既有有效引用。
+业务服重启后重新鉴权连接；驻留 User 或 UID 数据库记录不能推断在线状态。
+租约循环显式 Run，回调在锁外执行；回调错误会记录，不会停止其他连接到期清理。
+
+业务选择请求响应或事件，不手工拼 inbox/header。规则和多设备验收见
+[用户调用与多设备投递](../aifd-rules/skills/feature-development/references/rpc-user-and-multidevice.md)。
 
 ### Proxy-Broker 拓扑
 

@@ -33,14 +33,14 @@
 - `aifd-robot`：集成测试机器人、行为树、scenario、run group 和 report。
 - `aifd-rpc`：message、session、route、dispatcher 和 transport adapter。
 - `aifd-rdb`：saver、store、codec、Redis/memory 持久化抽象。
-- `aifd-runtime`：service/root 生命周期、Root、module 编排和恢复 gate。
+- `aifd-runtime`：service/user 生命周期、User、module 编排和恢复 gate。
 - `aifd-schema`：proto/message 描述、兼容性检查和 RPC 绑定。
 
 这些模块只放抽象、契约、适配和通用流程；业务 feature、业务 proto、真实配置表、业务 prompt、provider key、额度系统和审计落库留在业务项目或业务服务中。
 
 ## 构造边界和全局门面
 
-框架默认使用显式构造，不引入 `wire`、`dig` 或运行时 DI container。接口依赖按值传，例如 `rpc.Bus`、`observe.Sink`、`logging.Logger`；有生命周期的具体对象按指针传，例如 `*rdb.DB`、`*rpc.Registry`、`*root.Runtime[T]`。
+框架默认使用显式构造，不引入 `wire`、`dig` 或运行时 DI container。接口依赖按值传，例如 `rpc.Bus`、`observe.Sink`、`logging.Logger`；有生命周期的具体对象按指针传，例如 `*rdb.DB`、`*rpc.Registry`、`*user.Runtime[T]`。
 
 logging 是少数允许全局门面的横切能力。业务和框架代码可以使用 `log.Info`、`log.Warn`、`log.Error`、`log.Stat` 和 `log.Statf`，但这个门面只归属 `aifd-observe/logging`。不要新增 `share.Log`、`share.Stat` 或通用全局依赖中心。
 

@@ -8,7 +8,7 @@ The desktop example currently targets Windows amd64 and Wails 3 beta.28.
 
 aiFirstDev is a lightweight backend framework for AI-first development. It is
 organized as one framework Go module with two separate example modules in the local workspace. The current runtime first
-covers game backend scenarios, while the framework language uses service/root
+covers game backend scenarios, while the framework language uses user/service
 runtime concepts. Business applications name their own backend services by
 domain, making the framework extensible to Wails tools, desktop applications,
 and other business backends.
@@ -31,7 +31,7 @@ sharing one framework version. Business projects continue to write feature code:
 - [aifd-robot](aifd-robot/README.md): integration test robots, run groups, behaviors, and statistics.
 - [aifd-rpc](aifd-rpc/README.md): RPC contracts, routing, dispatchers, and adapters.
 - [aifd-rdb](aifd-rdb/README.md): persistence saver primitives and storage adapters.
-- [aifd-runtime](aifd-runtime/README.md): service/root runtime, root store, module lifecycle, and
+- [aifd-runtime](aifd-runtime/README.md): user/service runtime, user store, module lifecycle, and
   configuration/lifecycle helpers.
 - [aifd-schema](aifd-schema/README.md): proto/message descriptions, compatibility checks, and RPC
   binding.
@@ -65,7 +65,7 @@ business projects -----+
 `aifd-config`, `aifd-llm`, `aifd-observe`, `aifd-proxy`, `aifd-robot`,
 `aifd-rpc`, `aifd-rdb`, and `aifd-schema` do not understand player, world,
 feature, DBPlayer, concrete `.proto` files, real Luban tables, or business
-prompt policy. `aifd-runtime` provides `service.Service` and `root.Runtime`;
+prompt policy. `aifd-runtime` provides `service.Service` and `user.Runtime`;
 game, player, world, and similar terms belong only to business examples, not to
 the framework public API.
 
@@ -93,7 +93,7 @@ AI-first describes the development workflow: repository rules, skills, templates
 and reproducible checks help AI agents work within module boundaries. Applications
 do not require an LLM at runtime; `aifd-llm` is optional.
 
-Install Go 1.26 or later and Git, then start the in-memory backend example:
+Install Go 1.27 or later and Git, then start the in-memory backend example:
 
 ```powershell
 git clone https://github.com/li9chuan/aifirstdev.git
@@ -134,7 +134,7 @@ download, or apply updates. Third-party tool versions remain pinned in `aifd.loc
 
 ## Build and verify
 
-Use Go 1.26 or later, Node.js 22.12 or later with npm, and PowerShell 5.1 or 7.
+Use Go 1.27 or later, Node.js 22.12 or later with npm, and PowerShell 5.1 or 7.
 Put `go`, `node`, and `npm` on PATH, then run from the repository root:
 
 ```powershell

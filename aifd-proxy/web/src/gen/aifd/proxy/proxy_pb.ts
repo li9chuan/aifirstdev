@@ -2,15 +2,15 @@
 // @generated from file aifd/proxy/proxy.proto (package aifd.proxy, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file aifd/proxy/proxy.proto.
  */
 export const file_aifd_proxy_proxy: GenFile = /*@__PURE__*/
-  fileDesc("ChZhaWZkL3Byb3h5L3Byb3h5LnByb3RvEgphaWZkLnByb3h5IkQKB01zZ0hlYWQSCwoDbGVuGAEgASgFEg0KBWluYm94GAIgASgFEg0KBXRvcGljGAMgASgJEg4KBnBiVHlwZRgEIAEoCSIpCghSUENFcnJvchIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAlCRFpCZ2l0aHViLmNvbS9saTljaHVhbi9haWZpcnN0ZGV2L2FpZmQtc2NoZW1hL2dlbmVyYXRlZC9wcm94eTtwcm94eXBiYgZwcm90bzM");
+  fileDesc("ChZhaWZkL3Byb3h5L3Byb3h5LnByb3RvEgphaWZkLnByb3h5IkQKB01zZ0hlYWQSCwoDbGVuGAEgASgFEg0KBWluYm94GAIgASgFEg0KBXRvcGljGAMgASgJEg4KBnBiVHlwZRgEIAEoCSIpCghSUENFcnJvchIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkiRAoQQ2xpZW50U2Vzc2lvblJlZhIZChFwcm94eV9pbnN0YW5jZV9pZBgBIAEoCRIVCg1jb25uZWN0aW9uX2lkGAIgASgJIkkKGE9wZW5DbGllbnRTZXNzaW9uUmVxdWVzdBItCgdzZXNzaW9uGAEgASgLMhwuYWlmZC5wcm94eS5DbGllbnRTZXNzaW9uUmVmIhsKGU9wZW5DbGllbnRTZXNzaW9uUmVzcG9uc2UicgoTQ2xpZW50U2Vzc2lvbkNsb3NlZBItCgdzZXNzaW9uGAEgASgLMhwuYWlmZC5wcm94eS5DbGllbnRTZXNzaW9uUmVmEiwKBnJlYXNvbhgCIAEoDjIcLmFpZmQucHJveHkuU2Vzc2lvbkVuZFJlYXNvbiIVChNNY2VTZXNzaW9uSGVhcnRiZWF0IjIKE01zZVNlc3Npb25IZWFydGJlYXQSGwoTc2VydmVyX3RpbWVfdW5peF9tcxgBIAEoAyq9AQoQU2Vzc2lvbkVuZFJlYXNvbhIiCh5TRVNTSU9OX0VORF9SRUFTT05fVU5TUEVDSUZJRUQQABIjCh9TRVNTSU9OX0VORF9SRUFTT05fRElTQ09OTkVDVEVEEAESHwobU0VTU0lPTl9FTkRfUkVBU09OX1JFUExBQ0VEEAISHgoaU0VTU0lPTl9FTkRfUkVBU09OX0VYUElSRUQQAxIfChtTRVNTSU9OX0VORF9SRUFTT05fU0hVVERPV04QBEJEWkJnaXRodWIuY29tL2xpOWNodWFuL2FpZmlyc3RkZXYvYWlmZC1zY2hlbWEvZ2VuZXJhdGVkL3Byb3h5O3Byb3h5cGJiBnByb3RvMw");
 
 /**
  * MsgHead 是客户端与 proxy 通信时的 PB 帧头。
@@ -84,4 +84,154 @@ export type RPCError = Message<"aifd.proxy.RPCError"> & {
  */
 export const RPCErrorSchema: GenMessage<RPCError> = /*@__PURE__*/
   messageDesc(file_aifd_proxy_proxy, 1);
+
+/**
+ * ClientSessionRef identifies one authenticated connection across proxy restarts.
+ *
+ * @generated from message aifd.proxy.ClientSessionRef
+ */
+export type ClientSessionRef = Message<"aifd.proxy.ClientSessionRef"> & {
+  /**
+   * @generated from field: string proxy_instance_id = 1;
+   */
+  proxyInstanceId: string;
+
+  /**
+   * @generated from field: string connection_id = 2;
+   */
+  connectionId: string;
+};
+
+/**
+ * Describes the message aifd.proxy.ClientSessionRef.
+ * Use `create(ClientSessionRefSchema)` to create a new message.
+ */
+export const ClientSessionRefSchema: GenMessage<ClientSessionRef> = /*@__PURE__*/
+  messageDesc(file_aifd_proxy_proxy, 2);
+
+/**
+ * OpenClientSessionRequest is sent only by a trusted proxy. UID is RPC metadata.
+ *
+ * @generated from message aifd.proxy.OpenClientSessionRequest
+ */
+export type OpenClientSessionRequest = Message<"aifd.proxy.OpenClientSessionRequest"> & {
+  /**
+   * @generated from field: aifd.proxy.ClientSessionRef session = 1;
+   */
+  session?: ClientSessionRef | undefined;
+};
+
+/**
+ * Describes the message aifd.proxy.OpenClientSessionRequest.
+ * Use `create(OpenClientSessionRequestSchema)` to create a new message.
+ */
+export const OpenClientSessionRequestSchema: GenMessage<OpenClientSessionRequest> = /*@__PURE__*/
+  messageDesc(file_aifd_proxy_proxy, 3);
+
+/**
+ * @generated from message aifd.proxy.OpenClientSessionResponse
+ */
+export type OpenClientSessionResponse = Message<"aifd.proxy.OpenClientSessionResponse"> & {
+};
+
+/**
+ * Describes the message aifd.proxy.OpenClientSessionResponse.
+ * Use `create(OpenClientSessionResponseSchema)` to create a new message.
+ */
+export const OpenClientSessionResponseSchema: GenMessage<OpenClientSessionResponse> = /*@__PURE__*/
+  messageDesc(file_aifd_proxy_proxy, 4);
+
+/**
+ * ClientSessionClosed closes only the referenced connection, never the entire UID.
+ *
+ * @generated from message aifd.proxy.ClientSessionClosed
+ */
+export type ClientSessionClosed = Message<"aifd.proxy.ClientSessionClosed"> & {
+  /**
+   * @generated from field: aifd.proxy.ClientSessionRef session = 1;
+   */
+  session?: ClientSessionRef | undefined;
+
+  /**
+   * @generated from field: aifd.proxy.SessionEndReason reason = 2;
+   */
+  reason: SessionEndReason;
+};
+
+/**
+ * Describes the message aifd.proxy.ClientSessionClosed.
+ * Use `create(ClientSessionClosedSchema)` to create a new message.
+ */
+export const ClientSessionClosedSchema: GenMessage<ClientSessionClosed> = /*@__PURE__*/
+  messageDesc(file_aifd_proxy_proxy, 5);
+
+/**
+ * MceSessionHeartbeat is the optional framework heartbeat request.
+ *
+ * @generated from message aifd.proxy.MceSessionHeartbeat
+ */
+export type MceSessionHeartbeat = Message<"aifd.proxy.MceSessionHeartbeat"> & {
+};
+
+/**
+ * Describes the message aifd.proxy.MceSessionHeartbeat.
+ * Use `create(MceSessionHeartbeatSchema)` to create a new message.
+ */
+export const MceSessionHeartbeatSchema: GenMessage<MceSessionHeartbeat> = /*@__PURE__*/
+  messageDesc(file_aifd_proxy_proxy, 6);
+
+/**
+ * MseSessionHeartbeat completes the original request; it is not a UID broadcast.
+ *
+ * @generated from message aifd.proxy.MseSessionHeartbeat
+ */
+export type MseSessionHeartbeat = Message<"aifd.proxy.MseSessionHeartbeat"> & {
+  /**
+   * @generated from field: int64 server_time_unix_ms = 1;
+   */
+  serverTimeUnixMs: bigint;
+};
+
+/**
+ * Describes the message aifd.proxy.MseSessionHeartbeat.
+ * Use `create(MseSessionHeartbeatSchema)` to create a new message.
+ */
+export const MseSessionHeartbeatSchema: GenMessage<MseSessionHeartbeat> = /*@__PURE__*/
+  messageDesc(file_aifd_proxy_proxy, 7);
+
+/**
+ * @generated from enum aifd.proxy.SessionEndReason
+ */
+export enum SessionEndReason {
+  /**
+   * @generated from enum value: SESSION_END_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: SESSION_END_REASON_DISCONNECTED = 1;
+   */
+  DISCONNECTED = 1,
+
+  /**
+   * @generated from enum value: SESSION_END_REASON_REPLACED = 2;
+   */
+  REPLACED = 2,
+
+  /**
+   * @generated from enum value: SESSION_END_REASON_EXPIRED = 3;
+   */
+  EXPIRED = 3,
+
+  /**
+   * @generated from enum value: SESSION_END_REASON_SHUTDOWN = 4;
+   */
+  SHUTDOWN = 4,
+}
+
+/**
+ * Describes the enum aifd.proxy.SessionEndReason.
+ */
+export const SessionEndReasonSchema: GenEnum<SessionEndReason> = /*@__PURE__*/
+  enumDesc(file_aifd_proxy_proxy, 0);
 

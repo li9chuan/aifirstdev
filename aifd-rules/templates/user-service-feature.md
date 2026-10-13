@@ -1,4 +1,4 @@
-﻿# Root / Service Feature 模板
+# User / Service Feature 模板
 
 使用流程见[Feature 开发 skill](../skills/feature-development/SKILL.md)，生命周期依据见
 [runtime 组织原则](../../docs/scope-runtime.md)，可运行接线示例见[minigame](../../aifd-examples/minigame/README.md)。
@@ -9,7 +9,7 @@
 ```text
 features/<name>/
   feature.go
-  root.go
+  user.go
   service.go
   rpc.go
   storage.go
@@ -18,7 +18,7 @@ features/<name>/
   robot/
 ```
 
-root module 只拥有当前业务根文档中的状态；service module 拥有跨 root 的索引、
+user module 只拥有当前业务根文档中的状态；service module 拥有跨用户 的索引、
 聚合、投递、关系或任务状态。业务项目可按领域拆分文件名，但不要把 game/world
 这类示例业务词汇作为框架默认入口。
 

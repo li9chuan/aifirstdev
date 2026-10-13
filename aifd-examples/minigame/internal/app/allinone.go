@@ -54,18 +54,15 @@ func NewAllInOneApp(ctx context.Context, configs ...ServiceFileConfig) (*AllInOn
 		_ = db.Close(context.Background())
 		return nil, err
 	}
-	gameApp, err := NewGameApp(reg, WithGameDB(db), WithGameConfig(configApp), WithGameObserve(observe))
+	bus := rpc.NewLocalBus(rpc.LocalConfig{ServiceName: "minigame", Buffer: 32, DefaultTimeout: time.Second})
+	gameApp, err := NewGameApp(reg, WithGameDB(db), WithGameConfig(configApp), WithGameObserve(observe), WithGameBus(bus))
 	if err != nil {
 		cancel()
+		_ = bus.Close(context.Background())
 		_ = worldApp.Close(context.Background())
 		_ = db.Close(context.Background())
 		return nil, err
 	}
-	bus := rpc.NewLocalBus(rpc.LocalConfig{
-		ServiceName:    "minigame",
-		Buffer:         32,
-		DefaultTimeout: time.Second,
-	})
 	if err := rpc.Start(runCtx, bus, reg); err != nil {
 		cancel()
 		_ = bus.Close(context.Background())
@@ -73,6 +70,7 @@ func NewAllInOneApp(ctx context.Context, configs ...ServiceFileConfig) (*AllInOn
 		_ = db.Close(context.Background())
 		return nil, err
 	}
+	go func() { _ = gameApp.Runtime.Run(runCtx) }()
 
 	var fileCfg ServiceFileConfig
 	if len(configs) > 0 {
@@ -107,6 +105,11 @@ func (a *AllInOneApp) Close(ctx context.Context) error {
 	}
 	if a.World != nil {
 		if err := a.World.Close(ctx); err != nil {
+			return err
+		}
+	}
+	if a.Game != nil {
+		if err := a.Game.Runtime.Close(ctx); err != nil {
 			return err
 		}
 	}

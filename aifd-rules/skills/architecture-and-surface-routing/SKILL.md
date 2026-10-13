@@ -25,7 +25,7 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 - LLM provider-neutral 调用门面、stream、usage、tool call、JSON 输出和 provider adapter：`aifd-llm`。
 - RPC message、session、route、dispatcher、adapter：`aifd-rpc`。
 - saver、store、codec、Redis/memory 持久化抽象：`aifd-rdb`。
-- service/root runtime、Root、module/lifecycle：`aifd-runtime`，使用 [runtime-module-development](../runtime-module-development/SKILL.md)。
+- user/service runtime、User、module/lifecycle：`aifd-runtime`，使用 [runtime-module-development](../runtime-module-development/SKILL.md)。
 - 客户端连接、gateway、session、delivery，以及显式 proxy-broker embedded NATS
   生命周期 adapter：`aifd-proxy`。
 - 日志门面、指标、trace、audit、stat sink、KindRouter 和 observe-agent：`aifd-observe`。
@@ -56,9 +56,9 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 
 ## 常见争议判定
 
-- 服务生命周期、root runtime、service/root module 编排、恢复 gate、active root 管理：主面是 `aifd-runtime`。
+- 服务生命周期、user runtime、service/user module 编排、恢复 gate、active root 管理：主面是 `aifd-runtime`。
 - Player/World 是游戏业务词汇，不是框架默认命名；非游戏项目优先使用 user、workspace、document、index、jobs 等真实领域名。
-- mail/friend/guild/ranking 这类跨主体能力优先落到 `aifd-plugins/<name>` 或业务项目插件包，不在 `aifd-runtime/root` 或 `aifd-runtime/service` 下建功能目录；需要跨 root 真相源时，由插件自己的 service module 承载，是否随 all-in-one 启动由服务入口决策。
+- mail/friend/guild/ranking 这类跨主体能力优先落到 `aifd-plugins/<name>` 或业务项目插件包，不在 `aifd-runtime/user` 或 `aifd-runtime/service` 下建功能目录；需要跨用户 真相源时，由插件自己的 service module 承载，是否随 all-in-one 启动由服务入口决策。
 - LLM 客户端能力优先落到独立 `aifd-llm`，不放进 `aifd-runtime`、`aifd-core` 或 `aifd-plugins/llm`；只有出现集中式 LLM 网关服务时，才另建业务 service module 或 `aifd-plugins/llm-gateway` 组合 `aifd-llm`。
 - 纯 saver、Set/HSet、Redis/memory adapter、编解码持久化抽象：主面是 `aifd-rdb`。
 - 客户端连接、packet codec、登录状态、重复登录和上下行投递：主面是 `aifd-proxy`。

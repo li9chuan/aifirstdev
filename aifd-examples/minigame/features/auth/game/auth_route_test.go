@@ -11,7 +11,7 @@ import (
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg"
 	rdb "github.com/li9chuan/aifirstdev/aifd-rdb"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
-	runtimeroot "github.com/li9chuan/aifirstdev/aifd-runtime/root"
+	runtimeuser "github.com/li9chuan/aifirstdev/aifd-runtime/user"
 )
 
 func TestAuthOKLogsPlayerIn(t *testing.T) {
@@ -21,7 +21,7 @@ func TestAuthOKLogsPlayerIn(t *testing.T) {
 	defer db.Close(context.Background())
 
 	reg := rpc.NewRegistry()
-	store, err := runtimeroot.NewStore(runtimeroot.StoreOptions[*pbmsg.DBPlayer]{
+	store, err := runtimeuser.NewStore(runtimeuser.StoreOptions[*pbmsg.DBPlayer]{
 		DB: db,
 		Key: func(ownerID int64) string {
 			return "auth-route-game:" + strconv.FormatInt(ownerID, 10)
@@ -33,7 +33,7 @@ func TestAuthOKLogsPlayerIn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore error = %v", err)
 	}
-	service := runtimeroot.NewRuntime(reg, store, runtimeroot.NewManager[*pbmsg.DBPlayer]())
+	service := runtimeuser.NewRuntime(reg, store, runtimeuser.NewManager[*pbmsg.DBPlayer]())
 	if err := RegisterRPC(reg, service); err != nil {
 		t.Fatalf("RegisterRPC error = %v", err)
 	}
@@ -50,7 +50,7 @@ func TestAuthOKLogsPlayerIn(t *testing.T) {
 	if rsp.GetRet() != auth.RetOK {
 		t.Fatalf("rsp = %+v, want successful new login", &rsp)
 	}
-	owner, ok := service.GetRoot(1001)
+	owner, ok := service.GetUser(1001)
 	if !ok {
 		t.Fatal("owner 1001 is not active")
 	}
@@ -69,7 +69,7 @@ func TestAuthOKLogsPlayerIn(t *testing.T) {
 	if second.GetRet() != auth.RetOK {
 		t.Fatalf("second rsp = %+v, want successful existing login", &second)
 	}
-	owner, ok = service.GetRoot(1001)
+	owner, ok = service.GetUser(1001)
 	if !ok {
 		t.Fatal("owner 1001 is not active after second login")
 	}

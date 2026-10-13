@@ -42,7 +42,7 @@ func TestRobotLoginSuccess(t *testing.T) {
 		if rsp.GetRet() != auth.RetOK {
 			t.Fatalf("robot uid %d rsp = %+v, want auth ok", uid, &rsp)
 		}
-		owner, ok := appInstance.Game.Runtime.GetRoot(uid)
+		owner, ok := appInstance.Game.Runtime.GetUser(uid)
 		if !ok {
 			t.Fatalf("owner %d is not active", uid)
 		}
@@ -91,7 +91,7 @@ func TestRobotCounterSuccess(t *testing.T) {
 		t.Fatalf("DB Flush error = %v", err)
 	}
 	for uid := range authModules {
-		owner, ok := appInstance.Game.Runtime.GetRoot(uid)
+		owner, ok := appInstance.Game.Runtime.GetUser(uid)
 		if !ok {
 			t.Fatalf("owner %d is not active", uid)
 		}

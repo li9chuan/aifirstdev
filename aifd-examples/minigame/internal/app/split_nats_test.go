@@ -89,7 +89,7 @@ func runSplitModeRobotCounter(t *testing.T, ctx context.Context, ownerBus rpc.Bu
 	}
 	defer worldApp.Close(context.Background())
 
-	gameApp, err := NewGameApp(ownerReg, WithGameDB(ownerDB), WithGameConfig(configApp), WithGameObserve(observe))
+	gameApp, err := NewGameApp(ownerReg, WithGameDB(ownerDB), WithGameConfig(configApp), WithGameObserve(observe), WithGameBus(ownerBus))
 	if err != nil {
 		t.Fatalf("NewGameApp error = %v", err)
 	}
@@ -97,6 +97,8 @@ func runSplitModeRobotCounter(t *testing.T, ctx context.Context, ownerBus rpc.Bu
 	if err := rpc.Start(ctx, ownerBus, ownerReg); err != nil {
 		t.Fatalf("rpc.Start owner error = %v", err)
 	}
+	go func() { _ = gameApp.Runtime.Run(ctx) }()
+	defer gameApp.Runtime.Close(context.Background())
 
 	if err := rpc.Start(ctx, globalBus, globalReg); err != nil {
 		t.Fatalf("rpc.Start global error = %v", err)
@@ -139,7 +141,7 @@ func runSplitModeRobotCounter(t *testing.T, ctx context.Context, ownerBus rpc.Bu
 		if counterRsp.GetUid() <= 0 {
 			t.Fatalf("robot uid %d counter rsp uid = %d, want positive uid", uid, counterRsp.GetUid())
 		}
-		waitForSplitRoot(t, gameApp, counterRsp.GetUid())
+		waitForSplitUser(t, gameApp, counterRsp.GetUid())
 	}
 	if err := globalDB.Flush(context.Background()); err != nil {
 		t.Fatalf("global DB Flush error = %v", err)
@@ -150,11 +152,11 @@ func runSplitModeRobotCounter(t *testing.T, ctx context.Context, ownerBus rpc.Bu
 	}
 }
 
-func waitForSplitRoot(t *testing.T, app *GameApp, uid int64) {
+func waitForSplitUser(t *testing.T, app *GameApp, uid int64) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for {
-		if _, ok := app.Runtime.GetRoot(uid); ok {
+		if _, ok := app.Runtime.GetUser(uid); ok {
 			return
 		}
 		if time.Now().After(deadline) {

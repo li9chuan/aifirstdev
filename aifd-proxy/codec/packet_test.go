@@ -16,6 +16,28 @@ const webClientPacketGolden = "0803107b1a104d7365496e76656e746f7279496e666f220b5
 // The Web codec test uses the same packet: INVALID / 请求无效 / inbox 123.
 const webClientRPCErrorGolden = "0817107b1a085250434572726f7222085250434572726f720a07494e56414c4944120ce8afb7e6b182e697a0e69588"
 
+func TestTransportStatusWithRequestNameBecomesRPCError(t *testing.T) {
+	parts, err := EncodeMessage(rpc.Message{Name: "MceSessionHeartbeat", Header: map[string]string{rpc.HeaderStatus: "503", rpc.HeaderClientInbox: "9"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, body, err := DecodePacket(bytes.Join(parts, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if head.Topic != "RPCError" || head.PbType != "RPCError" || head.Inbox != 9 {
+		t.Fatalf("transport error lost: %v", head)
+	}
+	msg, err := MessageFromPacket(head, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, ok := rpc.StatusFromMessage(msg).(*rpc.StatusError)
+	if !ok || status.Code != "503" {
+		t.Fatalf("status=%v", status)
+	}
+}
+
 func TestRPCErrorMessagePacketRoundTrip(t *testing.T) {
 	msg := rpc.Message{
 		Name:    "RPCError",

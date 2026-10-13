@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	coderws "github.com/coder/websocket"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/counter"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg"
 	proxycodec "github.com/li9chuan/aifirstdev/aifd-proxy/codec"
 	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
-	coderws "github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -35,7 +35,7 @@ func TestWebSocketLoginSuccess(t *testing.T) {
 	if rsp.GetRet() != auth.RetOK {
 		t.Fatalf("rsp = %+v, want successful login", &rsp)
 	}
-	owner, ok := app.Game.Runtime.GetRoot(1001)
+	owner, ok := app.Game.Runtime.GetUser(1001)
 	if !ok {
 		t.Fatal("owner 1001 is not active")
 	}
@@ -58,7 +58,7 @@ func TestWebSocketLoginSuccess(t *testing.T) {
 	if secondRsp.GetRet() != auth.RetOK {
 		t.Fatalf("second rsp = %+v, want existing login", &secondRsp)
 	}
-	owner, ok = app.Game.Runtime.GetRoot(1001)
+	owner, ok = app.Game.Runtime.GetUser(1001)
 	if !ok {
 		t.Fatal("owner 1001 is not active after second login")
 	}
@@ -92,7 +92,7 @@ func TestWebSocketCounterAfterLogin(t *testing.T) {
 	if err := app.DB.Flush(context.Background()); err != nil {
 		t.Fatalf("DB Flush error = %v", err)
 	}
-	owner, ok := app.Game.Runtime.GetRoot(1001)
+	owner, ok := app.Game.Runtime.GetUser(1001)
 	if !ok {
 		t.Fatal("owner 1001 is not active")
 	}

@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
+	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg"
 	robotc "github.com/li9chuan/aifirstdev/aifd-robot/contracts"
+	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
 )
 
 // AuthFunc returns the client auth packet for one robot owner.
@@ -21,11 +24,12 @@ type ModuleOptions struct {
 type AuthModule struct {
 	opts ModuleOptions
 
-	mu     sync.Mutex
-	done   chan struct{}
-	once   sync.Once
-	result pbmsg.MseAuth
-	got    bool
+	mu            sync.Mutex
+	done          chan struct{}
+	once          sync.Once
+	result        pbmsg.MseAuth
+	got           bool
+	nextHeartbeat time.Time
 }
 
 // NewModule 创建登录 robot 模块。
@@ -55,9 +59,32 @@ func (m *AuthModule) OnLogin(ctx context.Context, agent robotc.Agent) error {
 	return agent.Call(req)
 }
 
-// Tick 登录示例没有周期行为。
-func (m *AuthModule) Tick(context.Context, robotc.Agent) error {
-	return nil
+// Tick renews the authenticated connection through the business owner.
+func (m *AuthModule) Tick(ctx context.Context, agent robotc.Agent) error {
+	m.mu.Lock()
+	if !m.got || m.result.GetRet() != auth.RetOK || time.Now().Before(m.nextHeartbeat) {
+		m.mu.Unlock()
+		return nil
+	}
+	m.nextHeartbeat = time.Now().Add(30 * time.Second)
+	m.mu.Unlock()
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	if err := agent.Call(&proxypb.MceSessionHeartbeat{}, func(rsp *proxypb.MseSessionHeartbeat, err error) {
+		if err == nil && (rsp == nil || rsp.GetServerTimeUnixMs() <= 0) {
+			err = errors.New("invalid heartbeat response")
+		}
+		done <- err
+	}); err != nil {
+		return err
+	}
+	select {
+	case err := <-done:
+		return err
+	case <-probeCtx.Done():
+		return probeCtx.Err()
+	}
 }
 
 // Actions 登录示例不注册行为树 action。

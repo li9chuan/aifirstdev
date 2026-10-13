@@ -21,6 +21,61 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type SessionEndReason int32
+
+const (
+	SessionEndReason_SESSION_END_REASON_UNSPECIFIED  SessionEndReason = 0
+	SessionEndReason_SESSION_END_REASON_DISCONNECTED SessionEndReason = 1
+	SessionEndReason_SESSION_END_REASON_REPLACED     SessionEndReason = 2
+	SessionEndReason_SESSION_END_REASON_EXPIRED      SessionEndReason = 3
+	SessionEndReason_SESSION_END_REASON_SHUTDOWN     SessionEndReason = 4
+)
+
+// Enum value maps for SessionEndReason.
+var (
+	SessionEndReason_name = map[int32]string{
+		0: "SESSION_END_REASON_UNSPECIFIED",
+		1: "SESSION_END_REASON_DISCONNECTED",
+		2: "SESSION_END_REASON_REPLACED",
+		3: "SESSION_END_REASON_EXPIRED",
+		4: "SESSION_END_REASON_SHUTDOWN",
+	}
+	SessionEndReason_value = map[string]int32{
+		"SESSION_END_REASON_UNSPECIFIED":  0,
+		"SESSION_END_REASON_DISCONNECTED": 1,
+		"SESSION_END_REASON_REPLACED":     2,
+		"SESSION_END_REASON_EXPIRED":      3,
+		"SESSION_END_REASON_SHUTDOWN":     4,
+	}
+)
+
+func (x SessionEndReason) Enum() *SessionEndReason {
+	p := new(SessionEndReason)
+	*p = x
+	return p
+}
+
+func (x SessionEndReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SessionEndReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_aifd_proxy_proxy_proto_enumTypes[0].Descriptor()
+}
+
+func (SessionEndReason) Type() protoreflect.EnumType {
+	return &file_aifd_proxy_proxy_proto_enumTypes[0]
+}
+
+func (x SessionEndReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SessionEndReason.Descriptor instead.
+func (SessionEndReason) EnumDescriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{0}
+}
+
 // MsgHead 是客户端与 proxy 通信时的 PB 帧头。
 //
 // 线格式为：
@@ -154,6 +209,275 @@ func (x *RPCError) GetMessage() string {
 	return ""
 }
 
+// ClientSessionRef identifies one authenticated connection across proxy restarts.
+type ClientSessionRef struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ProxyInstanceId string                 `protobuf:"bytes,1,opt,name=proxy_instance_id,json=proxyInstanceId,proto3" json:"proxy_instance_id,omitempty"`
+	ConnectionId    string                 `protobuf:"bytes,2,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ClientSessionRef) Reset() {
+	*x = ClientSessionRef{}
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClientSessionRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClientSessionRef) ProtoMessage() {}
+
+func (x *ClientSessionRef) ProtoReflect() protoreflect.Message {
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClientSessionRef.ProtoReflect.Descriptor instead.
+func (*ClientSessionRef) Descriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ClientSessionRef) GetProxyInstanceId() string {
+	if x != nil {
+		return x.ProxyInstanceId
+	}
+	return ""
+}
+
+func (x *ClientSessionRef) GetConnectionId() string {
+	if x != nil {
+		return x.ConnectionId
+	}
+	return ""
+}
+
+// OpenClientSessionRequest is sent only by a trusted proxy. UID is RPC metadata.
+type OpenClientSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *ClientSessionRef      `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenClientSessionRequest) Reset() {
+	*x = OpenClientSessionRequest{}
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenClientSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenClientSessionRequest) ProtoMessage() {}
+
+func (x *OpenClientSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenClientSessionRequest.ProtoReflect.Descriptor instead.
+func (*OpenClientSessionRequest) Descriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *OpenClientSessionRequest) GetSession() *ClientSessionRef {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type OpenClientSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenClientSessionResponse) Reset() {
+	*x = OpenClientSessionResponse{}
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenClientSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenClientSessionResponse) ProtoMessage() {}
+
+func (x *OpenClientSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenClientSessionResponse.ProtoReflect.Descriptor instead.
+func (*OpenClientSessionResponse) Descriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{4}
+}
+
+// ClientSessionClosed closes only the referenced connection, never the entire UID.
+type ClientSessionClosed struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *ClientSessionRef      `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	Reason        SessionEndReason       `protobuf:"varint,2,opt,name=reason,proto3,enum=aifd.proxy.SessionEndReason" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClientSessionClosed) Reset() {
+	*x = ClientSessionClosed{}
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClientSessionClosed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClientSessionClosed) ProtoMessage() {}
+
+func (x *ClientSessionClosed) ProtoReflect() protoreflect.Message {
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClientSessionClosed.ProtoReflect.Descriptor instead.
+func (*ClientSessionClosed) Descriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ClientSessionClosed) GetSession() *ClientSessionRef {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+func (x *ClientSessionClosed) GetReason() SessionEndReason {
+	if x != nil {
+		return x.Reason
+	}
+	return SessionEndReason_SESSION_END_REASON_UNSPECIFIED
+}
+
+// MceSessionHeartbeat is the optional framework heartbeat request.
+type MceSessionHeartbeat struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MceSessionHeartbeat) Reset() {
+	*x = MceSessionHeartbeat{}
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MceSessionHeartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MceSessionHeartbeat) ProtoMessage() {}
+
+func (x *MceSessionHeartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MceSessionHeartbeat.ProtoReflect.Descriptor instead.
+func (*MceSessionHeartbeat) Descriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{6}
+}
+
+// MseSessionHeartbeat completes the original request; it is not a UID broadcast.
+type MseSessionHeartbeat struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ServerTimeUnixMs int64                  `protobuf:"varint,1,opt,name=server_time_unix_ms,json=serverTimeUnixMs,proto3" json:"server_time_unix_ms,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *MseSessionHeartbeat) Reset() {
+	*x = MseSessionHeartbeat{}
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MseSessionHeartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MseSessionHeartbeat) ProtoMessage() {}
+
+func (x *MseSessionHeartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MseSessionHeartbeat.ProtoReflect.Descriptor instead.
+func (*MseSessionHeartbeat) Descriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *MseSessionHeartbeat) GetServerTimeUnixMs() int64 {
+	if x != nil {
+		return x.ServerTimeUnixMs
+	}
+	return 0
+}
+
 var File_aifd_proxy_proxy_proto protoreflect.FileDescriptor
 
 const file_aifd_proxy_proxy_proto_rawDesc = "" +
@@ -167,7 +491,25 @@ const file_aifd_proxy_proxy_proto_rawDesc = "" +
 	"\x06pbType\x18\x04 \x01(\tR\x06pbType\"8\n" +
 	"\bRPCError\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessageBDZBgithub.com/li9chuan/aifirstdev/aifd-schema/generated/proxy;proxypbb\x06proto3"
+	"\amessage\x18\x02 \x01(\tR\amessage\"c\n" +
+	"\x10ClientSessionRef\x12*\n" +
+	"\x11proxy_instance_id\x18\x01 \x01(\tR\x0fproxyInstanceId\x12#\n" +
+	"\rconnection_id\x18\x02 \x01(\tR\fconnectionId\"R\n" +
+	"\x18OpenClientSessionRequest\x126\n" +
+	"\asession\x18\x01 \x01(\v2\x1c.aifd.proxy.ClientSessionRefR\asession\"\x1b\n" +
+	"\x19OpenClientSessionResponse\"\x83\x01\n" +
+	"\x13ClientSessionClosed\x126\n" +
+	"\asession\x18\x01 \x01(\v2\x1c.aifd.proxy.ClientSessionRefR\asession\x124\n" +
+	"\x06reason\x18\x02 \x01(\x0e2\x1c.aifd.proxy.SessionEndReasonR\x06reason\"\x15\n" +
+	"\x13MceSessionHeartbeat\"D\n" +
+	"\x13MseSessionHeartbeat\x12-\n" +
+	"\x13server_time_unix_ms\x18\x01 \x01(\x03R\x10serverTimeUnixMs*\xbd\x01\n" +
+	"\x10SessionEndReason\x12\"\n" +
+	"\x1eSESSION_END_REASON_UNSPECIFIED\x10\x00\x12#\n" +
+	"\x1fSESSION_END_REASON_DISCONNECTED\x10\x01\x12\x1f\n" +
+	"\x1bSESSION_END_REASON_REPLACED\x10\x02\x12\x1e\n" +
+	"\x1aSESSION_END_REASON_EXPIRED\x10\x03\x12\x1f\n" +
+	"\x1bSESSION_END_REASON_SHUTDOWN\x10\x04BDZBgithub.com/li9chuan/aifirstdev/aifd-schema/generated/proxy;proxypbb\x06proto3"
 
 var (
 	file_aifd_proxy_proxy_proto_rawDescOnce sync.Once
@@ -181,17 +523,28 @@ func file_aifd_proxy_proxy_proto_rawDescGZIP() []byte {
 	return file_aifd_proxy_proxy_proto_rawDescData
 }
 
-var file_aifd_proxy_proxy_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_aifd_proxy_proxy_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_aifd_proxy_proxy_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_aifd_proxy_proxy_proto_goTypes = []any{
-	(*MsgHead)(nil),  // 0: aifd.proxy.MsgHead
-	(*RPCError)(nil), // 1: aifd.proxy.RPCError
+	(SessionEndReason)(0),             // 0: aifd.proxy.SessionEndReason
+	(*MsgHead)(nil),                   // 1: aifd.proxy.MsgHead
+	(*RPCError)(nil),                  // 2: aifd.proxy.RPCError
+	(*ClientSessionRef)(nil),          // 3: aifd.proxy.ClientSessionRef
+	(*OpenClientSessionRequest)(nil),  // 4: aifd.proxy.OpenClientSessionRequest
+	(*OpenClientSessionResponse)(nil), // 5: aifd.proxy.OpenClientSessionResponse
+	(*ClientSessionClosed)(nil),       // 6: aifd.proxy.ClientSessionClosed
+	(*MceSessionHeartbeat)(nil),       // 7: aifd.proxy.MceSessionHeartbeat
+	(*MseSessionHeartbeat)(nil),       // 8: aifd.proxy.MseSessionHeartbeat
 }
 var file_aifd_proxy_proxy_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	3, // 0: aifd.proxy.OpenClientSessionRequest.session:type_name -> aifd.proxy.ClientSessionRef
+	3, // 1: aifd.proxy.ClientSessionClosed.session:type_name -> aifd.proxy.ClientSessionRef
+	0, // 2: aifd.proxy.ClientSessionClosed.reason:type_name -> aifd.proxy.SessionEndReason
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_aifd_proxy_proxy_proto_init() }
@@ -204,13 +557,14 @@ func file_aifd_proxy_proxy_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aifd_proxy_proxy_proto_rawDesc), len(file_aifd_proxy_proxy_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   2,
+			NumEnums:      1,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_aifd_proxy_proxy_proto_goTypes,
 		DependencyIndexes: file_aifd_proxy_proxy_proto_depIdxs,
+		EnumInfos:         file_aifd_proxy_proxy_proto_enumTypes,
 		MessageInfos:      file_aifd_proxy_proxy_proto_msgTypes,
 	}.Build()
 	File_aifd_proxy_proxy_proto = out.File

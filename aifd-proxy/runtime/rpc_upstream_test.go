@@ -1,10 +1,12 @@
-package runtime
+package runtime_test
 
 import (
 	"context"
+	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
 	"testing"
 	"time"
 
+	proxylocal "github.com/li9chuan/aifirstdev/aifd-proxy/adapters/local"
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
 	rpclocal "github.com/li9chuan/aifirstdev/aifd-rpc/adapters/local"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
@@ -22,7 +24,7 @@ func TestRPCUpstreamForwardsEnvelopeToBus(t *testing.T) {
 		t.Fatalf("Register error = %v", err)
 	}
 
-	upstream := NewRPCUpstream(bus)
+	upstream := proxyruntime.NewRPCUpstream(bus, proxyruntime.NewDelivery())
 	if err := upstream.Forward(ctx, proxy.Envelope{UID: 1001, Message: rpc.Message{Name: "McePing", Payload: []byte("ping")}}); err != nil {
 		t.Fatalf("Forward error = %v", err)
 	}
@@ -37,5 +39,58 @@ func TestRPCUpstreamForwardsEnvelopeToBus(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("delivery timeout")
+	}
+}
+
+func TestRPCRepliesWithEqualClientInboxesStayOnOriginalConnection(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	bus := rpclocal.NewBus(rpclocal.Config{Buffer: 8})
+	defer func() { cancel(); _ = bus.Close(context.Background()) }()
+	if err := bus.Register(rpc.Route{Name: "MceEcho", Kind: rpc.RouteKindClient, Handler: func(ctx context.Context, s rpc.Session, msg rpc.Message) error {
+		return s.Respond(ctx, rpc.Message{Name: "MseEcho", Payload: append([]byte("ack:"), msg.Payload...)})
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case d := <-bus.Deliveries():
+				if d == nil {
+					return
+				}
+				_ = d.Handle(ctx)
+			}
+		}
+	}()
+	delivery := proxyruntime.NewDelivery()
+	a, b := proxylocal.NewConnection("a"), proxylocal.NewConnection("b")
+	if err := delivery.Add(a); err != nil {
+		t.Fatal(err)
+	}
+	if err := delivery.Add(b); err != nil {
+		t.Fatal(err)
+	}
+	upstream := proxyruntime.NewRPCUpstream(bus, delivery)
+	for _, request := range []struct{ id, body string }{{"a", "first"}, {"b", "second"}} {
+		if err := upstream.Forward(ctx, proxy.Envelope{UID: 42, ConnectionID: request.id, Message: rpc.Message{Name: "MceEcho", Payload: []byte(request.body), Header: map[string]string{rpc.HeaderClientInbox: "7"}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(a.Sent()) != 1 || len(b.Sent()) != 1 || string(a.Sent()[0].Payload) != "ack:first" || string(b.Sent()[0].Payload) != "ack:second" {
+		t.Fatalf("mixed replies: %v %v", a.Sent(), b.Sent())
+	}
+	if a.Sent()[0].Header[rpc.HeaderClientInbox] != "7" || b.Sent()[0].Header[rpc.HeaderClientInbox] != "7" {
+		t.Fatal("original callback inbox lost")
+	}
+	if len(bus.Pushes()) != 0 {
+		t.Fatal("request reply escaped into UID broadcast")
+	}
+	if err := bus.Push(ctx, 42, rpc.Message{Name: "MseChanged", Header: map[string]string{rpc.HeaderClientInbox: "7"}}); err != nil {
+		t.Fatal(err)
+	}
+	if bus.Pushes()[0].Message.Header[rpc.HeaderClientInbox] != "" {
+		t.Fatal("UID event retained request inbox")
 	}
 }

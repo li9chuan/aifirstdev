@@ -40,20 +40,23 @@ func main() {
 		panic(err)
 	}
 	observe := observememory.NewRecorder()
-	if _, err := app.NewGameApp(reg, app.WithGameDB(db), app.WithGameConfig(configApp), app.WithGameObserve(observe)); err != nil {
-		panic(err)
-	}
 	bus, err := app.NewNATSBusWithConfig(fileCfg.RPC.NATS, *natsURL, "minigame-game")
 	if err != nil {
 		panic(err)
 	}
+	gameApp, err := app.NewGameApp(reg, app.WithGameDB(db), app.WithGameConfig(configApp), app.WithGameObserve(observe), app.WithGameBus(bus))
+	if err != nil {
+		panic(err)
+	}
 	defer entrypoint.Close(context.Background(),
+		entrypoint.Component{Name: "user-runtime", Close: gameApp.Runtime.Close},
 		entrypoint.Component{Name: "db", Close: db.Close},
 		entrypoint.Component{Name: "rpc-bus", Close: bus.Close},
 	)
 	if err := rpc.Start(ctx, bus, reg); err != nil {
 		panic(err)
 	}
+	go func() { _ = gameApp.Runtime.Run(ctx) }()
 
 	fmt.Println("minigame game host registered auth and counter routes")
 	<-ctx.Done()

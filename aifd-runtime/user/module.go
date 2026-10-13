@@ -1,4 +1,4 @@
-package root
+package user
 
 import (
 	"context"
@@ -9,20 +9,19 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Module owns one slice of the root proto and its runtime behavior.
+// Module owns one slice of the primary proto and its runtime behavior.
 type Module[T proto.Message] interface {
 	Descriptor() base.ModuleDescriptor
-	OnLoad(context.Context, *Root[T]) error
-	OnActivate(context.Context, *Root[T]) error
+	OnLoad(context.Context, *User[T]) error
 	RegisterRPC(*rpc.Registry) error
 }
 
-// Manager runs root modules in a deterministic order.
+// Manager runs user modules in a deterministic order.
 type Manager[T proto.Message] struct {
 	modules []Module[T]
 }
 
-// NewManager creates a root module manager and copies the input order.
+// NewManager creates a user module manager and copies the input order.
 func NewManager[T proto.Message](modules ...Module[T]) *Manager[T] {
 	return &Manager[T]{modules: append([]Module[T](nil), modules...)}
 }
@@ -32,7 +31,7 @@ func (m *Manager[T]) Register(module Module[T]) {
 	m.modules = append(m.modules, module)
 }
 
-// BindModuleContext injects runtime context into root modules that ask for it.
+// BindModuleContext injects runtime context into user modules that ask for it.
 func (m *Manager[T]) BindModuleContext(moduleCtx ModuleContext[T]) error {
 	for _, module := range m.modules {
 		contextModule, ok := module.(ContextModule[T])
@@ -40,26 +39,16 @@ func (m *Manager[T]) BindModuleContext(moduleCtx ModuleContext[T]) error {
 			continue
 		}
 		if err := contextModule.BindModuleContext(moduleCtx); err != nil {
-			return fmt.Errorf("root module %s bind context: %w", module.Descriptor().ID, err)
+			return fmt.Errorf("user module %s bind context: %w", module.Descriptor().ID, err)
 		}
 	}
 	return nil
 }
 
-// OnLoad runs module load hooks before the root activation event.
-func (m *Manager[T]) OnLoad(ctx context.Context, root *Root[T]) error {
+// OnLoad runs module load hooks before the user is published.
+func (m *Manager[T]) OnLoad(ctx context.Context, owner *User[T]) error {
 	for _, module := range m.modules {
-		if err := module.OnLoad(ctx, root); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// OnActivate runs module activation hooks for a root.
-func (m *Manager[T]) OnActivate(ctx context.Context, root *Root[T]) error {
-	for _, module := range m.modules {
-		if err := module.OnActivate(ctx, root); err != nil {
+		if err := module.OnLoad(ctx, owner); err != nil {
 			return err
 		}
 	}

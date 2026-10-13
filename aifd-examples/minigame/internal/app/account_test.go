@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	account "github.com/li9chuan/aifirstdev/aifd-account"
 	"github.com/alicebob/miniredis/v2"
+	account "github.com/li9chuan/aifirstdev/aifd-account"
 	"github.com/redis/go-redis/v9"
 )
 

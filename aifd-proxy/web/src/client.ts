@@ -1,4 +1,14 @@
+import { fromBinary } from "@bufbuild/protobuf";
 import { decodePacket, encodePacket, type Packet } from "./codec.js";
+import { RPCErrorSchema } from "./gen/aifd/proxy/proxy_pb.js";
+
+// ProxyRPCError reports a failed RPC reply matched to a request inbox.
+export class ProxyRPCError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = "ProxyRPCError";
+  }
+}
 
 export type ProxyWebSocketClientOptions = {
   openTimeoutMs?: number;
@@ -138,9 +148,21 @@ export class ProxyWebSocketClient {
       this.options.onStaleReply?.(packet);
       return;
     }
+    // Decode before removing the waiter so protocol errors can reject all pending calls.
+    let error: ProxyRPCError | undefined;
+    if (packet.topic === "RPCError") {
+      const status = packet.body.length > 0
+        ? fromBinary(RPCErrorSchema, packet.body)
+        : { code: "INTERNAL", message: "rpc request failed" };
+      error = new ProxyRPCError(status.code || "INTERNAL", status.message);
+    }
     this.pending.delete(packet.inbox);
     clearTimeout(pending.timer);
-    pending.resolve(packet);
+    if (error) {
+      pending.reject(error);
+    } else {
+      pending.resolve(packet);
+    }
   }
 
   private allocateInbox(): number {

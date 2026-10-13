@@ -50,6 +50,17 @@ await 回包 topic。`pbType` 仍然只表达 body 的 protobuf 结构名，不�
 `Header["pbType"]` 是 protobuf 结构名，`Header["s"]` 是前端 await inbox。下行消息
 按同样字段重新编码为 `MsgHead` 后写回客户端连接。
 
+`Session.Error(code, message)` 的失败回包保留 `RPCError` topic 和请求 inbox。
+WS codec 以 RPC Header 中的 `Status` / `errorMessage` 为真相，将它们编码为
+`aifd.proxy.RPCError { code, message }` body，并设置 `pbType=RPCError`；解码时还原
+这两个 Header。空错误码按 `INTERNAL` 处理；损坏的非空错误 body 按协议
+解码失败处理。`MsgHead` 四个字段和帧格式不变，不传输其他 RPC Header。
+
+Go 和 [Web 客户端](web/README.md) 会把匹配 inbox 的 `RPCError` 识别为失败；
+收到旧服务端的空错误包时，返回 `INTERNAL / rpc request failed`。保留原错误码和
+消息需要服务端和客户端都使用修复后的实现；仅升级服务端不能修复旧 Go 客户端
+的错误识别。普通成功响应允许空 protobuf body，不以 body 是否为空判断成败。
+
 WebSocket adapter 使用 `github.com/coder/websocket`，只接受 binary frame。业务项目
 需要提供 `LoginHandler`，由它解析登录 PB、校验账号中心签发的 signed token，并返回
 `Identity` 和可选登录回包。proxy 在登录成功后才把连接注册进 `Gateway`，并订阅该

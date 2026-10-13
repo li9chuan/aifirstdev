@@ -328,7 +328,7 @@ func TestServerAllowsDownlinkTopicsWithoutMsPrefix(t *testing.T) {
 	}
 
 	messages := []rpc.Message{
-		{Name: "RPCError", Payload: []byte{7}, Header: map[string]string{rpc.HeaderPBType: "StringValue"}},
+		{Name: "RPCError", Header: map[string]string{rpc.HeaderStatus: "INVALID", rpc.HeaderErrorMessage: "bad request"}},
 		{Name: "StringValue", Payload: []byte{8}, Header: map[string]string{rpc.HeaderPBType: "StringValue"}},
 		{Name: "MseAuth"},
 	}

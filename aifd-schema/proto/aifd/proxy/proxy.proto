@@ -28,3 +28,9 @@ message MsgHead {
   // protobuf 结构名。响应 inbox 时 topic 可以为空，但 pbType 必须能说明 body 类型。
   string pbType = 4;
 }
+
+// RPCError 是 RPC 错误 Header 在 WS body 中的编码；topic 和 pbType 均为 RPCError。
+message RPCError {
+  string code = 1;
+  string message = 2;
+}

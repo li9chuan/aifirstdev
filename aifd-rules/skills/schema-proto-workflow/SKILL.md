@@ -21,6 +21,7 @@ description: 处理 proto/schema 工作流时使用。适用于 aifd-schema、�
 - 协议只放跨进程通信必需的事实，不重复配置表可直接读取的展示值。
 - 存盘 proto 只保留恢复所需的最小状态；没有审计、回放、历史展示需求时不加流水结构。
 - 同一业务含义只允许一个真相源；不要同时保存原始流水和可稳定推导的累计值。
+- WS 的 `aifd.proxy.RPCError` body 只是 `Status/errorMessage` Header 的线上编码，由 proxy codec 转换；业务使用 `Session.Error`。客户端在业务 PB 解码前识别错误 topic，不能以空 body 判断成败。
 - 客户端需要的本次操作结果可以下发；长期状态优先由服务端真相和配置推导。
 
 ## 兼容性与破坏式修改

@@ -101,6 +101,59 @@ func (x *MsgHead) GetPbType() string {
 	return ""
 }
 
+// RPCError 是 RPC 错误 Header 在 WS body 中的编码；topic 和 pbType 均为 RPCError。
+type RPCError struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RPCError) Reset() {
+	*x = RPCError{}
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RPCError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RPCError) ProtoMessage() {}
+
+func (x *RPCError) ProtoReflect() protoreflect.Message {
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RPCError.ProtoReflect.Descriptor instead.
+func (*RPCError) Descriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RPCError) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *RPCError) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_aifd_proxy_proxy_proto protoreflect.FileDescriptor
 
 const file_aifd_proxy_proxy_proto_rawDesc = "" +
@@ -111,7 +164,10 @@ const file_aifd_proxy_proxy_proto_rawDesc = "" +
 	"\x03len\x18\x01 \x01(\x05R\x03len\x12\x14\n" +
 	"\x05inbox\x18\x02 \x01(\x05R\x05inbox\x12\x14\n" +
 	"\x05topic\x18\x03 \x01(\tR\x05topic\x12\x16\n" +
-	"\x06pbType\x18\x04 \x01(\tR\x06pbTypeBDZBgithub.com/li9chuan/aifirstdev/aifd-schema/generated/proxy;proxypbb\x06proto3"
+	"\x06pbType\x18\x04 \x01(\tR\x06pbType\"8\n" +
+	"\bRPCError\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessageBDZBgithub.com/li9chuan/aifirstdev/aifd-schema/generated/proxy;proxypbb\x06proto3"
 
 var (
 	file_aifd_proxy_proxy_proto_rawDescOnce sync.Once
@@ -125,9 +181,10 @@ func file_aifd_proxy_proxy_proto_rawDescGZIP() []byte {
 	return file_aifd_proxy_proxy_proto_rawDescData
 }
 
-var file_aifd_proxy_proxy_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_aifd_proxy_proxy_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_aifd_proxy_proxy_proto_goTypes = []any{
-	(*MsgHead)(nil), // 0: aifd.proxy.MsgHead
+	(*MsgHead)(nil),  // 0: aifd.proxy.MsgHead
+	(*RPCError)(nil), // 1: aifd.proxy.RPCError
 }
 var file_aifd_proxy_proxy_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -148,7 +205,7 @@ func file_aifd_proxy_proxy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aifd_proxy_proxy_proto_rawDesc), len(file_aifd_proxy_proxy_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -21,13 +21,13 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
-// StatusFromMessage converts a status response header into a typed error.
+// StatusFromMessage converts a status header or a legacy RPCError reply into a typed error.
 func StatusFromMessage(msg Message) error {
-	if len(msg.Header) == 0 {
-		return nil
-	}
 	code := msg.Header[HeaderStatus]
 	if code == "" {
+		if msg.Name == "RPCError" {
+			return &StatusError{Code: "INTERNAL", Message: "rpc request failed"}
+		}
 		return nil
 	}
 	return &StatusError{

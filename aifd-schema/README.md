@@ -26,6 +26,10 @@
 客户端与 proxy 的通用 PB 帧头使用 `aifd.proxy.MsgHead`。业务项目可以基于该
 proto 生成自己的前后端代码，但生成物仍应留在业务项目或对应 generated 目录中。
 
+同一文件的 `aifd.proxy.RPCError` 是 WS 错误回包的 body：`code=1` 和 `message=2`
+分别编码 RPC 的 `Status` 和 `errorMessage` Header。业务仍使用 `Session.Error`，由 proxy
+codec 处理线上转换；`MsgHead` 字段号和帧格式不变。
+
 ## 更新边界
 
 Schema 升级应保持 descriptor 和 registry 契约。兼容性检查只有在新规则可执行且已

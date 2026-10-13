@@ -6,8 +6,22 @@ import (
 	"testing"
 	"time"
 
+	contracts "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+func TestStatusFromMessageRPCErrorFallback(t *testing.T) {
+	for _, header := range []map[string]string{nil, {contracts.HeaderPBType: "RPCError"}} {
+		err := StatusFromMessage(Message{Name: "RPCError", Header: header})
+		var statusErr *StatusError
+		if !errors.As(err, &statusErr) || statusErr.Code != CodeInternal || statusErr.Message != "rpc request failed" {
+			t.Fatalf("StatusFromMessage = %v, want INTERNAL / rpc request failed", err)
+		}
+	}
+	if err := StatusFromMessage(Message{Name: "MseEmpty"}); err != nil {
+		t.Fatalf("empty success response error = %v", err)
+	}
+}
 
 func TestRequestPBReturnsStatusErrorForHandlerPanic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

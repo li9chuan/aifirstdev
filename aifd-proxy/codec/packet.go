@@ -42,7 +42,7 @@ func DecodePacket(data []byte) (*proxypb.MsgHead, []byte, error) {
 	return decodePacket(data)
 }
 
-// MessageFromPacket 将客户端 packet 转成 rpc.Message，供 proxy 上行转发使用。
+// MessageFromPacket 将 packet 转成 rpc.Message，并还原 RPCError 的错误 Header。
 func MessageFromPacket(head *proxypb.MsgHead, body []byte) (rpc.Message, error) {
 	normalized, err := normalizeHead(head, len(body))
 	if err != nil {
@@ -54,6 +54,18 @@ func MessageFromPacket(head *proxypb.MsgHead, body []byte) (rpc.Message, error) 
 	}
 	if normalized.Inbox > 0 {
 		header[rpc.HeaderClientInbox] = strconv.Itoa(int(normalized.Inbox))
+	}
+	if normalized.Topic == "RPCError" && len(body) > 0 {
+		status := &proxypb.RPCError{}
+		if err := goproto.Unmarshal(body, status); err != nil {
+			return rpc.Message{}, fmt.Errorf("decode RPCError: %w", err)
+		}
+		code := status.Code
+		if code == "" {
+			code = "INTERNAL"
+		}
+		header[rpc.HeaderStatus] = code
+		header[rpc.HeaderErrorMessage] = status.Message
 	}
 	return rpc.Message{
 		Name:    normalized.Topic,
@@ -87,13 +99,25 @@ func HeadFromMessage(msg rpc.Message) (*proxypb.MsgHead, error) {
 	}, len(msg.Payload))
 }
 
-// EncodeMessage 将 RPC 下行消息直接编码为客户端 packet。
+// EncodeMessage 将 RPC 下行消息编码为 packet；RPCError body 由错误 Header 生成。
 func EncodeMessage(msg rpc.Message) ([][]byte, error) {
 	head, err := HeadFromMessage(msg)
 	if err != nil {
 		return nil, err
 	}
-	return EncodePacket(head, msg.Payload)
+	body := msg.Payload
+	if head.Topic == "RPCError" {
+		code := msg.Header[rpc.HeaderStatus]
+		if code == "" {
+			code = "INTERNAL"
+		}
+		body, err = goproto.Marshal(&proxypb.RPCError{Code: code, Message: msg.Header[rpc.HeaderErrorMessage]})
+		if err != nil {
+			return nil, fmt.Errorf("encode RPCError: %w", err)
+		}
+		head.PbType = "RPCError"
+	}
+	return EncodePacket(head, body)
 }
 
 func decodePacket(data []byte) (*proxypb.MsgHead, []byte, error) {

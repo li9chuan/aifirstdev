@@ -8,9 +8,90 @@ import (
 
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
 	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
+	"google.golang.org/protobuf/proto"
 )
 
 const webClientPacketGolden = "0803107b1a104d7365496e76656e746f7279496e666f220b537472696e6756616c7565010203"
+
+// The Web codec test uses the same packet: INVALID / 请求无效 / inbox 123.
+const webClientRPCErrorGolden = "0817107b1a085250434572726f7222085250434572726f720a07494e56414c4944120ce8afb7e6b182e697a0e69588"
+
+func TestRPCErrorMessagePacketRoundTrip(t *testing.T) {
+	msg := rpc.Message{
+		Name:    "RPCError",
+		Payload: []byte{9}, // Error headers, rather than an existing payload, own the status.
+		Header: map[string]string{
+			rpc.HeaderStatus:       "INVALID",
+			rpc.HeaderErrorMessage: "请求无效",
+			rpc.HeaderClientInbox:  "123",
+			rpc.HeaderPBType:       "StringValue",
+		},
+	}
+	parts, err := EncodeMessage(msg)
+	if err != nil {
+		t.Fatalf("EncodeMessage error = %v", err)
+	}
+	data := bytes.Join(parts, nil)
+	if got := hex.EncodeToString(data); got != webClientRPCErrorGolden {
+		t.Fatalf("error packet golden = %s, want %s", got, webClientRPCErrorGolden)
+	}
+	head, body, err := DecodePacket(data)
+	if err != nil {
+		t.Fatalf("DecodePacket error = %v", err)
+	}
+	restored, err := MessageFromPacket(head, body)
+	if err != nil {
+		t.Fatalf("MessageFromPacket error = %v", err)
+	}
+	status, ok := rpc.StatusFromMessage(restored).(*rpc.StatusError)
+	if !ok || status.Code != "INVALID" || status.Message != "请求无效" {
+		t.Fatalf("restored status = %v, want INVALID / 请求无效", status)
+	}
+	if head.PbType != "RPCError" || restored.Header[rpc.HeaderClientInbox] != "123" {
+		t.Fatalf("restored packet = %+v, want RPCError / inbox 123", restored)
+	}
+	if msg.Header[rpc.HeaderPBType] != "StringValue" || !bytes.Equal(msg.Payload, []byte{9}) {
+		t.Fatalf("EncodeMessage changed the source message: %+v", msg)
+	}
+}
+
+func TestRPCErrorPacketRejectsMalformedPayload(t *testing.T) {
+	if _, err := MessageFromPacket(&proxypb.MsgHead{Inbox: 7, Topic: "RPCError", PbType: "RPCError"}, []byte{0xff}); err == nil {
+		t.Fatal("MessageFromPacket accepted a malformed RPCError payload")
+	}
+}
+
+func TestRPCErrorEmptyCodeDefaultsToInternal(t *testing.T) {
+	// Encoding also supports the existing rsp topic fallback.
+	parts, err := EncodeMessage(rpc.Message{Header: map[string]string{
+		rpc.HeaderResponse:     "RPCError",
+		rpc.HeaderErrorMessage: "服务不可用",
+		rpc.HeaderClientInbox:  "7",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, body, err := DecodePacket(bytes.Join(parts, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := &proxypb.RPCError{}
+	if err := proto.Unmarshal(body, status); err != nil || status.Code != "INTERNAL" || status.Message != "服务不可用" {
+		t.Fatalf("encoded status = %+v, %v", status, err)
+	}
+	// A peer can also send a nonempty body whose code was omitted.
+	body, err = proto.Marshal(&proxypb.RPCError{Message: "服务不可用"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := MessageFromPacket(head, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.Header[rpc.HeaderStatus] != "INTERNAL" || msg.Header[rpc.HeaderErrorMessage] != "服务不可用" || msg.Header[rpc.HeaderClientInbox] != "7" {
+		t.Fatalf("decoded status = %+v", msg)
+	}
+}
 
 func TestEncodeDecodePacketWithTopicAndPBType(t *testing.T) {
 	body := []byte{1, 2, 3}

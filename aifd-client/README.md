@@ -42,6 +42,15 @@ cli, err := aifdclient.New(transport, aifdclient.Options{AwaitTimeout: 10 * time
 
 该 adapter 只负责 WebSocket 和 proxy packet 编解码，不理解业务登录、robot 场景或 runtime 服务。
 
+`Request(ctx, req, rsp)` 与 `RequestAs(ctx, topic, req, rsp)` 同步等待回包。
+`Session.Error` 的错误回包会返回 `*rpc.StatusError`，其 `Code` 和 `Message` 保留服务端错误，
+不解码业务响应。`Call/CallAs` 的远端失败通过 callback 报告：`rsp == nil`，`err != nil`；
+`Call` 的直接返回值仍表示本地发送结果。这些 await 调用均需先调用 `Start()`。
+
+旧服务端的空 `RPCError` 包返回 `INTERNAL / rpc request failed`。错误码和消息的 WS
+传输需要修复后的服务端 codec；旧 Go 客户端仍需升级。损坏的非空 `RPCError` body 按
+协议解码失败结束连接和等待请求；普通的空 protobuf 成功回包仍然成功。
+
 ## 相关文档
 
 - [项目首页](../README.zh-CN.md)

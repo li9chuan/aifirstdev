@@ -1,8 +1,89 @@
 import { describe, expect, it, vi } from "vitest";
-import { ProxyWebSocketClient } from "../src/client.js";
+import { create, toBinary } from "@bufbuild/protobuf";
+import { ProxyRPCError, ProxyWebSocketClient, RPCErrorSchema } from "../src/index.js";
 import { decodePacket, encodePacket } from "../src/codec.js";
 
 describe("ProxyWebSocketClient", () => {
+  it.each([
+    { code: "INVALID", message: "请求无效", expectedCode: "INVALID" },
+    { code: "", message: "服务不可用", expectedCode: "INTERNAL" }
+  ])("rejects RPCError with code $expectedCode and preserves its message", async ({ code, message, expectedCode }) => {
+    const socket = new MockWebSocket();
+    const connected = ProxyWebSocketClient.connect("ws://example.test/ws", {
+      webSocketFactory: () => socket as unknown as WebSocket
+    });
+    socket.open();
+    const client = await connected;
+    try {
+      const success = client.call("McePing", "McePing", new Uint8Array());
+      const failure = client.call("MceReject", "MceReject", new Uint8Array());
+      const request = decodePacket(socket.sent[1]);
+      const body = toBinary(RPCErrorSchema, create(RPCErrorSchema, { code, message }));
+      socket.receive(encodePacket("RPCError", "RPCError", request.inbox, body));
+      const error = await failure.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(ProxyRPCError);
+      expect(error).toMatchObject({ code: expectedCode, message });
+
+      const first = decodePacket(socket.sent[0]);
+      socket.receive(encodePacket("MsePong", "MsePong", first.inbox, new Uint8Array()));
+      await expect(success).resolves.toMatchObject({ topic: "MsePong", inbox: first.inbox });
+    } finally {
+      client.close();
+    }
+  });
+
+  it("rejects a legacy empty RPCError and keeps the connection usable", async () => {
+    const socket = new MockWebSocket();
+    const stale = vi.fn();
+    const connected = ProxyWebSocketClient.connect("ws://example.test/ws", {
+      webSocketFactory: () => socket as unknown as WebSocket,
+      onStaleReply: stale
+    });
+    socket.open();
+    const client = await connected;
+    try {
+      const response = client.call("McePing", "McePing", new Uint8Array());
+      const request = decodePacket(socket.sent[0]);
+      const errorPacket = encodePacket("RPCError", "RPCError", request.inbox, new Uint8Array());
+      socket.receive(errorPacket);
+      await expect(response).rejects.toMatchObject({ code: "INTERNAL", message: "rpc request failed" });
+
+      const success = client.call("McePing", "McePing", new Uint8Array());
+      const next = decodePacket(socket.sent[1]);
+      expect(next.inbox).not.toBe(request.inbox);
+      socket.receive(errorPacket);
+      expect(stale).toHaveBeenCalledOnce();
+      socket.receive(encodePacket("MsePong", "MsePong", next.inbox, new Uint8Array()));
+      await expect(success).resolves.toMatchObject({ topic: "MsePong", inbox: next.inbox, body: new Uint8Array() });
+    } finally {
+      client.close();
+    }
+  });
+
+  it("rejects every pending call immediately on a malformed RPCError", async () => {
+    vi.useFakeTimers();
+    let client: ProxyWebSocketClient | undefined;
+    try {
+      const socket = new MockWebSocket();
+      const connected = ProxyWebSocketClient.connect("ws://example.test/ws", {
+        webSocketFactory: () => socket as unknown as WebSocket
+      });
+      socket.open();
+      client = await connected;
+      const first = client.call("McePing", "McePing", new Uint8Array());
+      const second = client.call("McePing", "McePing", new Uint8Array());
+      const results = Promise.allSettled([first, second]);
+      const request = decodePacket(socket.sent[0]);
+      socket.receive(encodePacket("RPCError", "RPCError", request.inbox, new Uint8Array([0xff])));
+      expect(socket.readyState).toBe(3);
+      expect(vi.getTimerCount()).toBe(0);
+      expect((await results).map((result) => result.status)).toEqual(["rejected", "rejected"]);
+    } finally {
+      client?.close();
+      vi.useRealTimers();
+    }
+  });
+
   it("matches replies to their request inbox", async () => {
     const socket = new MockWebSocket();
     const connected = ProxyWebSocketClient.connect("ws://example.test/ws", {

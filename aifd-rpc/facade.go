@@ -43,7 +43,7 @@ func NewMessagePB(name string, pb proto.Message) (Message, error) {
 	return contracts.NewMessagePB(name, pb)
 }
 
-// StatusFromMessage converts a status response header into a typed error.
+// StatusFromMessage converts a status header or a legacy RPCError reply into a typed error.
 func StatusFromMessage(msg Message) error {
 	return contracts.StatusFromMessage(msg)
 }

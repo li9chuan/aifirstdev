@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { decodePacket, encodePacket } from "../src/codec.js";
+import { RPCErrorSchema } from "../src/gen/aifd/proxy/proxy_pb.js";
+
+// Kept identical to webClientRPCErrorGolden in the Go codec test.
+const rpcErrorGolden = "0817107b1a085250434572726f7222085250434572726f720a07494e56414c4944120ce8afb7e6b182e697a0e69588";
 
 describe("proxy packet codec", () => {
+  it("matches the Go RPCError packet including Chinese text and inbox", () => {
+    const status = create(RPCErrorSchema, { code: "INVALID", message: "请求无效" });
+    const body = toBinary(RPCErrorSchema, status);
+    const packet = encodePacket("RPCError", "RPCError", 123, body);
+    expect(toHex(packet)).toBe(rpcErrorGolden);
+    const goldenBytes = new Uint8Array(rpcErrorGolden.match(/../g)!.map((byte) => parseInt(byte, 16)));
+    const decoded = decodePacket(goldenBytes);
+    expect(decoded).toMatchObject({ topic: "RPCError", pbType: "RPCError", inbox: 123 });
+    expect(fromBinary(RPCErrorSchema, decoded.body)).toEqual(status);
+  });
+
   it("matches the Go packet encoding", () => {
     const packet = encodePacket("MseInventoryInfo", "StringValue", 123, new Uint8Array([1, 2, 3]));
     expect(toHex(packet)).toBe(

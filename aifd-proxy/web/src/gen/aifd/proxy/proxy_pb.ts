@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file aifd/proxy/proxy.proto.
  */
 export const file_aifd_proxy_proxy: GenFile = /*@__PURE__*/
-  fileDesc("ChZhaWZkL3Byb3h5L3Byb3h5LnByb3RvEgphaWZkLnByb3h5IkQKB01zZ0hlYWQSCwoDbGVuGAEgASgFEg0KBWluYm94GAIgASgFEg0KBXRvcGljGAMgASgJEg4KBnBiVHlwZRgEIAEoCUJEWkJnaXRodWIuY29tL2xpOWNodWFuL2FpZmlyc3RkZXYvYWlmZC1zY2hlbWEvZ2VuZXJhdGVkL3Byb3h5O3Byb3h5cGJiBnByb3RvMw");
+  fileDesc("ChZhaWZkL3Byb3h5L3Byb3h5LnByb3RvEgphaWZkLnByb3h5IkQKB01zZ0hlYWQSCwoDbGVuGAEgASgFEg0KBWluYm94GAIgASgFEg0KBXRvcGljGAMgASgJEg4KBnBiVHlwZRgEIAEoCSIpCghSUENFcnJvchIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAlCRFpCZ2l0aHViLmNvbS9saTljaHVhbi9haWZpcnN0ZGV2L2FpZmQtc2NoZW1hL2dlbmVyYXRlZC9wcm94eTtwcm94eXBiYgZwcm90bzM");
 
 /**
  * MsgHead 是客户端与 proxy 通信时的 PB 帧头。
@@ -60,4 +60,28 @@ export type MsgHead = Message<"aifd.proxy.MsgHead"> & {
  */
 export const MsgHeadSchema: GenMessage<MsgHead> = /*@__PURE__*/
   messageDesc(file_aifd_proxy_proxy, 0);
+
+/**
+ * RPCError 是 RPC 错误 Header 在 WS body 中的编码；topic 和 pbType 均为 RPCError。
+ *
+ * @generated from message aifd.proxy.RPCError
+ */
+export type RPCError = Message<"aifd.proxy.RPCError"> & {
+  /**
+   * @generated from field: string code = 1;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string message = 2;
+   */
+  message: string;
+};
+
+/**
+ * Describes the message aifd.proxy.RPCError.
+ * Use `create(RPCErrorSchema)` to create a new message.
+ */
+export const RPCErrorSchema: GenMessage<RPCError> = /*@__PURE__*/
+  messageDesc(file_aifd_proxy_proxy, 1);
 

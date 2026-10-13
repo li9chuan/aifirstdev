@@ -95,7 +95,7 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 
 ## 在其他 Go 项目中使用
 
-在本仓库以外已经初始化的 Go module 中，锁定整套框架，源码继续按需 import 原有包路径。
+在本仓库以外已经初始化的 Go module 中，锁定整套框架，源码按需 import 当前版本的包。
 使用统一框架版本：
 
 ```powershell

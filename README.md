@@ -117,7 +117,7 @@ installer builds need NSIS.
 ## Use from another Go project
 
 From an initialized Go module outside this workspace, pin the whole framework.
-Existing package import paths stay unchanged. Use the unified framework version:
+Use the unified framework version and its current package APIs:
 
 ```powershell
 go get github.com/li9chuan/aifirstdev@v0.3.0

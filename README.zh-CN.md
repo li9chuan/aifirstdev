@@ -99,8 +99,8 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 使用统一框架版本：
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.2.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.2.0
+go get github.com/li9chuan/aifirstdev@v0.3.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.3.0
 ```
 
 框架、CLI 和官方插件共用根 `go.mod/go.sum`，一次发版只使用一个根标签。

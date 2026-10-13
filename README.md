@@ -120,8 +120,8 @@ From an initialized Go module outside this workspace, pin the whole framework.
 Existing package import paths stay unchanged. Use the unified framework version:
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.2.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.2.0
+go get github.com/li9chuan/aifirstdev@v0.3.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.3.0
 ```
 
 Framework packages, CLI, and official plugins share the root `go.mod/go.sum` and

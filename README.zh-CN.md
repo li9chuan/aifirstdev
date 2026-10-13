@@ -2,7 +2,7 @@
 
 [English](./README.md) | 简体中文
 
-**v0.2.0 使用一个根 Go module 发布整套框架。API 仍可能发生不兼容变更。**
+**v0.3.0 使用一个根 Go module 发布整套框架，统一 UserRuntime 与多设备 RPC。API 仍可能发生不兼容变更。**
 正式仓库为 [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev)。
 桌面示例当前面向 Windows amd64，使用 Wails 3 beta.28。
 

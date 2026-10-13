@@ -41,7 +41,7 @@ Unicode 字符，业务可通过 `service.Options.MaxBodyRunes` 显式配置。�
 ## 长正文读取与缓存一致性
 
 `MceMailList.summary_only=true` 返回不含正文的 MailData，并提供最多 160 字符的 preview。
-`MceMailGet` 按当前认证 root 查询完整正文，不能由请求指定收件人；读取详情不自动标记已读。
+`MceMailGet` 按当前认证 user 查询完整正文，不能由请求指定收件人；读取详情不自动标记已读。
 summary_only 未设置时保留既有列表协议，长正文消费端应使用摘要列表和详情组合。
 
 Store 增加 `PersonalMailboxVersion`。Manager 读取时校验持久化版本，变化后重载；Redis

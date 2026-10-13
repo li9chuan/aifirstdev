@@ -50,6 +50,8 @@ err = users.Server("ReadUser", func(s *rpc.Session, u *user.User[*pb.DBUser], re
 
 `Read/Snapshot` 读取主 PB；`Mutate(ctx, fn)` 修改私有候选并保存入队，回调错误、panic、取消或队列拒绝保留已发布值。回调短暂执行，不保留 PB 引用。`Save(ctx)` 只负责保存主块。
 
+`LoadedFromStore()` 保留初次主 PB 读取结果，供存储适配层初始化可缺省块，不再重复查询。它不表示当前落库状态，也不定义身份或在线状态。
+
 `RLock/RUnlock/Lock/Unlock` 协调用户拥有的多个业务块；各块仍有自己的强类型 Saver。锁顺序为 User → Saver，锁内不做 RPC、AI、行情等外部工作。已持 User 锁时不能调用自动加锁的方法。`SaverUnsafe` 仅供存储适配层在正确锁范围内使用，不是普通 handler 入口。多块保存不提供数据库事务。
 
 ## 连接与通信

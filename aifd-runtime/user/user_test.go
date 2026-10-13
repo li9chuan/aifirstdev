@@ -31,6 +31,9 @@ func TestStoreRequiresExplicitCreateAndRestoresDocument(t *testing.T) {
 	if owner.UID() != 1001 {
 		t.Fatalf("UID = %d", owner.UID())
 	}
+	if owner.LoadedFromStore() {
+		t.Fatal("explicit creation was reported as an existing stored document")
+	}
 	if err := owner.Mutate(ctx, func(db *wrapperspb.Int64Value) error { db.Value = 77; return nil }); err != nil {
 		t.Fatal(err)
 	}
@@ -46,6 +49,9 @@ func TestStoreRequiresExplicitCreateAndRestoresDocument(t *testing.T) {
 	}
 	if got := restored.Snapshot().GetValue(); got != 77 {
 		t.Fatalf("restored = %d, want 77", got)
+	}
+	if !restored.LoadedFromStore() {
+		t.Fatal("existing primary document was reported as a missing optional block")
 	}
 }
 
@@ -222,6 +228,9 @@ func TestExistingIdentityMayHaveNoPrimaryPBWithoutCreatingEmptyDocument(t *testi
 	owner, err := store.Load(ctx, 42)
 	if err != nil || owner.UID() != 42 {
 		t.Fatalf("known identity: %v", err)
+	}
+	if owner.LoadedFromStore() {
+		t.Fatal("identity existence was confused with primary document presence")
 	}
 	if _, err := store.Load(ctx, 43); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown identity: %v", err)

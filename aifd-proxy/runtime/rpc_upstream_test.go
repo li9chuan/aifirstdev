@@ -42,6 +42,27 @@ func TestRPCUpstreamForwardsEnvelopeToBus(t *testing.T) {
 	}
 }
 
+func TestMissingRouteErrorKeepsOriginalConnectionInboxAndTrace(t *testing.T) {
+	ctx := context.Background()
+	bus := rpclocal.NewBus(rpclocal.Config{})
+	defer bus.Close(ctx)
+	delivery := proxyruntime.NewDelivery()
+	a, b := proxylocal.NewConnection("a"), proxylocal.NewConnection("b")
+	_ = delivery.Add(a)
+	_ = delivery.Add(b)
+	upstream := proxyruntime.NewRPCUpstream(bus, delivery)
+	if err := upstream.Forward(ctx, proxy.Envelope{UID: 42, ConnectionID: "a", Message: rpc.Message{Name: "MceMissing", Header: map[string]string{rpc.HeaderClientInbox: "9", rpc.HeaderTraceID: "request-trace"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if a.Closed() || b.Closed() || len(a.Sent()) != 1 || len(b.Sent()) != 0 || len(bus.Pushes()) != 0 {
+		t.Fatal("missing-route response escaped or closed a connection")
+	}
+	rsp := a.Sent()[0]
+	if rsp.Name != "RPCError" || rsp.Header[rpc.HeaderStatus] != "UNSUPPORTED" || rsp.Header[rpc.HeaderClientInbox] != "9" || rsp.Header[rpc.HeaderTraceID] != "request-trace" {
+		t.Fatalf("missing-route response: %+v", rsp)
+	}
+}
+
 func TestRPCRepliesWithEqualClientInboxesStayOnOriginalConnection(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	bus := rpclocal.NewBus(rpclocal.Config{Buffer: 8})

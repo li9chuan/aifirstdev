@@ -4,7 +4,8 @@
 
 ## 用户入口
 
-- `user.Runtime[T]` 是 UID 的业务门面。`LoadUser(ctx, uid)` 仅加载已有文档，并合并同 UID 的并发加载；不存在返回 `ErrNotFound`。注册或初始化流程显式使用 `CreateUser`。
+- `user.Runtime[T]` 是 UID 的业务门面。`LoadUser(ctx, uid)` 仅加载已有用户，并合并同 UID 的并发加载；不存在返回 `ErrNotFound`。主 PB 可缺省的项目配置 `StoreOptions.Exists` 验证业务身份，读取不写空文档。注册或初始化流程显式使用 `CreateUser`。
+- `LoadedFromStore` 只是初次读取主 PB 的结果，存储适配层用它初始化缺省块；不代表当前落库状态、在线状态或身份有效期。
 - `GetUser(uid)` 只查驻留缓存。`OnLoad` 在一次成功驻留中执行一次；读取用户不建立在线状态。
 - 普通用户路由使用 `users.Client(topic, func(s, user, req))` 或 `users.Server(...)`；框架注入同一 User。Client 要求 Proxy 注入的有效连接引用，Server 可以处理离线用户。
 - 后台直接用 `LoadUser(ctx, uid)`。只有需要 Request、Push 等能力时才使用 `users.NewSession(ctx, uid)`；内部 Session 没有原请求回包通道，不代表客户端在线。

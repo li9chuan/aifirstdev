@@ -1,5 +1,5 @@
-// Package root implements the mail plugin root-side mailbox module.
-package root
+// Package user implements the mail plugin user-side mailbox module.
+package user
 
 import (
 	"context"
@@ -22,7 +22,7 @@ const (
 	defaultListLimit = 100
 )
 
-// GroupResolver returns the group mail keys a root should receive.
+// GroupResolver returns the group mail keys a user should receive.
 type GroupResolver[T proto.Message] interface {
 	MailGroupKeys(context.Context, *runtimeuser.User[T]) ([]string, error)
 }
@@ -31,14 +31,14 @@ type GroupResolver[T proto.Message] interface {
 type GroupResolverFunc[T proto.Message] func(context.Context, *runtimeuser.User[T]) ([]string, error)
 
 // MailGroupKeys calls the wrapped function.
-func (f GroupResolverFunc[T]) MailGroupKeys(ctx context.Context, root *runtimeuser.User[T]) ([]string, error) {
+func (f GroupResolverFunc[T]) MailGroupKeys(ctx context.Context, user *runtimeuser.User[T]) ([]string, error) {
 	if f == nil {
 		return nil, nil
 	}
-	return f(ctx, root)
+	return f(ctx, user)
 }
 
-// Options configures the root-side mail module.
+// Options configures the user-side mail module.
 type Options[T proto.Message] struct {
 	Mailbox       *mailbox.Manager
 	Awarder       mail.Awarder
@@ -49,7 +49,7 @@ type Options[T proto.Message] struct {
 	ListLimit     int
 }
 
-// Module owns root-side mailbox RPC and personal mail state transitions.
+// Module owns user-side mailbox RPC and personal mail state transitions.
 type Module[T proto.Message] struct {
 	mailbox       *mailbox.Manager
 	awarder       mail.Awarder
@@ -61,7 +61,7 @@ type Module[T proto.Message] struct {
 	listLimit     int
 }
 
-// NewModule creates a root-side mail module.
+// NewModule creates a user-side mail module.
 func NewModule[T proto.Message](opts Options[T]) *Module[T] {
 	if opts.Clock == nil {
 		opts.Clock = mail.SystemClock{}
@@ -84,7 +84,7 @@ func NewModule[T proto.Message](opts Options[T]) *Module[T] {
 // Descriptor returns the user module descriptor.
 func (m *Module[T]) Descriptor() base.ModuleDescriptor {
 	return base.ModuleDescriptor{
-		ID:      "aifd.plugins.mail.root",
+		ID:      "aifd.plugins.mail.user",
 		Version: "v0.1.0",
 		Kind:    base.ModuleKindUser,
 		Provides: []base.Capability{
@@ -106,10 +106,10 @@ func (m *Module[T]) BindModuleContext(moduleCtx runtimeuser.ModuleContext[T]) er
 	return nil
 }
 
-// OnLoad validates dependencies before a root can use mailbox RPCs.
+// OnLoad validates dependencies before a user can use mailbox RPCs.
 func (m *Module[T]) OnLoad(context.Context, *runtimeuser.User[T]) error {
 	if m == nil || m.mailbox == nil {
-		return fmt.Errorf("mail root mailbox manager is nil")
+		return fmt.Errorf("mail user mailbox manager is nil")
 	}
 	return nil
 }
@@ -117,7 +117,7 @@ func (m *Module[T]) OnLoad(context.Context, *runtimeuser.User[T]) error {
 // RegisterRPC registers client mailbox routes.
 func (m *Module[T]) RegisterRPC(reg *rpc.Registry) error {
 	if m == nil || m.mailbox == nil {
-		return fmt.Errorf("mail root mailbox manager is nil")
+		return fmt.Errorf("mail user mailbox manager is nil")
 	}
 	runtime := m.moduleCtx.Runtime()
 	if runtime == nil {
@@ -128,8 +128,8 @@ func (m *Module[T]) RegisterRPC(reg *rpc.Registry) error {
 	}); err != nil {
 		return err
 	}
-	if err := runtime.Client(mail.TopicMceMailList, func(s *rpc.Session, activeRoot *runtimeuser.User[T], req *mailpb.MceMailList) {
-		s.ResponseAs(mail.TopicMseMailList, m.List(s.Context(), s.UID(), activeRoot, req))
+	if err := runtime.Client(mail.TopicMceMailList, func(s *rpc.Session, activeUser *runtimeuser.User[T], req *mailpb.MceMailList) {
+		s.ResponseAs(mail.TopicMseMailList, m.List(s.Context(), s.UID(), activeUser, req))
 	}); err != nil {
 		return err
 	}
@@ -148,8 +148,8 @@ func (m *Module[T]) RegisterRPC(reg *rpc.Registry) error {
 	})
 }
 
-// List syncs shared mail into a root mailbox and returns personal mail after the requested cursor.
-func (m *Module[T]) List(ctx context.Context, uid int64, activeRoot *runtimeuser.User[T], req *mailpb.MceMailList) *mailpb.MseMailList {
+// List syncs shared mail into a user mailbox and returns personal mail after the requested cursor.
+func (m *Module[T]) List(ctx context.Context, uid int64, activeUser *runtimeuser.User[T], req *mailpb.MceMailList) *mailpb.MseMailList {
 	if uid <= 0 {
 		return &mailpb.MseMailList{Ret: mail.RetInvalid, Message: "user UID is invalid"}
 	}
@@ -160,7 +160,7 @@ func (m *Module[T]) List(ctx context.Context, uid int64, activeRoot *runtimeuser
 	if limit <= 0 || limit > m.listLimit {
 		limit = m.listLimit
 	}
-	groupKeys, err := m.groupKeys(ctx, activeRoot, req.GetGroupKeys())
+	groupKeys, err := m.groupKeys(ctx, activeUser, req.GetGroupKeys())
 	if err != nil {
 		return &mailpb.MseMailList{Ret: mail.RetInternal, Message: err.Error()}
 	}
@@ -180,7 +180,7 @@ func (m *Module[T]) List(ctx context.Context, uid int64, activeRoot *runtimeuser
 	return &mailpb.MseMailList{Ret: mail.RetOK, TimeUnix: m.nowUnix(), MailList: list}
 }
 
-// Get returns a live mail owned by the authenticated root without marking it read.
+// Get returns a live mail owned by the authenticated user without marking it read.
 func (m *Module[T]) Get(ctx context.Context, uid int64, req *mailpb.MceMailGet) *mailpb.MseMailGet {
 	if uid <= 0 || req.GetMailId() <= 0 {
 		return &mailpb.MseMailGet{Ret: mail.RetInvalid, Message: "invalid mail identity"}
@@ -250,7 +250,7 @@ func (m *Module[T]) DeleteRead(ctx context.Context, uid int64, req *mailpb.MceMa
 	return &mailpb.MseMailDeleteRead{Ret: mail.RetOK, MailIdList: deleted}
 }
 
-func (m *Module[T]) groupKeys(ctx context.Context, root *runtimeuser.User[T], requestGroups []string) ([]string, error) {
+func (m *Module[T]) groupKeys(ctx context.Context, user *runtimeuser.User[T], requestGroups []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(requestGroups))
 	out := make([]string, 0, len(requestGroups))
 	for _, groupKey := range requestGroups {
@@ -263,8 +263,8 @@ func (m *Module[T]) groupKeys(ctx context.Context, root *runtimeuser.User[T], re
 		seen[groupKey] = struct{}{}
 		out = append(out, groupKey)
 	}
-	if root != nil && m.groupResolver != nil {
-		resolved, err := m.groupResolver.MailGroupKeys(ctx, root)
+	if user != nil && m.groupResolver != nil {
+		resolved, err := m.groupResolver.MailGroupKeys(ctx, user)
 		if err != nil {
 			return nil, err
 		}

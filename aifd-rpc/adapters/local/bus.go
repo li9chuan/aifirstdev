@@ -314,7 +314,7 @@ func (b *Bus) enqueue(ctx context.Context, uid int64, inbox string, clientInbox 
 	}
 	route, ok := b.router.Get(msg.Name)
 	if !ok {
-		return fmt.Errorf("rpc route %s not found", msg.Name)
+		return &rpc.StatusError{Code: "UNSUPPORTED", Message: fmt.Sprintf("rpc route %s not found", msg.Name)}
 	}
 	out := msg.Clone()
 	if out.Header == nil {

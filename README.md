@@ -2,7 +2,7 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-**v0.2.0 releases the whole framework as one root Go module. APIs may change incompatibly.**
+**v0.3.0 releases the whole framework as one root Go module with UserRuntime and multi-device RPC. APIs may change incompatibly.**
 The canonical repository is [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev).
 The desktop example currently targets Windows amd64 and Wails 3 beta.28.
 

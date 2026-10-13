@@ -13,14 +13,20 @@ import (
 // User owns one user's typed document and coordinates its business data blocks.
 // The user lock precedes every block saver lock. It does not provide a database transaction.
 type User[T proto.Message] struct {
-	mu    sync.RWMutex
-	uid   int64
-	saver *rdb.SetSaver[T]
+	mu              sync.RWMutex
+	uid             int64
+	saver           *rdb.SetSaver[T]
+	loadedFromStore bool
 }
 
-func newUser[T proto.Message](uid int64, saver *rdb.SetSaver[T]) *User[T] {
-	return &User[T]{uid: uid, saver: saver}
+func newUser[T proto.Message](uid int64, saver *rdb.SetSaver[T], loaded bool) *User[T] {
+	return &User[T]{uid: uid, saver: saver, loadedFromStore: loaded}
 }
+
+// LoadedFromStore reports whether initial loading read a primary document.
+// It is immutable load metadata, not current persistence or user-existence status.
+// Storage adapters can initialize optional blocks without repeating a storage read.
+func (o *User[T]) LoadedFromStore() bool { return o != nil && o.loadedFromStore }
 
 // UID returns the stable user identity.
 func (o *User[T]) UID() int64 {
@@ -221,7 +227,7 @@ func (s *Store[T]) read(ctx context.Context, uid int64) (*User[T], bool, error) 
 	if err != nil {
 		return nil, false, err
 	}
-	return newUser(uid, saver), ok, nil
+	return newUser(uid, saver, ok), ok, nil
 }
 
 func (s *Store[T]) bindSaver(saver *rdb.SetSaver[T], uid int64, db T) error {

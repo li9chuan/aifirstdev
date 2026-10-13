@@ -1,4 +1,4 @@
-﻿# aifd-examples
+# aifd-examples
 
 ## 定位
 
@@ -10,7 +10,7 @@
 - 桌面工具示例项目。
 - 框架 API 的参考用法。
 - 展示本地 adapter 和工作流边界的测试。
-- 展示 root runtime 和 service lifecycle 可以用同进程或拆分进程两种部署形态组合。
+- 展示 user runtime 和 service lifecycle 可以用同进程或拆分进程两种部署形态组合。
 
 ## 示例
 

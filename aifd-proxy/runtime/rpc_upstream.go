@@ -40,6 +40,9 @@ func (u *RPCUpstream) Forward(ctx context.Context, env proxy.Envelope) error {
 			rsp.Header = make(map[string]string)
 		}
 		rsp.Header[rpc.HeaderClientInbox] = strconv.Itoa(inbox)
+		if rsp.Header[rpc.HeaderTraceID] == "" && env.Message.Header[rpc.HeaderTraceID] != "" {
+			rsp.Header[rpc.HeaderTraceID] = env.Message.Header[rpc.HeaderTraceID]
+		}
 		return u.Delivery.Send(ctx, env.ConnectionID, rsp)
 	}
 	return u.Bus.Tell(ctx, env.UID, env.Message)
@@ -47,13 +50,15 @@ func (u *RPCUpstream) Forward(ctx context.Context, env proxy.Envelope) error {
 
 func requestError(err error) rpc.Message {
 	code := "INTERNAL"
+	message := err.Error()
 	var status *rpc.StatusError
 	if errors.As(err, &status) {
 		code = status.Code
+		message = status.Message
 	} else if errors.Is(err, context.DeadlineExceeded) {
 		code = "TIMEOUT"
 	} else if errors.Is(err, context.Canceled) {
 		code = "CANCELLED"
 	}
-	return rpc.Message{Name: "RPCError", Header: map[string]string{rpc.HeaderStatus: code, rpc.HeaderErrorMessage: err.Error()}}
+	return rpc.Message{Name: "RPCError", Header: map[string]string{rpc.HeaderStatus: code, rpc.HeaderErrorMessage: message}}
 }

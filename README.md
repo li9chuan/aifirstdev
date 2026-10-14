@@ -2,7 +2,7 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-**v0.3.0 releases the whole framework as one root Go module with UserRuntime and multi-device RPC. APIs may change incompatibly.**
+**v0.4.0 removes push-history and test-only local Session APIs. UID events use subscriptions and Downlink. APIs may change incompatibly.**
 The canonical repository is [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev).
 The desktop example currently targets Windows amd64 and Wails 3 beta.28.
 
@@ -120,8 +120,8 @@ From an initialized Go module outside this workspace, pin the whole framework.
 Use the unified framework version and its current package APIs:
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.3.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.3.0
+go get github.com/li9chuan/aifirstdev@v0.4.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.4.0
 ```
 
 Framework packages, CLI, and official plugins share the root `go.mod/go.sum` and

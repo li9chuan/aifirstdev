@@ -2,7 +2,7 @@
 
 [English](./README.md) | 简体中文
 
-**v0.3.0 使用一个根 Go module 发布整套框架，统一 UserRuntime 与多设备 RPC。API 仍可能发生不兼容变更。**
+**v0.4.0 删除推送历史和测试专用 local Session 接口，UID 事件通过订阅与 Downlink 投递。API 仍可能发生不兼容变更。**
 正式仓库为 [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev)。
 桌面示例当前面向 Windows amd64，使用 Wails 3 beta.28。
 
@@ -99,8 +99,8 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 使用统一框架版本：
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.3.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.3.0
+go get github.com/li9chuan/aifirstdev@v0.4.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.4.0
 ```
 
 框架、CLI 和官方插件共用根 `go.mod/go.sum`，一次发版只使用一个根标签。

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/li9chuan/aifirstdev/aifd-rpc/adapters/local"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
+	rpcruntime "github.com/li9chuan/aifirstdev/aifd-rpc/runtime"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -23,11 +23,17 @@ func TestHandlerWithUIDAndProtoResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMessagePB error = %v", err)
 	}
-	session := local.NewSession(7, "Req")
+	var responses []rpc.Message
+	session := rpcruntime.NewSession(rpcruntime.SessionOptions{
+		UID: 7, Topic: "Req",
+		Respond: func(_ context.Context, msg rpc.Message) error {
+			responses = append(responses, msg)
+			return nil
+		},
+	})
 	if err := handler(context.Background(), session, req); err != nil {
 		t.Fatalf("handler error = %v", err)
 	}
-	responses := session.Responses()
 	if len(responses) != 1 {
 		t.Fatalf("responses len = %d, want 1", len(responses))
 	}

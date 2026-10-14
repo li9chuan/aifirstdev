@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"encoding/binary"
 	"testing"
 
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
@@ -22,7 +23,7 @@ func (c *downlinkTestConnection) Send(_ context.Context, msg rpc.Message) error 
 }
 func (c *downlinkTestConnection) Close(context.Context) error { return nil }
 
-func TestLocalPubSubReachesEveryProxyWithoutReplayingHistory(t *testing.T) {
+func TestLocalPubSubReachesEveryProxyAndUnsubscribesIndependently(t *testing.T) {
 	ctx := context.Background()
 	bus := localrpc.NewBus(localrpc.Config{})
 	defer bus.Close(ctx)
@@ -48,7 +49,7 @@ func TestLocalPubSubReachesEveryProxyWithoutReplayingHistory(t *testing.T) {
 		return downlink, conn
 	}
 	first, a := connect("A")
-	_, b := connect("B")
+	second, b := connect("B")
 	msg := rpc.Message{Name: "event", Payload: []byte{1}, Header: map[string]string{rpc.HeaderClientInbox: "9"}}
 	if err := bus.Push(ctx, 42, msg); err != nil {
 		t.Fatal(err)
@@ -71,10 +72,34 @@ func TestLocalPubSubReachesEveryProxyWithoutReplayingHistory(t *testing.T) {
 	if len(a.messages) != 1 || len(b.messages) != 2 {
 		t.Fatal("unsubscribing one proxy removed its peer")
 	}
-	for range 300 {
-		_ = bus.Push(ctx, 43, msg)
+	if err := bus.Push(ctx, 43, msg); err != nil {
+		t.Fatal(err)
 	}
-	if len(bus.Pushes()) != 256 {
-		t.Fatal("inspection history is unbounded")
+	if len(b.messages) != 2 {
+		t.Fatal("another UID received an event")
+	}
+	for i := range 1000 {
+		payload := make([]byte, 4)
+		binary.LittleEndian.PutUint32(payload, uint32(i))
+		if err := bus.Push(ctx, 42, rpc.Message{Name: "sequence", Payload: payload, Header: msg.Header}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(a.messages) != 1 || len(b.messages) != 1002 {
+		t.Fatalf("continuous fanout: a=%d b=%d", len(a.messages), len(b.messages))
+	}
+	for i, received := range b.messages[2:] {
+		if received.Name != "sequence" || len(received.Payload) != 4 || binary.LittleEndian.Uint32(received.Payload) != uint32(i) || received.Header[rpc.HeaderClientInbox] != "" {
+			t.Fatalf("event %d: %+v", i, received)
+		}
+	}
+	if err := second.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := bus.Push(ctx, 42, msg); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.messages) != 1002 {
+		t.Fatal("closed downlink received an event")
 	}
 }

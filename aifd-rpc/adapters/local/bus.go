@@ -37,7 +37,6 @@ type Bus struct {
 	deliveryWG sync.WaitGroup
 
 	mu              sync.Mutex
-	pushes          []PushedMessage
 	pushSubscribers map[int64]map[uint64]func(context.Context, rpc.Message) error
 	nextSubscriber  uint64
 }
@@ -171,8 +170,7 @@ func (b *Bus) RequestPB(ctx context.Context, uid int64, name string, req proto.M
 	return response.DecodePB(rsp)
 }
 
-// Push publishes an inbox-free UID event to all local subscribers. The bounded
-// recent history is for tests/inspection, not a delivery queue or offline mailbox.
+// Push publishes an inbox-free UID event to all current local subscribers.
 func (b *Bus) Push(ctx context.Context, uid int64, msg rpc.Message) error {
 	if b.closed.Load() {
 		return ErrBusClosed
@@ -196,11 +194,6 @@ func (b *Bus) Push(ctx context.Context, uid int64, msg rpc.Message) error {
 		b.mu.Unlock()
 		return ErrBusClosed
 	}
-	if len(b.pushes) == 256 {
-		copy(b.pushes, b.pushes[1:])
-		b.pushes = b.pushes[:255]
-	}
-	b.pushes = append(b.pushes, PushedMessage{UID: uid, Message: out})
 	handlers := make([]func(context.Context, rpc.Message) error, 0, len(b.pushSubscribers[uid]))
 	for _, handler := range b.pushSubscribers[uid] {
 		handlers = append(handlers, handler)
@@ -244,7 +237,7 @@ func (b *Bus) SubscribePush(uid int64, handler func(context.Context, rpc.Message
 	}, nil
 }
 
-// PushPB marshal protobuf push 消息，并通过 Push 记录。
+// PushPB marshal protobuf push 消息，并通过 Push 投递给当前订阅者。
 func (b *Bus) PushPB(ctx context.Context, uid int64, pb proto.Message) error {
 	msg, err := rpc.NewMessagePB("", pb)
 	if err != nil {
@@ -292,17 +285,6 @@ func (b *Bus) Close(ctx context.Context) error {
 		return nil
 	}
 	return waitDeliveries(ctx, &b.deliveryWG)
-}
-
-// Pushes returns at most the latest 256 events as independent inspection copies.
-func (b *Bus) Pushes() []PushedMessage {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	out := make([]PushedMessage, len(b.pushes))
-	for i := range b.pushes {
-		out[i] = PushedMessage{UID: b.pushes[i].UID, Message: b.pushes[i].Message.Clone()}
-	}
-	return out
 }
 
 func (b *Bus) enqueue(ctx context.Context, uid int64, inbox string, clientInbox int, msg rpc.Message) error {

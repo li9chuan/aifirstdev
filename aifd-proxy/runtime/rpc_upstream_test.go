@@ -46,6 +46,15 @@ func TestMissingRouteErrorKeepsOriginalConnectionInboxAndTrace(t *testing.T) {
 	ctx := context.Background()
 	bus := rpclocal.NewBus(rpclocal.Config{})
 	defer bus.Close(ctx)
+	var pushes []rpc.Message
+	unsubscribe, err := bus.SubscribePush(42, func(_ context.Context, msg rpc.Message) error {
+		pushes = append(pushes, msg)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
 	delivery := proxyruntime.NewDelivery()
 	a, b := proxylocal.NewConnection("a"), proxylocal.NewConnection("b")
 	_ = delivery.Add(a)
@@ -54,7 +63,7 @@ func TestMissingRouteErrorKeepsOriginalConnectionInboxAndTrace(t *testing.T) {
 	if err := upstream.Forward(ctx, proxy.Envelope{UID: 42, ConnectionID: "a", Message: rpc.Message{Name: "MceMissing", Header: map[string]string{rpc.HeaderClientInbox: "9", rpc.HeaderTraceID: "request-trace"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if a.Closed() || b.Closed() || len(a.Sent()) != 1 || len(b.Sent()) != 0 || len(bus.Pushes()) != 0 {
+	if a.Closed() || b.Closed() || len(a.Sent()) != 1 || len(b.Sent()) != 0 || len(pushes) != 0 {
 		t.Fatal("missing-route response escaped or closed a connection")
 	}
 	rsp := a.Sent()[0]
@@ -67,6 +76,15 @@ func TestRPCRepliesWithEqualClientInboxesStayOnOriginalConnection(t *testing.T) 
 	ctx, cancel := context.WithCancel(context.Background())
 	bus := rpclocal.NewBus(rpclocal.Config{Buffer: 8})
 	defer func() { cancel(); _ = bus.Close(context.Background()) }()
+	pushes := make(chan rpc.Message, 1)
+	unsubscribe, err := bus.SubscribePush(42, func(_ context.Context, msg rpc.Message) error {
+		pushes <- msg
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
 	if err := bus.Register(rpc.Route{Name: "MceEcho", Kind: rpc.RouteKindClient, Handler: func(ctx context.Context, s rpc.Session, msg rpc.Message) error {
 		return s.Respond(ctx, rpc.Message{Name: "MseEcho", Payload: append([]byte("ack:"), msg.Payload...)})
 	}}); err != nil {
@@ -105,13 +123,15 @@ func TestRPCRepliesWithEqualClientInboxesStayOnOriginalConnection(t *testing.T) 
 	if a.Sent()[0].Header[rpc.HeaderClientInbox] != "7" || b.Sent()[0].Header[rpc.HeaderClientInbox] != "7" {
 		t.Fatal("original callback inbox lost")
 	}
-	if len(bus.Pushes()) != 0 {
+	select {
+	case <-pushes:
 		t.Fatal("request reply escaped into UID broadcast")
+	default:
 	}
 	if err := bus.Push(ctx, 42, rpc.Message{Name: "MseChanged", Header: map[string]string{rpc.HeaderClientInbox: "7"}}); err != nil {
 		t.Fatal(err)
 	}
-	if bus.Pushes()[0].Message.Header[rpc.HeaderClientInbox] != "" {
+	if (<-pushes).Header[rpc.HeaderClientInbox] != "" {
 		t.Fatal("UID event retained request inbox")
 	}
 }

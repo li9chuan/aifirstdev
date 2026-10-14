@@ -109,8 +109,8 @@ Bus.Request 取得结果，再送回原连接；没有 inbox 使用 Tell。成�
 同 UID 的其他连接。传输 Status（包括 NATS 无响应服务）统一编码为 RPCError。
 
 UID 事件 `Push/PushTo` 的 inbox 为 0，向所有持有该 UID 连接的 Proxy 发布。
-NATS Downlink 使用普通 PubSub；local Downlink 订阅 local Bus 的 UID 事件，不轮询
-Pushes 历史。第一条连接订阅，最后一条关闭后退订，成员变更与订阅寿命共同协调。
+NATS Downlink 使用普通 PubSub；local Downlink 直接订阅 local Bus 的 UID 事件。
+第一条连接订阅，最后一条关闭后退订，成员变更与订阅寿命共同协调。
 
 `ClientSessionRef` 由 Proxy 启动实例 ID 和连接 ID 组成，只通过可信内部 metadata
 携带，不进入客户端 MsgHead。Open 有最长 15 秒的期限，Close/过期引用保留至少

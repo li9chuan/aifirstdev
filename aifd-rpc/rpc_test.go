@@ -155,6 +155,15 @@ func TestHandlerWithoutResponseDoesNotAutoReply(t *testing.T) {
 	}
 	ctx, bus, cleanup := startTestBus(t, reg)
 	defer cleanup()
+	pushes := make(chan contracts.Message, 1)
+	unsubscribe, err := bus.SubscribePush(1, func(_ context.Context, msg contracts.Message) error {
+		pushes <- msg
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
 
 	if err := bus.TellPB(ctx, 1, "MceNoResponse", wrapperspb.String("noop")); err != nil {
 		t.Fatalf("TellPB error = %v", err)
@@ -164,8 +173,10 @@ func TestHandlerWithoutResponseDoesNotAutoReply(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("handler not called")
 	}
-	if pushes := bus.Pushes(); len(pushes) != 0 {
-		t.Fatalf("pushes = %+v, want none", pushes)
+	select {
+	case msg := <-pushes:
+		t.Fatalf("push = %+v, want none", msg)
+	default:
 	}
 }
 
@@ -241,6 +252,15 @@ func TestSessionRequestAndForward(t *testing.T) {
 		t.Fatalf("request pbType header = %q, want StringValue", requestRsp.Header[contracts.HeaderPBType])
 	}
 
+	pushes := make(chan contracts.Message, 1)
+	unsubscribe, err := bus.SubscribePush(9, func(_ context.Context, msg contracts.Message) error {
+		pushes <- msg
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
 	forwardMsg, err := contracts.NewMessagePB("MceForward", wrapperspb.String("hello"))
 	if err != nil {
 		t.Fatalf("NewMessagePB forward error = %v", err)
@@ -257,8 +277,10 @@ func TestSessionRequestAndForward(t *testing.T) {
 	if forwarded.GetValue() != "hello:world" || forwardRsp.Header[contracts.HeaderClientInbox] != "123" {
 		t.Fatalf("forward reply = %#v body=%q", forwardRsp, forwarded.GetValue())
 	}
-	if len(bus.Pushes()) != 0 {
+	select {
+	case <-pushes:
 		t.Fatal("Forward broadcast a request reply to the UID")
+	default:
 	}
 }
 

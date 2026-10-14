@@ -91,12 +91,24 @@ func TestBusRequestPBAndPush(t *testing.T) {
 		t.Fatalf("rsp = %s, want hello:rsp", rsp.Value)
 	}
 
+	var pushes []rpc.Message
+	unsubscribe, err := bus.SubscribePush(10, func(_ context.Context, msg rpc.Message) error {
+		pushes = append(pushes, msg)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
 	if err := bus.PushPB(ctx, 10, wrapperspb.String("push")); err != nil {
 		t.Fatalf("PushPB error = %v", err)
 	}
-	pushes := bus.Pushes()
-	if len(pushes) != 1 || pushes[0].UID != 10 {
+	if len(pushes) != 1 {
 		t.Fatalf("unexpected pushes %+v", pushes)
+	}
+	var pushed wrapperspb.StringValue
+	if err := pushes[0].DecodePB(&pushed); err != nil || pushed.Value != "push" {
+		t.Fatalf("push = %q, error = %v", pushed.Value, err)
 	}
 }
 

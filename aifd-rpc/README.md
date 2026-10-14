@@ -39,6 +39,9 @@ Push 兜底。`Forward` 保留原响应通道，异步取得被转发结果，�
 保持相同语义。普通用户业务可使用 [UserRuntime](../aifd-runtime/README.md) 自动加载并
 注入 User；非用户路由仍使用本模块入口。
 
+Local Bus 通过 UID 订阅直接投递当前事件，不保存推送历史。测试使用 `SubscribePush`
+观察投递，或使用 `runtime.NewSession` 的响应/推送 hook；消息断言留在测试文件内。
+
 推荐用法：
 
 - 业务 feature 的 `RegisterRPC` 接收 `*rpc.Registry`，由启动层统一 `rpc.Install` 到真实 bus。

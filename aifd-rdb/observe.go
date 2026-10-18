@@ -8,6 +8,7 @@ import (
 	"time"
 
 	observe "github.com/li9chuan/aifirstdev/aifd-observe/contracts"
+	"github.com/li9chuan/aifirstdev/aifd-observe/logging"
 )
 
 const (
@@ -25,6 +26,20 @@ func (db *DB) applyFinalIntent(ctx context.Context, stage string, op finalIntent
 	db.reportSaveDuration(ctx, stage, op, attempts, time.Since(start))
 	db.reportLargePayload(ctx, op, payloadBytes)
 	return err
+}
+
+// logSave records successful writes with an integer byte count, including empty protobufs.
+func (r journalRecord) logSave(ctx context.Context, payloadBytes int) {
+	operation := "Set"
+	fields := []logging.Field{
+		logging.Int("size", payloadBytes),
+		logging.String("key_hash", observeHash(r.Key)),
+	}
+	if r.Kind == intentKindHash {
+		operation = "HSet"
+		fields = append(fields, logging.String("field_hash", observeHash(r.Field)))
+	}
+	logging.InfoContext(ctx, "Rdb save "+operation, fields...)
 }
 
 func (db *DB) reportQueueDepth(ctx context.Context, size int) {

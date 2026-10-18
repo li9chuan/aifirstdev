@@ -42,6 +42,6 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 )
 
-require github.com/li9chuan/aifirstdev v0.4.0
+require github.com/li9chuan/aifirstdev v0.4.1
 
 replace github.com/li9chuan/aifirstdev => ../..

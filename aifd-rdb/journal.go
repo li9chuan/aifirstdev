@@ -216,7 +216,11 @@ func (r journalRecord) applyLiveMeasured(ctx context.Context, store store) (int,
 		if err != nil {
 			return 0, err
 		}
-		return len(value), store.Set(ctx, r.Key, value, r.TTL)
+		if err := store.Set(ctx, r.Key, value, r.TTL); err != nil {
+			return len(value), err
+		}
+		r.logSave(ctx, len(value))
+		return len(value), nil
 	case r.Kind == intentKindSet && r.Intent == intentDelete:
 		return 0, store.Delete(ctx, r.Key)
 	case r.Kind == intentKindHash && r.Intent == intentSave:
@@ -228,8 +232,11 @@ func (r journalRecord) applyLiveMeasured(ctx context.Context, store store) (int,
 			return len(value), err
 		}
 		if r.TTL > 0 {
-			return len(value), store.Expire(ctx, r.Key, r.TTL)
+			if err := store.Expire(ctx, r.Key, r.TTL); err != nil {
+				return len(value), err
+			}
 		}
+		r.logSave(ctx, len(value))
 		return len(value), nil
 	case r.Kind == intentKindHash && r.Intent == intentDelete:
 		return 0, store.HDelete(ctx, r.Key, r.Field)

@@ -1,15 +1,115 @@
 package rdb
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	observe "github.com/li9chuan/aifirstdev/aifd-observe/contracts"
+	"github.com/li9chuan/aifirstdev/aifd-observe/logging"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+func TestSaveLogUsesIntegerBytes(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		hash  bool
+		value string
+		ttl   time.Duration
+	}{
+		{name: "set", value: strings.Repeat("x", 2048)},
+		{name: "empty set"},
+		{name: "hash", hash: true, value: strings.Repeat("x", 1536)},
+		{name: "hash with ttl", hash: true, value: "value", ttl: time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			output := captureSaveLog(t)
+			ctx := context.Background()
+			db := MustNewMemoryDB(WithSaveDelay(time.Hour, time.Hour))
+			t.Cleanup(func() { _ = db.Close(ctx) })
+			pb := wrapperspb.String(tc.value)
+			operation := "Set"
+			if tc.hash {
+				state := &testHashState{}
+				var opts []Option
+				if tc.ttl > 0 {
+					opts = append(opts, WithTTL(tc.ttl))
+				}
+				if err := state.BindDB(db, "private-key", "private-field", pb, opts...); err != nil {
+					t.Fatal(err)
+				}
+				if err := state.Save(ctx); err != nil {
+					t.Fatal(err)
+				}
+				operation = "HSet"
+			} else {
+				state := &testSetState{}
+				if err := state.BindDB(db, "private-key", pb); err != nil {
+					t.Fatal(err)
+				}
+				if err := state.Save(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if output.Len() != 0 {
+				t.Fatal("Save logged before the queued write was executed")
+			}
+			if err := db.Flush(ctx); err != nil {
+				t.Fatal(err)
+			}
+			var entry struct {
+				Message string      `json:"msg"`
+				Size    json.Number `json:"size"`
+			}
+			if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
+				t.Fatalf("decode save log: %v; log=%s", err, output)
+			}
+			if entry.Message != "Rdb save "+operation || entry.Size.String() != strconv.Itoa(proto.Size(pb)) {
+				t.Fatalf("save log = %s, want %s size %d bytes", output, operation, proto.Size(pb))
+			}
+			if strings.Contains(output.String(), "private-key") || strings.Contains(output.String(), "private-field") {
+				t.Fatalf("save log exposes raw key or field: %s", output)
+			}
+		})
+	}
+}
+
+func TestFailedWriteDoesNotLogSaveSuccess(t *testing.T) {
+	output := captureSaveLog(t)
+	ctx := context.Background()
+	db := newDB(alwaysRetrySetStore{}, options{failureFileDir: t.TempDir()})
+	t.Cleanup(func() { _ = db.Close(ctx) })
+	state := &testSetState{}
+	if err := state.BindDB(db, "failed-key", wrapperspb.String("value")); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.Save(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Flush(ctx); err == nil {
+		t.Fatal("Flush succeeded with a failing store")
+	}
+	if output.Len() != 0 {
+		t.Fatalf("failed write logged save success: %s", output)
+	}
+}
+
+func captureSaveLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	previous := logging.Default()
+	t.Cleanup(func() { logging.SetDefault(previous) })
+	output := &bytes.Buffer{}
+	logging.SetDefault(logging.NewSlogLogger(slog.NewJSONHandler(output, nil)))
+	return output
+}
 
 type observeRecorder struct {
 	mu     sync.Mutex

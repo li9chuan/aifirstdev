@@ -9,6 +9,11 @@
 `Save`、`SaveUnsafe`、`Delete` 和 `DeleteUnsafe` 默认只进入 final-intent 延迟保存
 队列；真正的 Redis 或 memory 写入由后台 worker、`Flush` 或 `Close` 完成。
 
+SET/HSET 实际保存成功后，通过进程默认的 `aifd-observe/logging` 输出 `Rdb save Set`
+或 `Rdb save HSet`。`size` 是已序列化 protobuf 的整数字节数，例如 `"size":1536`，
+不换算 KB、不使用小数；空 protobuf 为 `0`。定位字段使用 `key_hash` / `field_hash`，
+不输出原始 key 或 field。宿主使用现有 logging 初始化即可记录；失败或跳过的写入不输出成功保存日志。
+
 ## 负责
 
 - `SetSaver`：一个 Redis key 保存一个 protobuf message。

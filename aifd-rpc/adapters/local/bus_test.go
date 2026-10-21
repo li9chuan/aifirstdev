@@ -3,6 +3,8 @@ package local
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -173,6 +175,57 @@ func TestBusStream(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("stream handler not called")
+	}
+}
+
+func TestCloseConcurrentDelivery(t *testing.T) {
+	for _, running := range []bool{false, true} {
+		t.Run(fmt.Sprint(running), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			bus := NewBus(Config{Buffer: 1})
+			if err := bus.Register(rpc.Route{Name: "event", Handler: func(context.Context, rpc.Session, rpc.Message) error { return nil }}); err != nil {
+				t.Fatal(err)
+			}
+			if running {
+				startTestRunner(ctx, bus)
+			}
+			// Without a runner this fills the queue, so subsequent senders must
+			// be released by Close rather than by the caller's context timeout.
+			if err := bus.Tell(ctx, 1, rpc.Message{Name: "event"}); err != nil {
+				t.Fatal(err)
+			}
+			var senders sync.WaitGroup
+			start := make(chan struct{})
+			started := make(chan struct{}, 32)
+			for range 32 {
+				senders.Go(func() {
+					<-start
+					started <- struct{}{}
+					for {
+						err := bus.Tell(ctx, 1, rpc.Message{Name: "event"})
+						if errors.Is(err, ErrBusClosed) {
+							return
+						}
+						if err != nil {
+							t.Errorf("Tell during close: %v", err)
+							return
+						}
+					}
+				})
+			}
+			close(start)
+			for range 32 {
+				<-started
+			}
+			if err := bus.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			senders.Wait()
+			if err := bus.Tell(ctx, 1, rpc.Message{Name: "event"}); !errors.Is(err, ErrBusClosed) {
+				t.Fatalf("Tell after Close = %v", err)
+			}
+		})
 	}
 }
 

@@ -89,7 +89,7 @@ func DefaultTools() []string {
 func DefaultManifest() Manifest {
 	return Manifest{Tools: map[string]Tool{
 		toolchain.ToolProtoc: {
-			Version: "3.20.3",
+			Version: "36.2",
 			Type:    TypeArchive,
 			URL:     "https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform}.zip",
 			Archive: "zip",
@@ -105,7 +105,7 @@ func DefaultManifest() Manifest {
 			},
 		},
 		toolchain.ToolProtocGenGo: {
-			Version: "v1.36.11",
+			Version: "v1.36.12",
 			Type:    TypeGoInstall,
 			Module:  "google.golang.org/protobuf/cmd/protoc-gen-go",
 			Bin:     exeCandidates("protoc-gen-go", "bin/protoc-gen-go"),
@@ -128,7 +128,7 @@ func DefaultManifest() Manifest {
 			},
 		},
 		toolchain.ToolWails: {
-			Version: "v3.0.0-beta.28",
+			Version: "v3.0.0-beta.34",
 			Type:    TypeGoInstall,
 			Module:  "github.com/wailsapp/wails/v3/cmd/wails3",
 			Bin:     exeCandidates("wails3", "bin/wails3"),

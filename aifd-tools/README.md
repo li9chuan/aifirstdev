@@ -88,11 +88,11 @@ wails3 package
 默认工具版本由内置 manifest 提供：
 
 ```text
-tools.protoc: 3.20.3
-tools.protoc-gen-go: v1.36.11
+tools.protoc: 36.2
+tools.protoc-gen-go: v1.36.12
 tools.luban: v4.8.0
 tools.redis-server: 8.6
-tools.wails: v3.0.0-beta.28
+tools.wails: v3.0.0-beta.34
 tools.nsis: 3.10
 ```
 

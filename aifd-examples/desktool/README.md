@@ -4,7 +4,7 @@
 
 `desktool` 是一个 Wails 3 桌面软件框架示例，展示普通桌面应用如何组织登录、公开主界面和登录后工作台。
 
-当前固定 `v3.0.0-beta.28`；仍为预发布版本。Go 依赖、CLI、`@wailsio/runtime` 和根目录 `aifd.lock` 必须保持一致。
+当前固定 `v3.0.0-beta.34`；仍为预发布版本。Go 依赖、CLI、`@wailsio/runtime` 和根目录 `aifd.lock` 必须保持一致。
 
 它采用 React + Ant Design 编写前端界面。Ant Design MCP、CLI、LLMs.txt 和 X Skills 的定位是开发期 AI 辅助工具链，用来帮助 Codex 查询组件、示例、token、语义化 DOM 和迁移信息；这些工具不进入桌面软件运行时。
 
@@ -50,7 +50,7 @@ go test -mod=readonly -count=1 -timeout=2m ./...
 
 ```powershell
 go run ./aifd-tools/cmd/aifd tools install --tool wails
-$env:PATH = "$PWD/.aifd/tools/windows-amd64/wails/v3.0.0-beta.28/bin;" + $env:PATH
+$env:PATH = "$PWD/.aifd/tools/windows-amd64/wails/v3.0.0-beta.34/bin;" + $env:PATH
 cd aifd-examples/desktool
 wails3 dev -config ./build/config.yml -port 5173
 ```

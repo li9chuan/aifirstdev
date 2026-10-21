@@ -8,7 +8,7 @@ export type Packet = {
   body: Uint8Array;
 };
 
-export function encodePacket(topic: string, pbType: string, inbox: number, body: Uint8Array): Uint8Array {
+export function encodePacket(topic: string, pbType: string, inbox: number, body: Uint8Array): Uint8Array<ArrayBuffer> {
   if (!Number.isSafeInteger(inbox) || inbox < 0 || inbox > 0x7fffffff) {
     throw new Error("proxy packet inbox is outside int32 range");
   }
@@ -89,7 +89,7 @@ function readVarint(bytes: Uint8Array, start: number): { value: bigint; offset: 
   throw new Error("proxy packet contains an invalid varint");
 }
 
-function concatBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
+function concatBytes(left: Uint8Array, right: Uint8Array): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(left.byteLength + right.byteLength);
   out.set(left, 0);
   out.set(right, left.byteLength);

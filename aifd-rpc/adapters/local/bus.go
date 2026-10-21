@@ -32,8 +32,10 @@ type Bus struct {
 	callbacks  *rpcruntime.CallbackCache
 	stats      *rpcruntime.StatsCollector
 	closed     atomic.Bool
+	closing    chan struct{}
 	seq        atomic.Uint64
 	runner     atomic.Bool
+	deliveryMu sync.RWMutex
 	deliveryWG sync.WaitGroup
 
 	mu              sync.Mutex
@@ -53,6 +55,7 @@ func NewBus(cfg Config) *Bus {
 		pushSubscribers: make(map[int64]map[uint64]func(context.Context, rpc.Message) error),
 		router:          rpcruntime.NewRouter(),
 		deliveries:      make(chan rpc.Delivery, cfg.Buffer),
+		closing:         make(chan struct{}),
 		callbacks:       rpcruntime.NewCallbackCache(cfg.DefaultTimeout),
 		stats:           rpcruntime.NewStatsCollector(cfg.ServiceName, cfg.StatsWindow),
 	}
@@ -276,11 +279,16 @@ func (b *Bus) Close(ctx context.Context) error {
 	if b.closed.Swap(true) {
 		return nil
 	}
+	// Wake blocked senders before waiting for their read locks. Once the
+	// write lock is held, no sender can add work or use the delivery channel.
+	close(b.closing)
+	b.deliveryMu.Lock()
+	close(b.deliveries)
+	b.deliveryMu.Unlock()
 	b.mu.Lock()
 	b.pushSubscribers = make(map[int64]map[uint64]func(context.Context, rpc.Message) error)
 	b.mu.Unlock()
 	b.callbacks.Close()
-	close(b.deliveries)
 	if !b.runner.Load() {
 		return nil
 	}
@@ -332,6 +340,11 @@ func (b *Bus) enqueue(ctx context.Context, uid int64, inbox string, clientInbox 
 		},
 		Push: b.Push,
 	})
+	b.deliveryMu.RLock()
+	defer b.deliveryMu.RUnlock()
+	if b.closed.Load() {
+		return ErrBusClosed
+	}
 	delivery, done := b.newDelivery(route, session, out)
 	return b.sendDelivery(ctx, delivery, done)
 }
@@ -347,14 +360,11 @@ func (b *Bus) newDelivery(route rpc.Route, session rpc.Session, msg rpc.Message)
 	return rpcruntime.NewDelivery(route, session, msg, b.stats, done), done
 }
 
-func (b *Bus) sendDelivery(ctx context.Context, delivery *rpcruntime.Delivery, done func()) (err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			done()
-			err = ErrBusClosed
-		}
-	}()
+func (b *Bus) sendDelivery(ctx context.Context, delivery *rpcruntime.Delivery, done func()) error {
 	select {
+	case <-b.closing:
+		done()
+		return ErrBusClosed
 	case <-ctx.Done():
 		done()
 		return ctx.Err()

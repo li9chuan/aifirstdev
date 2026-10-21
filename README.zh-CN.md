@@ -2,9 +2,11 @@
 
 [English](./README.md) | 简体中文
 
-**v0.4.1 的 RDB 保存日志使用整数字节数展示大小。API 仍可能发生不兼容变更。**
+**v0.4.2 升级 Go/前端依赖、Protobuf 与 Wails，并修复 local RPC 并发关闭竞争。API 仍可能发生不兼容变更。**
+
+本版本要求 Go 1.27.3 或更新版本；前端开发使用 Node.js 24.22.1 LTS 或更新的 24.x 版本。
 正式仓库为 [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev)。
-桌面示例当前面向 Windows amd64，使用 Wails 3 beta.28。
+桌面示例当前面向 Windows amd64，使用 Wails 3 beta.34。
 
 aiFirstDev 是面向 AI 优先开发的轻量后端框架，框架包共享一个根 Go module 和整套版本，
 两个示例以独立 Go module 加入本地 workspace。当前 runtime 先覆盖游戏后端，但框架组织语言使用 user/service
@@ -99,8 +101,8 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 使用统一框架版本：
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.4.1
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.4.1
+go get github.com/li9chuan/aifirstdev@v0.4.2
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.4.2
 ```
 
 框架、CLI 和官方插件共用根 `go.mod/go.sum`，一次发版只使用一个根标签。

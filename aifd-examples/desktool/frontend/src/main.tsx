@@ -1,17 +1,6 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
-import Alert from "antd/es/alert";
-import Button from "antd/es/button";
-import Card from "antd/es/card";
-import ConfigProvider from "antd/es/config-provider";
-import Form from "antd/es/form";
-import Input from "antd/es/input";
-import Layout from "antd/es/layout";
-import Menu from "antd/es/menu";
-import Statistic from "antd/es/statistic";
-import Table from "antd/es/table";
-import Tag from "antd/es/tag";
-import Typography from "antd/es/typography";
+import { Alert, Button, Card, ConfigProvider, Form, Input, Layout, Menu, Statistic, Table, Tag, Typography } from "antd";
 import "antd/dist/reset.css";
 import "./styles.css";
 import { selectBackend, withStartupTimeout } from "./backend-mode";
@@ -316,7 +305,7 @@ function UpdatePanel(props: {
       <div className="update-stack">
         <Text>{message}</Text>
         {props.info && !props.info.configured ? <Text className="muted-label">设置 DESKTOOL_UPDATE_MANIFEST_URL 后可检查远端清单。</Text> : null}
-        {props.info?.invalid ? <Alert showIcon type="error" message="更新清单无效" description={props.info.message} /> : null}
+        {props.info?.invalid ? <Alert showIcon type="error" title="更新清单无效" description={props.info.message} /> : null}
         {props.info?.available ? (
           <Tag color={props.info.force ? "red" : "blue"}>
             {props.info.force ? "强制更新" : `新版本 ${props.info.version}`}
@@ -505,5 +494,5 @@ void selectBackend<DesktopBackend>(
   view.render(<StrictMode><App backend={backend} initialBootstrap={initialBootstrap} /></StrictMode>);
 }).catch((error: unknown) => {
   console.error("Desktop backend startup failed", error);
-  view.render(<Alert type="error" showIcon message="桌面服务连接失败" description="请重新启动应用；若问题持续，请检查后端服务。" />);
+  view.render(<Alert type="error" showIcon title="桌面服务连接失败" description="请重新启动应用；若问题持续，请检查后端服务。" />);
 });

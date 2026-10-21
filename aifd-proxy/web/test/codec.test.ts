@@ -37,6 +37,15 @@ describe("proxy packet codec", () => {
     expect(decoded.pbType).toBe("StringValue");
   });
 
+  it("copies shared-buffer views into an owned WebSocket-compatible buffer", () => {
+    const source = new Uint8Array(new SharedArrayBuffer(5));
+    source.set([9, 1, 2, 3, 9]);
+    const packet = encodePacket("McePing", "McePing", 1, source.subarray(1, 4));
+    expect(packet.buffer).toBeInstanceOf(ArrayBuffer);
+    source[1] = 8;
+    expect(decodePacket(packet).body).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
   it("rejects an inconsistent body length", () => {
     const packet = encodePacket("McePing", "McePing", 1, new Uint8Array([1, 2]));
     const invalid = new Uint8Array(packet.byteLength + 1);

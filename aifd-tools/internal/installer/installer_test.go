@@ -187,7 +187,7 @@ func TestDefaultManifestIncludesWails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Plan wails error = %v", err)
 	}
-	if plan.Type != TypeGoInstall || plan.Module != "github.com/wailsapp/wails/v3/cmd/wails3" || plan.Version != "v3.0.0-beta.28" {
+	if plan.Type != TypeGoInstall || plan.Module != "github.com/wailsapp/wails/v3/cmd/wails3" || plan.Version != "v3.0.0-beta.34" {
 		t.Fatalf("wails plan = %+v", plan)
 	}
 }

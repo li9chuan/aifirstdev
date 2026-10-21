@@ -2,9 +2,11 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-**v0.4.1 logs RDB save sizes as integer byte counts. APIs may change incompatibly.**
+**v0.4.2 updates Go/frontend dependencies, Protobuf and Wails, and fixes concurrent local RPC shutdown. APIs may change incompatibly.**
+
+This release requires Go 1.27.3 or newer. Frontend development uses Node.js 24.22.1 LTS or a newer 24.x release.
 The canonical repository is [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev).
-The desktop example currently targets Windows amd64 and Wails 3 beta.28.
+The desktop example currently targets Windows amd64 and Wails 3 beta.34.
 
 aiFirstDev is a lightweight backend framework for AI-first development. It is
 organized as one framework Go module with two separate example modules in the local workspace. The current runtime first
@@ -120,8 +122,8 @@ From an initialized Go module outside this workspace, pin the whole framework.
 Use the unified framework version and its current package APIs:
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.4.1
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.4.1
+go get github.com/li9chuan/aifirstdev@v0.4.2
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.4.2
 ```
 
 Framework packages, CLI, and official plugins share the root `go.mod/go.sum` and

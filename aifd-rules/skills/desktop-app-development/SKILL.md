@@ -9,7 +9,7 @@ description: 开发 Wails、React、Ant Design 桌面应用或 desktool 示例�
 
 桌面应用运行时使用普通 Wails 3 + React + Ant Design 组件。Go binding 返回业务数据结构，前端用固定组件代码渲染；不要把运行时 UI 变成 A2UI command、XCard surface 或在线 Agent 动态生成界面，除非用户明确要求做“运行时 AI 助手 UI”专项示例。
 
-Wails 3 当前锁定 `v3.0.0-beta.28`。Go module、CLI、前端 `@wailsio/runtime`、`aifd.lock` 与默认安装清单必须同步；升级需重新生成绑定并验收原生窗口和打包。
+Wails 3 当前锁定 `v3.0.0-beta.34`。Go module、CLI、前端 `@wailsio/runtime`、`aifd.lock` 与默认安装清单必须同步；升级需重新生成绑定并验收原生窗口和打包。
 
 ## 默认分层
 

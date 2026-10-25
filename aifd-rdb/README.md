@@ -47,6 +47,10 @@ if err := state.BindDB(db, playerKey(uid), &pb.PlayerState{}); err != nil {
 }
 ```
 
+批量恢复一个精确 HSET key 时，可以使用 `LoadHash(ctx, db, key, newMessage)`。它用一次 HGETALL 解码为独立 protobuf 对象；任意字段损坏返回错误，不返回部分结果。调用方随后逐个绑定 HashSaver。该函数不扫描 keyspace，也不替代 owner 的首次加载合并。
+
+`db.Persist(ctx, key)` 同步清除旧 key 的 TTL，适用于 owner 首次接管旧 Hash、但以后改为逐 field 过期的生命周期迁移。必须在 owner/Saver 锁外调用，先成功 Persist 再读取正文，在新对象发布和接受写入之前完成。HashSaver 默认 HSET 保留已有 key TTL，并不会自动清除旧 TTL。
+
 需要让同一 entity 在短窗口内稳定合并时，可显式开启最小驻留窗口；默认关闭：
 
 ```go
@@ -172,7 +176,10 @@ if err := state.Save(ctx); err != nil {
 - worker 执行保存时才读取 saver 的最新 `DbProto` 并 marshal。
 - `Flush` 和 `Close` 不受 `WithSaveDelay` 或 `WithSaveStayMin` 限制，会立即 drain 当前队列。
 - Redis 连接类失败会进入 retry 槽；`Flush` 遇到这类失败会保留队列并返回 error。
+- 权限、类型、marshal 等非重试错误保留失败 final intent，后台不会自动重试，也不进入 replay journal。`WaitSize` 包含这些未解决意图；读取或回传错误不会清除它们。
+- 每次显式 `Flush` 对已有失败意图各尝试一次，然后 drain 普通队列；新的失败不会在同一次 Flush 内反复执行。修复存储后再次 Flush，或通过新的 Save/Delete 替代旧意图，均可解决故障。成功返回才表示本次 drain 没有未解决写入。
 - `Close` 不受传入 context 取消影响；如果最终仍是连接类失败，会把未确认 final intents 写入 `source=close` journal 后停止 worker。
+- `Close` 保留并持续返回非重试失败，不自动重试或将其写入 journal；调用方修复后可显式 Flush 已接纳的最终意图，即使 worker 已关闭。已关闭 DB 仍拒绝新的 Save/Delete。
 
 ## Journal 和 Replay
 

@@ -32,7 +32,7 @@ require (
 require (
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/coder/websocket v1.8.15
-	github.com/li9chuan/aifirstdev v0.4.2
+	github.com/li9chuan/aifirstdev v0.5.0
 	github.com/nats-io/nats-server/v2 v2.15.1
 	github.com/nats-io/nats.go v1.54.0
 	github.com/redis/go-redis/v9 v9.23.0

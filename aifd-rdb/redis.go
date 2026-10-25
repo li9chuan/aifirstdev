@@ -76,3 +76,19 @@ func redisTTL(ttl time.Duration) time.Duration {
 	}
 	return ttl
 }
+
+func (s *redisStore) HGetAll(ctx context.Context, key string) (map[string][]byte, error) {
+	values, err := s.client.HGetAll(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]byte, len(values))
+	for field, value := range values {
+		out[field] = []byte(value)
+	}
+	return out, nil
+}
+
+func (s *redisStore) Persist(ctx context.Context, key string) error {
+	return s.client.Persist(ctx, key).Err()
+}

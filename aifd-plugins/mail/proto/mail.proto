@@ -31,9 +31,13 @@ message MailData {
   bool claimed = 5;
   int64 send_time_unix = 6;
   int64 end_time_unix = 7;
-  repeated string group_keys = 8;
-  repeated int32 target_realms = 9;
+  repeated string group_keys = 8 [deprecated = true]; // Legacy storage decode only.
+  repeated int32 target_realms = 9 [deprecated = true]; // Unsupported legacy restriction.
   string preview = 10; // Derived preview, never the authoritative body.
+  // Earliest next claim attempt for this user's copy, Unix milliseconds.
+  // Shared source mails always keep this field zero.
+  int64 claim_retry_at_unix_ms = 11;
+  string group_key = 12; // Exactly one opaque target for GROUP mail.
 }
 
 message MailGroupCursor {
@@ -44,10 +48,29 @@ message MailGroupCursor {
 message MailboxMeta {
   int64 last_global_mail_id = 1;
   repeated MailGroupCursor group_cursors = 2;
+  reserved 3;
+  reserved "shared_cursors";
+}
+
+// Server request. The authenticated recipient UID is carried by the session.
+message MailListRequest {
+  repeated string group_keys = 1; // Trusted current memberships, never client input.
+  MceMailList query = 2;
+}
+
+message MailGetRequest {
+  repeated string group_keys = 1;
+  int64 mail_id = 2;
+}
+
+// Server request shared by read, claim and delete-read operations.
+message MailIDsRequest {
+  repeated string group_keys = 1;
+  repeated int64 mail_id_list = 2;
 }
 
 message MceMailList {
-  repeated string group_keys = 1;
+  repeated string group_keys = 1 [deprecated = true]; // Ignored; resolved by the server.
   int64 after_mail_id = 2;
   int32 limit = 3;
   bool summary_only = 4;
@@ -88,6 +111,8 @@ message MseMailClaim {
   int32 ret = 1;
   repeated int64 mail_id_list = 2;
   string message = 3;
+  // Earliest CD among unsuccessful mails, Unix milliseconds; zero if absent.
+  int64 retry_at_unix_ms = 4;
 }
 
 message MceMailDeleteRead {
@@ -105,9 +130,10 @@ message MailAddRequest {
   MailBase base = 2;
   repeated int64 uid_list = 3;
   int32 save_days = 4;
-  repeated int32 target_realms = 5;
-  repeated string group_keys = 6;
+  repeated int32 target_realms = 5 [deprecated = true]; // Rejected; use a business group instead.
+  repeated string group_keys = 6 [deprecated = true]; // Rejected; send separate batch entries.
   int64 end_time_unix = 7;
+  string group_key = 8;
 }
 
 message MailAddBatchRequest {
@@ -120,7 +146,7 @@ message MailAddResponse {
   string message = 3;
 }
 
-// MseMailReceived pushes one newly persisted personal mail to an online client.
+// MseMailReceived pushes one personal mail accepted by its owner to online clients.
 message MseMailReceived {
   MailData mail = 1;
 }

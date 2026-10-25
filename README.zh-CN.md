@@ -2,7 +2,9 @@
 
 [English](./README.md) | 简体中文
 
-**v0.4.2 升级 Go/前端依赖、Protobuf 与 Wails，并修复 local RPC 并发关闭竞争。API 仍可能发生不兼容变更。**
+**v0.5.0 将邮件收敛为单 owner、单组投递和 Mail 自主管理领取，修复 RDB 写入失败后的状态恢复。API 仍可能发生不兼容变更。**
+
+本次邮件接口和旧数据接管有变化，升级前阅读 [v0.5.0 发布说明](docs/releases/v0.5.0.md)。
 
 本版本要求 Go 1.27.3 或更新版本；前端开发使用 Node.js 24.22.1 LTS 或更新的 24.x 版本。
 正式仓库为 [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev)。
@@ -101,8 +103,8 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 使用统一框架版本：
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.4.2
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.4.2
+go get github.com/li9chuan/aifirstdev@v0.5.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.5.0
 ```
 
 框架、CLI 和官方插件共用根 `go.mod/go.sum`，一次发版只使用一个根标签。

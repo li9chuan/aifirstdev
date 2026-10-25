@@ -156,6 +156,35 @@ func cloneBytes(in []byte) []byte {
 	return out
 }
 
+func (s *memoryStore) HGetAll(_ context.Context, key string) (map[string][]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	hash, ok := s.hashes[key]
+	if !ok || expired(hash.expiresAt) {
+		delete(s.hashes, key)
+		return map[string][]byte{}, nil
+	}
+	out := make(map[string][]byte, len(hash.fields))
+	for field, value := range hash.fields {
+		out[field] = cloneBytes(value)
+	}
+	return out, nil
+}
+
+func (s *memoryStore) Persist(_ context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if rec, ok := s.kv[key]; ok && !expired(rec.expiresAt) {
+		rec.expiresAt = time.Time{}
+		s.kv[key] = rec
+	}
+	if rec, ok := s.hashes[key]; ok && !expired(rec.expiresAt) {
+		rec.expiresAt = time.Time{}
+		s.hashes[key] = rec
+	}
+	return nil
+}
+
 func expiresAt(ttl time.Duration) time.Time {
 	if ttl <= 0 {
 		return time.Time{}

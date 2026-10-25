@@ -153,6 +153,11 @@ func (s *failFirstSetStore) HKeys(context.Context, string) ([]string, error) {
 	return nil, nil
 }
 
+func (s *failFirstSetStore) HGetAll(context.Context, string) (map[string][]byte, error) {
+	return nil, nil
+}
+func (s *failFirstSetStore) Persist(context.Context, string) error { return nil }
+
 func TestSetSaverEnqueuesAndFlushes(t *testing.T) {
 	ctx := context.Background()
 	db := newDelayedMemoryDB()
@@ -636,8 +641,8 @@ func TestCloseReturnsErrorAndContinuesDrain(t *testing.T) {
 	if err := db.Close(ctx); !errors.Is(err, errInjectedSetFailure) {
 		t.Fatalf("Close error = %v, want %v", err, errInjectedSetFailure)
 	}
-	if db.WaitSize() != 0 {
-		t.Fatalf("WaitSize after Close = %d, want 0", db.WaitSize())
+	if db.WaitSize() != 1 {
+		t.Fatalf("WaitSize after failed Close = %d, want 1 unresolved intent", db.WaitSize())
 	}
 	if got, want := store.setKeys, []string{"player:close-error:1", "player:close-error:2"}; !equalStrings(got, want) {
 		t.Fatalf("set attempts = %v, want %v", got, want)
@@ -647,6 +652,12 @@ func TestCloseReturnsErrorAndContinuesDrain(t *testing.T) {
 	}
 	if err := first.Save(ctx); !errors.Is(err, ErrDBClosing) {
 		t.Fatalf("Save after Close error = %v, want %v", err, ErrDBClosing)
+	}
+	if err := db.Flush(ctx); err != nil || db.WaitSize() != 0 {
+		t.Fatalf("explicit recovery Flush error=%v pending=%d", err, db.WaitSize())
+	}
+	if _, ok := store.values["player:close-error:1"]; !ok {
+		t.Fatal("failed final intent was not retained for explicit recovery")
 	}
 }
 

@@ -2,7 +2,9 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-**v0.4.2 updates Go/frontend dependencies, Protobuf and Wails, and fixes concurrent local RPC shutdown. APIs may change incompatibly.**
+**v0.5.0 introduces single-owner mail, single-group delivery and Mail-managed claims, and fixes recovery after RDB write failures. APIs may change incompatibly.**
+
+Mail APIs and legacy-data takeover have changed. Read the [v0.5.0 release notes](docs/releases/v0.5.0.md) before upgrading.
 
 This release requires Go 1.27.3 or newer. Frontend development uses Node.js 24.22.1 LTS or a newer 24.x release.
 The canonical repository is [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev).
@@ -122,8 +124,8 @@ From an initialized Go module outside this workspace, pin the whole framework.
 Use the unified framework version and its current package APIs:
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.4.2
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.4.2
+go get github.com/li9chuan/aifirstdev@v0.5.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.5.0
 ```
 
 Framework packages, CLI, and official plugins share the root `go.mod/go.sum` and

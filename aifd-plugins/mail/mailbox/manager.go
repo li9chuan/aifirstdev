@@ -1,18 +1,18 @@
-// Package mailbox owns process-local mailbox behavior and caching.
+// Package mailbox owns the mail service's canonical in-memory state.
+// Exactly one Manager may write a Redis namespace. Other processes use RPC.
 package mailbox
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
 	mail "github.com/li9chuan/aifirstdev/aifd-plugins/mail"
 	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/generated/mailpb"
-	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/store"
-	"github.com/jellydator/ttlcache/v3"
+	rdb "github.com/li9chuan/aifirstdev/aifd-rdb"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -20,48 +20,76 @@ const (
 	DefaultMailboxLimit  = 100
 	DefaultCacheTTL      = 20 * time.Minute
 	DefaultCacheCapacity = 10_000
-
-	loadTimeout  = 5 * time.Second
-	loadErrorTTL = time.Second
+	DefaultClaimCD       = 5 * time.Second
+	DefaultAwardTimeout  = 3 * time.Second
+	loadTimeout          = 5 * time.Second
 )
 
-// Options configures one process-local mailbox manager. Zero values select
-// defaults; values are not capped by the framework.
 type Options struct {
-	Store         store.Store
+	DB            *rdb.DB
+	Prefix        string
 	Clock         mail.Clock
+	IDGenerator   mail.IDGenerator
+	Awarder       mail.Awarder
 	MailboxLimit  int
 	CacheTTL      time.Duration
 	CacheCapacity int
+	ClaimCD       time.Duration
+	AwardTimeout  time.Duration
+}
+
+type mailEntry struct {
+	rdb.HashSaver[*mailpb.MailData]
 }
 
 type mailboxEntry struct {
-	mu      sync.RWMutex
-	version uint64
-	meta    *mailpb.MailboxMeta
-	mails   map[int64]*mailpb.MailData
-	synced  map[string]struct{}
-	loadErr error
+	mu       sync.RWMutex // Always before meta/mail saver locks.
+	meta     rdb.HashSaver[*mailpb.MailboxMeta]
+	mails    map[int64]*mailEntry
+	claiming map[int64]struct{}
 }
 
-// Manager dynamically loads and caches one bounded mailbox per user.
+type sharedState struct {
+	mu        sync.RWMutex
+	mails     map[int64]*mailEntry
+	global    []*mailpb.MailData
+	groups    map[string][]*mailpb.MailData
+	maxMailID int64
+}
+
+type cacheSlot struct {
+	ready      chan struct{}
+	box        *mailboxEntry
+	err        error
+	refs       int
+	lastAccess time.Time
+	evicting   chan struct{}
+}
+
+// Manager is constructed and exclusively owned by the service Module. The module
+// drains operations before Close; no external writer may share its namespace.
 type Manager struct {
-	store        store.Store
-	clock        mail.Clock
-	mailboxLimit int
-	cacheTTL     time.Duration
-	cache        *ttlcache.Cache[int64, *mailboxEntry]
-	loadCtx      context.Context
-	cancelLoad   context.CancelFunc
-	lifecycleMu  sync.Mutex
-	started      bool
-	closed       bool
+	Options
+	idMu       sync.Mutex
+	shared     sharedState
+	cacheMu    sync.Mutex
+	cache      map[int64]*cacheSlot
+	recovered  bool
+	closed     bool
+	loadCtx    context.Context
+	cancelLoad context.CancelFunc
+	loads      sync.WaitGroup
 }
 
-// NewManager creates a manager without starting background cache cleanup.
 func NewManager(opts Options) (*Manager, error) {
-	if opts.Store == nil {
-		return nil, fmt.Errorf("mailbox store is nil")
+	if opts.DB == nil || opts.IDGenerator == nil {
+		return nil, fmt.Errorf("mail DB and ID generator are required")
+	}
+	if opts.MailboxLimit < 0 || opts.CacheTTL < 0 || opts.CacheCapacity < 0 || opts.ClaimCD < 0 || opts.AwardTimeout < 0 {
+		return nil, fmt.Errorf("mail limits and durations cannot be negative")
+	}
+	if opts.Prefix == "" {
+		opts.Prefix = "aifd:mail"
 	}
 	if opts.Clock == nil {
 		opts.Clock = mail.SystemClock{}
@@ -69,507 +97,174 @@ func NewManager(opts Options) (*Manager, error) {
 	if opts.MailboxLimit == 0 {
 		opts.MailboxLimit = DefaultMailboxLimit
 	}
-	if opts.MailboxLimit < 0 {
-		return nil, fmt.Errorf("mailbox limit cannot be negative")
-	}
 	if opts.CacheTTL == 0 {
 		opts.CacheTTL = DefaultCacheTTL
-	}
-	if opts.CacheTTL < 0 && opts.CacheTTL != ttlcache.NoTTL {
-		return nil, fmt.Errorf("mailbox cache ttl is invalid")
 	}
 	if opts.CacheCapacity == 0 {
 		opts.CacheCapacity = DefaultCacheCapacity
 	}
-	if opts.CacheCapacity < -1 {
-		return nil, fmt.Errorf("mailbox cache capacity is invalid")
+	if opts.ClaimCD == 0 {
+		opts.ClaimCD = DefaultClaimCD
 	}
-
-	loadCtx, cancel := context.WithCancel(context.Background())
-	m := &Manager{
-		store:        opts.Store,
-		clock:        opts.Clock,
-		mailboxLimit: opts.MailboxLimit,
-		cacheTTL:     opts.CacheTTL,
-		loadCtx:      loadCtx,
-		cancelLoad:   cancel,
+	if opts.AwardTimeout == 0 {
+		opts.AwardTimeout = DefaultAwardTimeout
 	}
-	loader := ttlcache.LoaderFunc[int64, *mailboxEntry](m.loadMailbox)
-	cacheOpts := []ttlcache.Option[int64, *mailboxEntry]{
-		ttlcache.WithTTL[int64, *mailboxEntry](opts.CacheTTL),
-		ttlcache.WithLoader[int64, *mailboxEntry](ttlcache.NewSuppressedLoader[int64, *mailboxEntry](loader, nil)),
-	}
-	if opts.CacheCapacity > 0 {
-		cacheOpts = append(cacheOpts, ttlcache.WithCapacity[int64, *mailboxEntry](uint64(opts.CacheCapacity)))
-	}
-	m.cache = ttlcache.New[int64, *mailboxEntry](cacheOpts...)
-	return m, nil
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Manager{Options: opts, cache: make(map[int64]*cacheSlot), loadCtx: ctx, cancelLoad: cancel,
+		shared: sharedState{mails: make(map[int64]*mailEntry), groups: make(map[string][]*mailpb.MailData)}}, nil
 }
 
-// Start starts ttlcache expiration cleanup. It is idempotent.
-func (m *Manager) Start() error {
-	if m == nil {
-		return fmt.Errorf("mailbox manager is nil")
-	}
-	m.lifecycleMu.Lock()
-	defer m.lifecycleMu.Unlock()
+// Recover rebuilds shared indexes from hash payloads, never legacy ZSETs.
+func (m *Manager) Recover(ctx context.Context) error {
+	m.cacheMu.Lock()
 	if m.closed {
-		return fmt.Errorf("mailbox manager is closed")
+		m.cacheMu.Unlock()
+		return mail.ErrClosed
 	}
-	if m.started {
+	if m.recovered {
+		m.cacheMu.Unlock()
 		return nil
 	}
-	m.started = true
-	go m.cache.Start()
+	m.cacheMu.Unlock()
+	values, err := rdb.LoadHash(ctx, m.DB, m.sharedKey(), func() *mailpb.MailData { return &mailpb.MailData{} })
+	if err != nil {
+		return fmt.Errorf("mail shared recovery: %w", err)
+	}
+	state := sharedState{mails: make(map[int64]*mailEntry), groups: make(map[string][]*mailpb.MailData)}
+	for field, data := range values {
+		if err := validateStored(field, data); err != nil {
+			return err
+		}
+		if data.GetType() != mailpb.MailType_MAIL_TYPE_GLOBAL && data.GetType() != mailpb.MailType_MAIL_TYPE_GROUP {
+			return fmt.Errorf("mail shared hash contains personal mail %s", field)
+		}
+		if !expired(data, m.Clock.Now().Unix()) {
+			if err := normalizeStoredGroup(data); err != nil {
+				return fmt.Errorf("shared mail %d: %w", data.GetMailId(), err)
+			}
+		}
+		entry, err := m.bindMail(m.sharedKey(), data)
+		if err != nil {
+			return err
+		}
+		state.mails[data.GetMailId()] = entry
+		if data.GetMailId() > state.maxMailID {
+			state.maxMailID = data.GetMailId()
+		}
+		if !expired(data, m.Clock.Now().Unix()) {
+			indexShared(&state, data)
+		}
+	}
+	sort.Slice(state.global, func(i, j int) bool { return state.global[i].GetMailId() < state.global[j].GetMailId() })
+	for _, mails := range state.groups {
+		sort.Slice(mails, func(i, j int) bool { return mails[i].GetMailId() < mails[j].GetMailId() })
+	}
+	m.cacheMu.Lock()
+	defer m.cacheMu.Unlock()
+	if m.closed {
+		return mail.ErrClosed
+	}
+	if m.recovered {
+		return nil
+	}
+	m.shared.mails, m.shared.global, m.shared.groups, m.shared.maxMailID = state.mails, state.global, state.groups, state.maxMailID
+	m.recovered = true
 	return nil
 }
 
-// Close stops cache cleanup and cancels in-flight dynamic loads.
-func (m *Manager) Close() {
-	if m == nil {
-		return
-	}
-	m.lifecycleMu.Lock()
-	if m.closed {
-		m.lifecycleMu.Unlock()
-		return
-	}
+// Close follows service admission/drain. DB and client remain caller-owned.
+// Failed Flush leaves canonical objects intact for a later Close/Flush retry.
+func (m *Manager) Close(ctx context.Context) error {
+	m.cacheMu.Lock()
 	m.closed = true
-	started := m.started
-	m.lifecycleMu.Unlock()
 	m.cancelLoad()
-	if started {
-		m.cache.Stop()
-	}
+	m.cacheMu.Unlock()
+	m.loads.Wait()
+	return m.DB.Flush(ctx)
 }
 
-// List returns live personal mail after a cursor from process-local state.
-func (m *Manager) List(rootID int64, afterMailID int64, limit int) ([]*mailpb.MailData, error) {
-	entry, err := m.get(rootID)
-	if err != nil {
-		return nil, err
+func (m *Manager) ready() error {
+	m.cacheMu.Lock()
+	defer m.cacheMu.Unlock()
+	if m.closed {
+		return mail.ErrClosed
 	}
-	now := m.nowUnix()
-	entry.mu.RLock()
-	ids := make([]int64, 0, len(entry.mails))
-	for mailID, data := range entry.mails {
-		if mailID > afterMailID && !expired(data, now) {
-			ids = append(ids, mailID)
-		}
+	if !m.recovered {
+		return mail.ErrNotReady
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	if limit > 0 && len(ids) > limit {
-		ids = ids[:limit]
-	}
-	out := make([]*mailpb.MailData, 0, len(ids))
-	for _, mailID := range ids {
-		out = append(out, store.CloneMail(entry.mails[mailID]))
-	}
-	entry.mu.RUnlock()
-	return out, nil
-}
-
-// Get returns one live personal mail from process-local state.
-func (m *Manager) Get(rootID int64, mailID int64) (*mailpb.MailData, bool, error) {
-	entry, err := m.get(rootID)
-	if err != nil {
-		return nil, false, err
-	}
-	entry.mu.RLock()
-	data := entry.mails[mailID]
-	if data == nil || expired(data, m.nowUnix()) {
-		entry.mu.RUnlock()
-		return nil, false, nil
-	}
-	out := store.CloneMail(data)
-	entry.mu.RUnlock()
-	return out, true, nil
-}
-
-// Add persists a personal mail before committing it to process-local state.
-func (m *Manager) Add(ctx context.Context, rootID int64, data *mailpb.MailData) error {
-	if data == nil || data.GetMailId() <= 0 {
-		return fmt.Errorf("personal mail is invalid")
-	}
-	return m.mutate(ctx, rootID, func(mails map[int64]*mailpb.MailData, _ *mailpb.MailboxMeta) bool {
-		mails[data.GetMailId()] = store.CloneMail(data)
-		return true
-	})
-}
-
-// MarkRead marks eligible mails as read and returns the changed IDs.
-func (m *Manager) MarkRead(ctx context.Context, rootID int64, mailIDs []int64) ([]int64, error) {
-	var changed []int64
-	err := m.mutate(ctx, rootID, func(mails map[int64]*mailpb.MailData, _ *mailpb.MailboxMeta) bool {
-		changed = changed[:0]
-		for _, mailID := range mailIDs {
-			data := mails[mailID]
-			if data == nil || data.GetRead() || (hasAttachment(data) && !data.GetClaimed()) {
-				continue
-			}
-			data.Read = true
-			changed = append(changed, mailID)
-		}
-		return len(changed) > 0
-	})
-	return append([]int64(nil), changed...), err
-}
-
-// MarkClaimed marks one mail read and claimed if it is still claimable.
-func (m *Manager) MarkClaimed(ctx context.Context, rootID int64, mailID int64) (bool, error) {
-	changed := false
-	err := m.mutate(ctx, rootID, func(mails map[int64]*mailpb.MailData, _ *mailpb.MailboxMeta) bool {
-		changed = false
-		data := mails[mailID]
-		if data == nil || data.GetClaimed() || !hasAttachment(data) {
-			return false
-		}
-		data.Read = true
-		data.Claimed = true
-		changed = true
-		return true
-	})
-	return changed, err
-}
-
-// DeleteRead deletes requested read mails, or every read mail for an empty list.
-func (m *Manager) DeleteRead(ctx context.Context, rootID int64, mailIDs []int64) ([]int64, error) {
-	var deleted []int64
-	err := m.mutate(ctx, rootID, func(mails map[int64]*mailpb.MailData, _ *mailpb.MailboxMeta) bool {
-		deleted = deleted[:0]
-		if len(mailIDs) == 0 {
-			for mailID, data := range mails {
-				if data.GetRead() {
-					deleted = append(deleted, mailID)
-				}
-			}
-			sort.Slice(deleted, func(i, j int) bool { return deleted[i] < deleted[j] })
-		} else {
-			for _, mailID := range mailIDs {
-				if data := mails[mailID]; data != nil && data.GetRead() {
-					deleted = append(deleted, mailID)
-				}
-			}
-		}
-		for _, mailID := range deleted {
-			delete(mails, mailID)
-		}
-		return len(deleted) > 0
-	})
-	return append([]int64(nil), deleted...), err
-}
-
-// SyncShared materializes new global and group mail into one personal mailbox.
-func (m *Manager) SyncShared(ctx context.Context, rootID int64, realmID int32, groupKeys []string, limit int) error {
-	entry, err := m.get(rootID)
-	if err != nil {
-		return err
-	}
-	groupKeys = append([]string(nil), groupKeys...)
-	sort.Strings(groupKeys)
-	syncKey := fmt.Sprintf("%d:%q", realmID, groupKeys)
-	entry.mu.RLock()
-	_, alreadySynced := entry.synced[syncKey]
-	meta := store.CloneMeta(entry.meta)
-	entry.mu.RUnlock()
-	if alreadySynced {
-		return nil
-	}
-
-	globalList, err := m.store.ListGlobalAfter(ctx, meta.GetLastGlobalMailId(), realmID, limit)
-	if err != nil {
-		return err
-	}
-	groupLists := make(map[string][]*mailpb.MailData, len(groupKeys))
-	cursors := groupCursorMap(meta)
-	for _, groupKey := range groupKeys {
-		list, err := m.store.ListGroupAfter(ctx, groupKey, cursors[groupKey], limit)
-		if err != nil {
-			return err
-		}
-		groupLists[groupKey] = list
-	}
-
-	if err := m.mutate(ctx, rootID, func(mails map[int64]*mailpb.MailData, current *mailpb.MailboxMeta) bool {
-		changed := false
-		for _, data := range globalList {
-			mails[data.GetMailId()] = personalCopy(data)
-			if data.GetMailId() > current.GetLastGlobalMailId() {
-				current.LastGlobalMailId = data.GetMailId()
-			}
-			changed = true
-		}
-		currentCursors := groupCursorMap(current)
-		for groupKey, list := range groupLists {
-			for _, data := range list {
-				mails[data.GetMailId()] = personalCopy(data)
-				if data.GetMailId() > currentCursors[groupKey] {
-					currentCursors[groupKey] = data.GetMailId()
-				}
-				changed = true
-			}
-		}
-		if changed {
-			current.GroupCursors = groupCursorList(currentCursors)
-		}
-		return changed
-	}); err != nil {
-		return err
-	}
-	current, err := m.get(rootID)
-	if err != nil {
-		return err
-	}
-	current.mu.Lock()
-	if current.synced == nil {
-		current.synced = make(map[string]struct{})
-	}
-	current.synced[syncKey] = struct{}{}
-	current.mu.Unlock()
 	return nil
 }
 
-// SaveShared stores one global or group mail.
-func (m *Manager) SaveShared(ctx context.Context, data *mailpb.MailData) error {
-	if err := m.store.SaveShared(ctx, data); err != nil {
-		return err
+func (m *Manager) userKey(uid int64) string { return fmt.Sprintf("%s:user:%d:data", m.Prefix, uid) }
+func (m *Manager) metaKey(uid int64) string { return fmt.Sprintf("%s:user:%d:meta", m.Prefix, uid) }
+func (m *Manager) sharedKey() string        { return m.Prefix + ":shared:data" }
+
+func (m *Manager) bindMail(key string, data *mailpb.MailData) (*mailEntry, error) {
+	e := &mailEntry{}
+	if err := e.BindDB(m.DB, key, strconv.FormatInt(data.GetMailId(), 10), data); err != nil {
+		return nil, err
 	}
-	m.cache.DeleteAll()
-	return nil
+	return e, nil
 }
 
-// CleanupSharedExpired removes expired shared mail. Personal mail expires by
-// per-user key TTL and is filtered whenever its mailbox is loaded or read.
-func (m *Manager) CleanupSharedExpired(ctx context.Context, nowUnix int64) (int, error) {
-	return m.store.CleanupSharedExpired(ctx, nowUnix)
-}
-
-// Invalidate evicts one user's process-local mailbox without touching Redis.
-func (m *Manager) Invalidate(rootID int64) {
-	if m != nil && m.cache != nil {
-		m.cache.Delete(rootID)
+func validateStored(field string, data *mailpb.MailData) error {
+	if data.GetMailId() <= 0 || field != strconv.FormatInt(data.GetMailId(), 10) || data.GetBase() == nil || data.GetClaimRetryAtUnixMs() < 0 || data.GetEndTimeUnix() < 0 {
+		return fmt.Errorf("mail corrupt identity/payload in field %q", field)
+	}
+	switch data.GetType() {
+	case mailpb.MailType_MAIL_TYPE_PERSONAL, mailpb.MailType_MAIL_TYPE_GLOBAL, mailpb.MailType_MAIL_TYPE_GROUP:
+		return nil
+	default:
+		return fmt.Errorf("mail corrupt type in field %q", field)
 	}
 }
 
-func (m *Manager) get(rootID int64) (*mailboxEntry, error) {
-	if m == nil || m.cache == nil {
-		return nil, fmt.Errorf("mailbox manager is nil")
-	}
-	if rootID <= 0 {
-		return nil, fmt.Errorf("root id is invalid")
-	}
-	item := m.cache.Get(rootID)
-	if item == nil || item.Value() == nil {
-		return nil, fmt.Errorf("mailbox load returned no state")
-	}
-	entry := item.Value()
-	if entry.loadErr != nil {
-		return nil, entry.loadErr
-	}
-	ctx, cancel := context.WithTimeout(m.loadCtx, loadTimeout)
-	defer cancel()
-	version, err := m.store.PersonalMailboxVersion(ctx, rootID)
+func (m *Manager) newMail(req *mailpb.MailAddRequest) (*mailpb.MailData, error) {
+	m.idMu.Lock()
+	id, err := m.IDGenerator.NextID()
+	m.idMu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	entry.mu.RLock()
-	stale := entry.version != version
-	entry.mu.RUnlock()
-	if stale {
-		m.cache.Delete(rootID)
-		item = m.cache.Get(rootID)
-		if item == nil || item.Value() == nil {
-			return nil, fmt.Errorf("mailbox reload returned no state")
-		}
-		entry = item.Value()
-		if entry.loadErr != nil {
-			return nil, entry.loadErr
-		}
+	if id <= 0 {
+		return nil, fmt.Errorf("mail generator returned non-positive ID")
 	}
-	return entry, nil
+	now := m.Clock.Now().Unix()
+	end := req.GetEndTimeUnix()
+	if end == 0 {
+		days := req.GetSaveDays()
+		if days == 0 {
+			days = 20
+		}
+		end = now + int64(days)*86400
+	}
+	return &mailpb.MailData{MailId: id, Type: req.GetType(), Base: proto.Clone(req.GetBase()).(*mailpb.MailBase), SendTimeUnix: now, EndTimeUnix: end,
+		GroupKey: req.GetGroupKey()}, nil
 }
 
-func (m *Manager) loadMailbox(cache *ttlcache.Cache[int64, *mailboxEntry], rootID int64) *ttlcache.Item[int64, *mailboxEntry] {
-	ctx, cancel := context.WithTimeout(m.loadCtx, loadTimeout)
-	defer cancel()
-	for ctx.Err() == nil {
-		loaded, err := m.store.LoadPersonalMailbox(ctx, rootID)
-		if err != nil {
-			return cache.Set(rootID, &mailboxEntry{loadErr: err}, loadErrorTTL)
-		}
-		original := mailboxMap(loaded.Mails)
-		normalized := cloneMailMap(original)
-		m.normalize(normalized)
-		needsMigration := loaded.Version == 0 && len(normalized) > 0
-		change := buildChange(original, normalized, loaded.Meta, loaded.Meta)
-		if needsMigration || len(change.Upsert) > 0 || len(change.DeleteIDs) > 0 {
-			version, err := m.store.ApplyPersonalMailbox(ctx, rootID, loaded.Version, change)
-			if errors.Is(err, store.ErrVersionConflict) {
-				continue
-			}
-			if err != nil {
-				return cache.Set(rootID, &mailboxEntry{loadErr: err}, loadErrorTTL)
-			}
-			loaded.Version = version
-		}
-		return cache.Set(rootID, &mailboxEntry{
-			version: loaded.Version,
-			meta:    store.CloneMeta(loaded.Meta),
-			mails:   normalized,
-			synced:  make(map[string]struct{}),
-		}, m.cacheTTL)
-	}
-	return cache.Set(rootID, &mailboxEntry{loadErr: ctx.Err()}, loadErrorTTL)
+func expired(data *mailpb.MailData, now int64) bool {
+	return data.GetEndTimeUnix() > 0 && data.GetEndTimeUnix() <= now
 }
+func hasAttachment(data *mailpb.MailData) bool         { return len(data.GetBase().GetItemList()) > 0 }
+func cloneMail(data *mailpb.MailData) *mailpb.MailData { return proto.Clone(data).(*mailpb.MailData) }
 
-func (m *Manager) mutate(ctx context.Context, rootID int64, fn func(map[int64]*mailpb.MailData, *mailpb.MailboxMeta) bool) error {
-	for ctx.Err() == nil {
-		entry, err := m.get(rootID)
-		if err != nil {
-			return err
-		}
-		entry.mu.RLock()
-		expectedVersion := entry.version
-		original := cloneMailMap(entry.mails)
-		originalMeta := store.CloneMeta(entry.meta)
-		entry.mu.RUnlock()
-
-		candidate := cloneMailMap(original)
-		candidateMeta := store.CloneMeta(originalMeta)
-		m.normalize(candidate)
-		requestedChange := fn(candidate, candidateMeta)
-		m.normalize(candidate)
-		change := buildChange(original, candidate, originalMeta, candidateMeta)
-		if !requestedChange && len(change.Upsert) == 0 && len(change.DeleteIDs) == 0 && change.Meta == nil {
-			return nil
-		}
-		newVersion, err := m.store.ApplyPersonalMailbox(ctx, rootID, expectedVersion, change)
-		if errors.Is(err, store.ErrVersionConflict) {
-			m.cache.Delete(rootID)
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		entry.mu.Lock()
-		if entry.version == expectedVersion {
-			entry.version = newVersion
-			entry.meta = candidateMeta
-			entry.mails = candidate
-		}
-		entry.mu.Unlock()
+// SummaryMail returns an independent client view, never the stored body.
+func SummaryMail(data *mailpb.MailData) *mailpb.MailData {
+	if data == nil {
 		return nil
 	}
-	return ctx.Err()
-}
-
-func (m *Manager) normalize(mails map[int64]*mailpb.MailData) {
-	now := m.nowUnix()
-	ids := make([]int64, 0, len(mails))
-	for mailID, data := range mails {
-		if data == nil || mailID <= 0 || expired(data, now) {
-			delete(mails, mailID)
-			continue
+	out := cloneMail(data)
+	if out.Base == nil {
+		return out
+	}
+	if custom := out.GetBase().GetCustomContent(); custom != nil {
+		preview := []rune(custom.GetBody())
+		if len(preview) > 160 {
+			preview = preview[:160]
 		}
-		ids = append(ids, mailID)
+		out.Preview = string(preview)
+		custom.Body = ""
 	}
-	if len(ids) <= m.mailboxLimit {
-		return
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	for _, mailID := range ids[:len(ids)-m.mailboxLimit] {
-		delete(mails, mailID)
-	}
-}
-
-func buildChange(original, candidate map[int64]*mailpb.MailData, originalMeta, candidateMeta *mailpb.MailboxMeta) store.PersonalMailboxChange {
-	change := store.PersonalMailboxChange{MailCount: len(candidate)}
-	persistent := false
-	for mailID, data := range candidate {
-		if old := original[mailID]; old == nil || !proto.Equal(old, data) {
-			change.Upsert = append(change.Upsert, store.CloneMail(data))
-		}
-		if data.GetEndTimeUnix() <= 0 {
-			persistent = true
-		} else if data.GetEndTimeUnix() > change.DataExpiresAt {
-			change.DataExpiresAt = data.GetEndTimeUnix()
-		}
-	}
-	if persistent {
-		change.DataExpiresAt = 0
-	}
-	for mailID := range original {
-		if candidate[mailID] == nil {
-			change.DeleteIDs = append(change.DeleteIDs, mailID)
-		}
-	}
-	sort.Slice(change.DeleteIDs, func(i, j int) bool { return change.DeleteIDs[i] < change.DeleteIDs[j] })
-	if !proto.Equal(store.CloneMeta(originalMeta), store.CloneMeta(candidateMeta)) {
-		change.Meta = store.CloneMeta(candidateMeta)
-	}
-	return change
-}
-
-func mailboxMap(mails []*mailpb.MailData) map[int64]*mailpb.MailData {
-	out := make(map[int64]*mailpb.MailData, len(mails))
-	for _, data := range mails {
-		if data != nil {
-			out[data.GetMailId()] = store.CloneMail(data)
-		}
-	}
+	out.Base.ContentList = nil
 	return out
-}
-
-func cloneMailMap(in map[int64]*mailpb.MailData) map[int64]*mailpb.MailData {
-	out := make(map[int64]*mailpb.MailData, len(in))
-	for mailID, data := range in {
-		out[mailID] = store.CloneMail(data)
-	}
-	return out
-}
-
-func expired(data *mailpb.MailData, nowUnix int64) bool {
-	return data != nil && data.GetEndTimeUnix() > 0 && data.GetEndTimeUnix() <= nowUnix
-}
-
-func hasAttachment(data *mailpb.MailData) bool {
-	return data.GetBase() != nil && len(data.GetBase().GetItemList()) > 0
-}
-
-func personalCopy(data *mailpb.MailData) *mailpb.MailData {
-	out := store.CloneMail(data)
-	out.Type = mailpb.MailType_MAIL_TYPE_PERSONAL
-	out.Read = false
-	out.Claimed = false
-	return out
-}
-
-func groupCursorMap(meta *mailpb.MailboxMeta) map[string]int64 {
-	out := make(map[string]int64, len(meta.GetGroupCursors()))
-	for _, cursor := range meta.GetGroupCursors() {
-		if cursor.GetGroupKey() != "" {
-			out[cursor.GetGroupKey()] = cursor.GetLastMailId()
-		}
-	}
-	return out
-}
-
-func groupCursorList(cursors map[string]int64) []*mailpb.MailGroupCursor {
-	keys := make([]string, 0, len(cursors))
-	for key := range cursors {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	out := make([]*mailpb.MailGroupCursor, 0, len(keys))
-	for _, key := range keys {
-		out = append(out, &mailpb.MailGroupCursor{GroupKey: key, LastMailId: cursors[key]})
-	}
-	return out
-}
-
-func (m *Manager) nowUnix() int64 {
-	if m.clock == nil {
-		return time.Now().Unix()
-	}
-	return m.clock.Now().Unix()
 }

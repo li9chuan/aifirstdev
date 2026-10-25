@@ -14,4 +14,6 @@ type store interface {
 	HSet(context.Context, string, string, []byte) error
 	HDelete(context.Context, string, string) error
 	HKeys(context.Context, string) ([]string, error)
+	HGetAll(context.Context, string) (map[string][]byte, error)
+	Persist(context.Context, string) error
 }

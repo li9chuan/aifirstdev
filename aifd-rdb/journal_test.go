@@ -93,6 +93,13 @@ func (s *scriptedStore) HKeys(ctx context.Context, key string) ([]string, error)
 	return s.base.HKeys(ctx, key)
 }
 
+func (s *scriptedStore) HGetAll(ctx context.Context, key string) (map[string][]byte, error) {
+	return s.base.HGetAll(ctx, key)
+}
+func (s *scriptedStore) Persist(ctx context.Context, key string) error {
+	return s.base.Persist(ctx, key)
+}
+
 func newJournalTestDB(store store, dir string, handler ErrorHandler) *DB {
 	return newDB(store, options{
 		minSaveDelay:   time.Hour,

@@ -61,6 +61,8 @@ description: 开发 aifd-runtime、业务 runtime feature 模块或可选功能�
 
 ## User 生命周期
 
+涉及邮件插件的 owner、Game/user 接入、收件资格、领取 CD、恢复或缓存淘汰时，读取 [Mail owner 接入规则](references/mail-owner.md)。
+
 - 框架提供 `user.Runtime[T]`、`User[T]` 和 `UID()`；业务服务仍按真实领域命名。
 - 唯一加载入口为 `LoadUser(ctx, uid)`，同 UID 首次加载合并，完成 `OnLoad` 后才发布缓存；失败可以重试。`GetUser(uid)` 只查驻留缓存，不触发 I/O 或 hook。
 - 用户创建使用 `CreateUser(ctx, uid)`，读取不能隐式创建。若主 PB 可缺省、用户身份存在于其他业务源，使用 Store 的 `Exists` 判定；它只能验证存在性，不能借机保存空 PB。

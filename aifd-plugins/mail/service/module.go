@@ -1,8 +1,9 @@
-// Package service implements the mail plugin service-level module.
+// Package service is the sole owner of personal and shared mail state.
 package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -15,21 +16,27 @@ import (
 	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/generated/mailpb"
 	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/internal/id"
 	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/mailbox"
-	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/store"
+	rdb "github.com/li9chuan/aifirstdev/aifd-rdb"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
-	defaultSaveDays        = 20
 	defaultCleanupInterval = 5 * time.Minute
 	maxCustomTitleRunes    = 100
 	maxCustomBodyRunes     = 5000
 )
 
-// Options configures the mail service module.
 type Options struct {
-	MaxBodyRunes    int // Zero uses the default 5000 Unicode characters.
-	Mailbox         *mailbox.Manager
+	DB              *rdb.DB
+	Prefix          string
+	Awarder         mail.Awarder
+	ClaimCD         time.Duration
+	AwardTimeout    time.Duration
+	MailboxLimit    int
+	CacheTTL        time.Duration
+	CacheCapacity   int
+	MaxBodyRunes    int
 	IDGenerator     mail.IDGenerator
 	Observe         observe.Sink
 	Clock           mail.Clock
@@ -39,27 +46,21 @@ type Options struct {
 	Push            mail.MailPushPort
 }
 
-// Module owns shared mail truth, internal send-mail RPCs, and cleanup lifecycle.
 type Module struct {
-	maxBodyRunes    int
-	mu              sync.RWMutex
-	mailbox         *mailbox.Manager
-	idGenerator     mail.IDGenerator
-	observe         observe.Sink
-	clock           mail.Clock
-	validator       mail.TemplateValidator
-	cleanupInterval time.Duration
-	stop            chan struct{}
-	done            chan struct{}
-	recovered       bool
-	started         bool
-	push            mail.MailPushPort
+	mailbox                     *mailbox.Manager
+	opts                        Options
+	mu                          sync.Mutex
+	recoverMu                   sync.Mutex
+	recovered, started, closing bool
+	requests                    sync.WaitGroup
+	shutdown                    sync.Once
+	stop, done, drained         chan struct{}
 }
 
-// NewModule creates a mail service module. Runtime work starts only in Recover/Start.
-func NewModule(opts Options) *Module {
-	if opts.MaxBodyRunes <= 0 {
-		opts.MaxBodyRunes = maxCustomBodyRunes
+// NewModule only validates and constructs; Recover precedes all route admission.
+func NewModule(opts Options) (*Module, error) {
+	if opts.CleanupInterval < 0 || opts.MaxBodyRunes < 0 {
+		return nil, fmt.Errorf("mail durations and limits cannot be negative")
 	}
 	if opts.Clock == nil {
 		opts.Clock = mail.SystemClock{}
@@ -67,296 +68,426 @@ func NewModule(opts Options) *Module {
 	if opts.CleanupInterval == 0 {
 		opts.CleanupInterval = defaultCleanupInterval
 	}
-	generator := opts.IDGenerator
-	if generator == nil {
-		generator, _ = id.NewSnowflake(opts.NodeID)
+	if opts.MaxBodyRunes == 0 {
+		opts.MaxBodyRunes = maxCustomBodyRunes
 	}
-	return &Module{
-		maxBodyRunes:    opts.MaxBodyRunes,
-		mailbox:         opts.Mailbox,
-		idGenerator:     generator,
-		observe:         opts.Observe,
-		clock:           opts.Clock,
-		validator:       opts.Validator,
-		cleanupInterval: opts.CleanupInterval,
-		push:            opts.Push,
-		stop:            make(chan struct{}),
-		done:            make(chan struct{}),
-	}
-}
-
-// Descriptor returns the service module descriptor.
-func (m *Module) Descriptor() base.ModuleDescriptor {
-	return base.ModuleDescriptor{
-		ID:      "aifd.plugins.mail.service",
-		Version: "v0.1.0",
-		Kind:    base.ModuleKindService,
-		Provides: []base.Capability{
-			{Kind: "rpc", Name: mail.TopicMailAdd},
-			{Kind: "rpc", Name: mail.TopicMailAddBatch},
-		},
-	}
-}
-
-// Recover validates dependencies and performs an initial cleanup pass before writes are accepted.
-func (m *Module) Recover(ctx context.Context) error {
-	if m == nil {
-		return fmt.Errorf("mail service module is nil")
-	}
-	if m.mailbox == nil {
-		return fmt.Errorf("mail service mailbox manager is nil")
-	}
-	if m.idGenerator == nil {
-		return fmt.Errorf("mail service id generator is nil")
-	}
-	if _, err := m.mailbox.CleanupSharedExpired(ctx, m.nowUnix()); err != nil {
-		return fmt.Errorf("mail service cleanup: %w", err)
-	}
-	m.mu.Lock()
-	m.recovered = true
-	m.mu.Unlock()
-	m.record(ctx, "mail.service.recover", nil)
-	return nil
-}
-
-// RegisterRPC registers internal mail send routes.
-func (m *Module) RegisterRPC(reg *rpc.Registry) error {
-	if err := m.ensureRecovered(); err != nil {
-		return err
-	}
-	if err := rpc.Server(reg, mail.TopicMailAdd, func(s *rpc.Session, req *mailpb.MailAddRequest) {
-		rsp := m.Add(s.Context(), req)
-		s.Response(&rsp)
-	}); err != nil {
-		return err
-	}
-	return rpc.Server(reg, mail.TopicMailAddBatch, func(s *rpc.Session, req *mailpb.MailAddBatchRequest) {
-		rsp := m.AddBatch(s.Context(), req)
-		s.Response(&rsp)
-	})
-}
-
-// Start starts cleanup and cache janitor loops.
-func (m *Module) Start(ctx context.Context) error {
-	if err := m.ensureRecovered(); err != nil {
-		return err
-	}
-	m.mu.Lock()
-	if m.started {
-		m.mu.Unlock()
-		return nil
-	}
-	m.started = true
-	m.mu.Unlock()
-	if err := m.mailbox.Start(); err != nil {
-		m.mu.Lock()
-		m.started = false
-		m.mu.Unlock()
-		return err
-	}
-	go m.cleanupLoop()
-	m.record(ctx, "mail.service.start", nil)
-	return nil
-}
-
-// Close stops background work. The caller owns Store and Redis client lifecycles.
-func (m *Module) Close(ctx context.Context) error {
-	if m == nil {
-		return nil
-	}
-	m.mu.Lock()
-	started := m.started
-	if started {
-		m.started = false
-		close(m.stop)
-	}
-	m.mu.Unlock()
-	if started {
-		<-m.done
-		m.mailbox.Close()
-	}
-	m.record(ctx, "mail.service.close", nil)
-	return nil
-}
-
-// AddBatch persists each requested mail in order and stops on the first failure.
-func (m *Module) AddBatch(ctx context.Context, req *mailpb.MailAddBatchRequest) mailpb.MailAddResponse {
-	if req == nil {
-		return failResponse(mail.RetInvalid, "mail add batch request is nil")
-	}
-	out := mailpb.MailAddResponse{Ret: mail.RetOK}
-	for _, item := range req.GetMailList() {
-		rsp := m.Add(ctx, item)
-		if rsp.GetRet() != mail.RetOK {
-			return rsp
-		}
-		out.MailIdList = append(out.MailIdList, rsp.GetMailIdList()...)
-	}
-	return out
-}
-
-// Add validates and persists one mail request.
-func (m *Module) Add(ctx context.Context, req *mailpb.MailAddRequest) mailpb.MailAddResponse {
-	if err := m.ensureRecovered(); err != nil {
-		return failResponse(mail.RetInternal, err.Error())
-	}
-	if req == nil || req.GetBase() == nil {
-		return failResponse(mail.RetInvalid, "mail add request base is nil")
-	}
-	if err := validateMailBaseLimit(req.GetBase(), m.maxBodyRunes); err != nil {
-		return failResponse(mail.RetInvalid, err.Error())
-	}
-	if req.GetBase().GetTemplateId() > 0 && m.validator != nil {
-		if err := m.validator.ValidateMail(ctx, req.GetBase()); err != nil {
-			return failResponse(mail.RetInvalid, err.Error())
-		}
-	}
-	switch req.GetType() {
-	case mailpb.MailType_MAIL_TYPE_PERSONAL:
-		return m.addPersonal(ctx, req)
-	case mailpb.MailType_MAIL_TYPE_GLOBAL, mailpb.MailType_MAIL_TYPE_GROUP:
-		return m.addShared(ctx, req)
-	default:
-		return failResponse(mail.RetInvalid, "mail type is invalid")
-	}
-}
-
-func (m *Module) addPersonal(ctx context.Context, req *mailpb.MailAddRequest) mailpb.MailAddResponse {
-	if len(req.GetUidList()) == 0 {
-		return failResponse(mail.RetInvalid, "personal mail requires root ids")
-	}
-	out := mailpb.MailAddResponse{Ret: mail.RetOK}
-	for _, rootID := range req.GetUidList() {
-		if rootID <= 0 {
-			continue
-		}
-		data, err := m.newMail(req, mailpb.MailType_MAIL_TYPE_PERSONAL)
+	if opts.IDGenerator == nil {
+		generator, err := id.NewSnowflake(opts.NodeID)
 		if err != nil {
-			return failResponse(mail.RetInternal, err.Error())
+			return nil, err
 		}
-		if err := m.mailbox.Add(ctx, rootID, data); err != nil {
-			return failResponse(mail.RetInternal, err.Error())
-		}
-		out.MailIdList = append(out.MailIdList, data.GetMailId())
-		if m.push != nil {
-			if err := m.push.PushMailReceived(ctx, rootID, &mailpb.MseMailReceived{Mail: store.CloneMail(data)}); err != nil {
-				m.record(ctx, "mail.push.error", map[string]string{"root_id": fmt.Sprintf("%d", rootID)})
-			}
-		}
+		opts.IDGenerator = generator
 	}
-	m.record(ctx, "mail.add.personal", map[string]string{"count": fmt.Sprintf("%d", len(out.MailIdList))})
-	return out
-}
-
-func (m *Module) addShared(ctx context.Context, req *mailpb.MailAddRequest) mailpb.MailAddResponse {
-	data, err := m.newMail(req, req.GetType())
-	if err != nil {
-		return failResponse(mail.RetInternal, err.Error())
-	}
-	if req.GetType() == mailpb.MailType_MAIL_TYPE_GROUP && len(data.GetGroupKeys()) == 0 {
-		return failResponse(mail.RetInvalid, "group mail requires group keys")
-	}
-	if err := m.mailbox.SaveShared(ctx, data); err != nil {
-		return failResponse(mail.RetInternal, err.Error())
-	}
-	m.record(ctx, "mail.add.shared", map[string]string{"type": data.GetType().String()})
-	return mailpb.MailAddResponse{Ret: mail.RetOK, MailIdList: []int64{data.GetMailId()}}
-}
-
-func (m *Module) newMail(req *mailpb.MailAddRequest, typ mailpb.MailType) (*mailpb.MailData, error) {
-	mailID, err := m.idGenerator.NextID()
+	manager, err := mailbox.NewManager(mailbox.Options{DB: opts.DB, Prefix: opts.Prefix, Clock: opts.Clock, IDGenerator: opts.IDGenerator, Awarder: opts.Awarder,
+		MailboxLimit: opts.MailboxLimit, CacheTTL: opts.CacheTTL, CacheCapacity: opts.CacheCapacity, ClaimCD: opts.ClaimCD, AwardTimeout: opts.AwardTimeout})
 	if err != nil {
 		return nil, err
 	}
-	now := m.nowUnix()
-	endTime := req.GetEndTimeUnix()
-	if endTime <= 0 {
-		saveDays := req.GetSaveDays()
-		if saveDays <= 0 {
-			saveDays = defaultSaveDays
-		}
-		endTime = now + int64(saveDays)*int64(24*time.Hour/time.Second)
-	}
-	return &mailpb.MailData{
-		MailId:       mailID,
-		Type:         typ,
-		Base:         cloneBase(req.GetBase()),
-		SendTimeUnix: now,
-		EndTimeUnix:  endTime,
-		GroupKeys:    append([]string(nil), req.GetGroupKeys()...),
-		TargetRealms: append([]int32(nil), req.GetTargetRealms()...),
-	}, nil
+	return &Module{mailbox: manager, opts: opts, stop: make(chan struct{}), done: make(chan struct{}), drained: make(chan struct{})}, nil
 }
 
-func (m *Module) cleanupLoop() {
+func (m *Module) Descriptor() base.ModuleDescriptor {
+	topics := []string{mail.TopicMailAdd, mail.TopicMailAddBatch, mail.TopicMailList, mail.TopicMailGet, mail.TopicMailRead, mail.TopicMailClaim, mail.TopicMailDeleteRead}
+	descriptor := base.ModuleDescriptor{ID: "aifd.plugins.mail.service", Version: "v0.2.0", Kind: base.ModuleKindService}
+	for _, topic := range topics {
+		descriptor.Provides = append(descriptor.Provides, base.Capability{Kind: "rpc", Name: topic})
+	}
+	return descriptor
+}
+
+func (m *Module) Recover(ctx context.Context) error {
+	m.recoverMu.Lock()
+	defer m.recoverMu.Unlock()
+	m.mu.Lock()
+	if m.closing {
+		m.mu.Unlock()
+		return mail.ErrClosed
+	}
+	if m.recovered {
+		m.mu.Unlock()
+		return nil
+	}
+	m.requests.Add(1)
+	m.mu.Unlock()
+	defer m.requests.Done()
+	if err := m.mailbox.Recover(ctx); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing {
+		return mail.ErrClosed
+	}
+	m.recovered = true
+	return nil
+}
+
+func (m *Module) enter(ctx context.Context) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing {
+		return nil, mail.ErrClosed
+	}
+	if !m.recovered {
+		return nil, mail.ErrNotReady
+	}
+	m.requests.Add(1)
+	return m.requests.Done, nil
+}
+
+func (m *Module) RegisterRPC(reg *rpc.Registry) error {
+	done, err := m.enter(context.Background())
+	if err != nil {
+		return err
+	}
+	defer done()
+	routes := []struct {
+		topic   string
+		handler any
+	}{
+		{mail.TopicMailAdd, func(s *rpc.Session, req *mailpb.MailAddRequest) { rsp := m.Add(s.Context(), req); s.Response(&rsp) }},
+		{mail.TopicMailAddBatch, func(s *rpc.Session, req *mailpb.MailAddBatchRequest) {
+			rsp := m.AddBatch(s.Context(), req)
+			s.Response(&rsp)
+		}},
+		{mail.TopicMailList, func(s *rpc.Session, req *mailpb.MailListRequest) {
+			s.ResponseAs(mail.TopicMseMailList, m.List(s.Context(), s.UID(), req))
+		}},
+		{mail.TopicMailGet, func(s *rpc.Session, req *mailpb.MailGetRequest) {
+			s.ResponseAs(mail.TopicMseMailGet, m.Get(s.Context(), s.UID(), req))
+		}},
+		{mail.TopicMailRead, func(s *rpc.Session, req *mailpb.MailIDsRequest) {
+			s.ResponseAs(mail.TopicMseMailRead, m.Read(s.Context(), s.UID(), req))
+		}},
+		{mail.TopicMailClaim, func(s *rpc.Session, req *mailpb.MailIDsRequest) {
+			s.ResponseAs(mail.TopicMseMailClaim, m.Claim(s.Context(), s.UID(), req))
+		}},
+		{mail.TopicMailDeleteRead, func(s *rpc.Session, req *mailpb.MailIDsRequest) {
+			s.ResponseAs(mail.TopicMseMailDeleteRead, m.DeleteRead(s.Context(), s.UID(), req))
+		}},
+	}
+	for _, route := range routes {
+		if err := rpc.Server(reg, route.topic, route.handler); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *Module) Start(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing {
+		return mail.ErrClosed
+	}
+	if !m.recovered {
+		return mail.ErrNotReady
+	}
+	if m.started {
+		return nil
+	}
+	m.started = true
+	go m.cleanupLoop(ctx)
+	return nil
+}
+
+func (m *Module) cleanupLoop(ctx context.Context) {
 	defer close(m.done)
-	ticker := time.NewTicker(m.cleanupInterval)
+	ticker := time.NewTicker(m.opts.CleanupInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-m.stop:
 			return
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
-			ctx := context.Background()
-			count, err := m.mailbox.CleanupSharedExpired(ctx, m.nowUnix())
+			cleanupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			err := m.mailbox.CleanupExpired(cleanupCtx, m.opts.Clock.Now().Unix())
+			cancel()
 			if err != nil {
-				m.record(ctx, "mail.cleanup.error", nil)
-				continue
-			}
-			if count > 0 {
-				m.record(ctx, "mail.cleanup", map[string]string{"count": fmt.Sprintf("%d", count)})
+				m.record(ctx, "mail.cleanup.error", 0, err)
 			}
 		}
 	}
 }
 
-func (m *Module) ensureRecovered() error {
-	if m == nil {
-		return fmt.Errorf("mail service module is nil")
+// Close stops admission, drains accepted requests, then flushes without closing
+// caller-owned DB/bus/Redis. A later Close can retry a failed or timed-out Flush.
+func (m *Module) Close(ctx context.Context) error {
+	m.shutdown.Do(func() {
+		m.mu.Lock()
+		m.closing = true
+		close(m.stop)
+		if !m.started {
+			close(m.done)
+		}
+		m.mu.Unlock()
+		go func() { <-m.done; m.requests.Wait(); close(m.drained) }()
+	})
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-m.drained:
 	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if !m.recovered {
-		return fmt.Errorf("mail service module is not recovered")
-	}
-	return nil
+	return m.mailbox.Close(ctx)
 }
 
-func (m *Module) nowUnix() int64 {
-	if m.clock == nil {
-		return time.Now().Unix()
+func (m *Module) Add(ctx context.Context, req *mailpb.MailAddRequest) mailpb.MailAddResponse {
+	done, err := m.enter(ctx)
+	if err != nil {
+		return failResponse(retCode(err), err.Error())
 	}
-	return m.clock.Now().Unix()
+	defer done()
+	normalized, err := m.normalize(ctx, req)
+	if err != nil {
+		return failResponse(mail.RetInvalid, err.Error())
+	}
+	return m.addNormalized(ctx, normalized)
 }
 
-func (m *Module) record(ctx context.Context, name string, dimensions map[string]string) {
-	if m == nil || m.observe == nil {
+func (m *Module) AddBatch(ctx context.Context, req *mailpb.MailAddBatchRequest) mailpb.MailAddResponse {
+	done, err := m.enter(ctx)
+	if err != nil {
+		return failResponse(retCode(err), err.Error())
+	}
+	defer done()
+	if req == nil || len(req.GetMailList()) == 0 {
+		return failResponse(mail.RetInvalid, "mail batch is empty")
+	}
+	normalized := make([]*mailpb.MailAddRequest, 0, len(req.GetMailList()))
+	for _, item := range req.GetMailList() {
+		next, err := m.normalize(ctx, item)
+		if err != nil {
+			return failResponse(mail.RetInvalid, err.Error())
+		}
+		normalized = append(normalized, next)
+	}
+	out := mailpb.MailAddResponse{Ret: mail.RetOK}
+	for index, item := range normalized {
+		rsp := m.addNormalized(ctx, item)
+		out.MailIdList = append(out.MailIdList, rsp.GetMailIdList()...)
+		if rsp.GetRet() != mail.RetOK {
+			out.Ret = rsp.GetRet()
+			if len(out.MailIdList) > 0 {
+				out.Ret = mail.RetPartial
+			}
+			out.Message = fmt.Sprintf("batch[%d]: %s", index, rsp.GetMessage())
+			return out
+		}
+	}
+	return out
+}
+
+func (m *Module) addNormalized(ctx context.Context, req *mailpb.MailAddRequest) mailpb.MailAddResponse {
+	out := mailpb.MailAddResponse{Ret: mail.RetOK}
+	targets := req.GetUidList()
+	if req.GetType() != mailpb.MailType_MAIL_TYPE_PERSONAL {
+		targets = []int64{0}
+	}
+	for _, uid := range targets {
+		var data *mailpb.MailData
+		var err error
+		if uid > 0 {
+			data, err = m.mailbox.AddPersonal(ctx, uid, req)
+		} else {
+			data, err = m.mailbox.PublishShared(ctx, req)
+		}
+		if data != nil {
+			out.MailIdList = append(out.MailIdList, data.GetMailId())
+			if uid > 0 && m.opts.Push != nil {
+				if pushErr := m.opts.Push.PushMailReceived(ctx, uid, &mailpb.MseMailReceived{Mail: proto.Clone(data).(*mailpb.MailData)}); pushErr != nil {
+					m.record(ctx, "mail.push.error", uid, pushErr)
+				}
+			}
+		}
+		if err != nil {
+			out.Ret = retCode(err)
+			if len(out.MailIdList) > 0 {
+				out.Ret = mail.RetPartial
+			}
+			out.Message = fmt.Sprintf("target uid %d: %s", uid, err)
+			m.record(ctx, "mail.add.error", uid, err)
+			return out
+		}
+	}
+	m.record(ctx, "mail.add", 0, nil)
+	return out
+}
+
+func (m *Module) normalize(ctx context.Context, req *mailpb.MailAddRequest) (*mailpb.MailAddRequest, error) {
+	if req == nil || req.GetBase() == nil {
+		return nil, fmt.Errorf("mail base is required")
+	}
+	req = proto.Clone(req).(*mailpb.MailAddRequest)
+	if err := validateMailBaseLimit(req.GetBase(), m.opts.MaxBodyRunes); err != nil {
+		return nil, err
+	}
+	for _, text := range req.GetBase().GetContentList() {
+		if !utf8.ValidString(text) {
+			return nil, fmt.Errorf("mail content is not UTF-8")
+		}
+	}
+	for _, item := range req.GetBase().GetItemList() {
+		if item.GetTid() <= 0 || item.GetNum() <= 0 {
+			return nil, fmt.Errorf("mail attachment identity/count must be positive")
+		}
+	}
+	if req.GetSaveDays() < 0 || req.GetEndTimeUnix() < 0 || (req.GetEndTimeUnix() > 0 && req.GetEndTimeUnix() <= m.opts.Clock.Now().Unix()) {
+		return nil, fmt.Errorf("mail expiry is invalid")
+	}
+	if len(req.GetGroupKeys()) > 0 || len(req.GetTargetRealms()) > 0 {
+		return nil, fmt.Errorf("legacy targeting fields are unsupported; use one group_key and separate Mail.AddBatch entries")
+	}
+	if req.GetGroupKey() != "" && (strings.TrimSpace(req.GetGroupKey()) == "" || !utf8.ValidString(req.GetGroupKey())) {
+		return nil, fmt.Errorf("mail group_key is invalid")
+	}
+	switch req.GetType() {
+	case mailpb.MailType_MAIL_TYPE_PERSONAL:
+		if len(req.GetUidList()) == 0 || req.GetGroupKey() != "" {
+			return nil, fmt.Errorf("personal mail requires fixed UIDs only")
+		}
+		seen := map[int64]bool{}
+		uids := make([]int64, 0, len(req.GetUidList()))
+		for _, uid := range req.GetUidList() {
+			if uid <= 0 {
+				return nil, fmt.Errorf("mail UID must be positive")
+			}
+			if !seen[uid] {
+				uids = append(uids, uid)
+				seen[uid] = true
+			}
+		}
+		req.UidList = uids
+	case mailpb.MailType_MAIL_TYPE_GLOBAL:
+		if len(req.GetUidList()) > 0 || req.GetGroupKey() != "" {
+			return nil, fmt.Errorf("global mail cannot contain UIDs/groups")
+		}
+	case mailpb.MailType_MAIL_TYPE_GROUP:
+		if len(req.GetUidList()) > 0 || req.GetGroupKey() == "" {
+			return nil, fmt.Errorf("group mail requires one group_key without UIDs")
+		}
+	default:
+		return nil, fmt.Errorf("invalid mail type")
+	}
+	if req.GetBase().GetTemplateId() > 0 && m.opts.Validator != nil {
+		if err := m.opts.Validator.ValidateMail(ctx, proto.Clone(req.GetBase()).(*mailpb.MailBase)); err != nil {
+			return nil, err
+		}
+	}
+	return req, nil
+}
+
+func (m *Module) List(ctx context.Context, uid int64, req *mailpb.MailListRequest) *mailpb.MseMailList {
+	done, err := m.enter(ctx)
+	if err != nil {
+		return &mailpb.MseMailList{Ret: retCode(err), Message: err.Error()}
+	}
+	defer done()
+	query := req.GetQuery()
+	if query.GetAfterMailId() < 0 {
+		return &mailpb.MseMailList{Ret: mail.RetInvalid, Message: "invalid mail cursor"}
+	}
+	list, err := m.mailbox.List(ctx, uid, req.GetGroupKeys(), query.GetAfterMailId(), int(query.GetLimit()))
+	if err != nil {
+		return &mailpb.MseMailList{Ret: retCode(err), Message: err.Error()}
+	}
+	if query.GetSummaryOnly() {
+		for i := range list {
+			list[i] = mailbox.SummaryMail(list[i])
+		}
+	}
+	return &mailpb.MseMailList{Ret: mail.RetOK, TimeUnix: m.opts.Clock.Now().Unix(), MailList: list}
+}
+
+func (m *Module) Get(ctx context.Context, uid int64, req *mailpb.MailGetRequest) *mailpb.MseMailGet {
+	done, err := m.enter(ctx)
+	if err != nil {
+		return &mailpb.MseMailGet{Ret: retCode(err), Message: err.Error()}
+	}
+	defer done()
+	data, found, err := m.mailbox.Get(ctx, uid, req.GetGroupKeys(), req.GetMailId())
+	if err != nil {
+		return &mailpb.MseMailGet{Ret: retCode(err), Message: err.Error()}
+	}
+	if !found {
+		return &mailpb.MseMailGet{Ret: mail.RetNotFound, Message: mail.ErrNotFound.Error()}
+	}
+	return &mailpb.MseMailGet{Ret: mail.RetOK, Mail: data}
+}
+
+func (m *Module) Read(ctx context.Context, uid int64, req *mailpb.MailIDsRequest) *mailpb.MseMailRead {
+	done, err := m.enter(ctx)
+	if err != nil {
+		return &mailpb.MseMailRead{Ret: retCode(err), Message: err.Error()}
+	}
+	defer done()
+	ids, err := m.mailbox.MarkRead(ctx, uid, req.GetGroupKeys(), req.GetMailIdList())
+	ret, message := operationResult(err, len(ids))
+	return &mailpb.MseMailRead{Ret: ret, MailIdList: ids, Message: message}
+}
+
+func (m *Module) Claim(ctx context.Context, uid int64, req *mailpb.MailIDsRequest) *mailpb.MseMailClaim {
+	done, err := m.enter(ctx)
+	if err != nil {
+		return &mailpb.MseMailClaim{Ret: retCode(err), Message: err.Error()}
+	}
+	defer done()
+	result, err := m.mailbox.Claim(ctx, uid, req.GetGroupKeys(), req.GetMailIdList())
+	ret, message := operationResult(err, len(result.MailIDs))
+	m.record(ctx, "mail.claim", uid, err)
+	return &mailpb.MseMailClaim{Ret: ret, MailIdList: result.MailIDs, RetryAtUnixMs: result.RetryAtUnixMs, Message: message}
+}
+
+func (m *Module) DeleteRead(ctx context.Context, uid int64, req *mailpb.MailIDsRequest) *mailpb.MseMailDeleteRead {
+	done, err := m.enter(ctx)
+	if err != nil {
+		return &mailpb.MseMailDeleteRead{Ret: retCode(err), Message: err.Error()}
+	}
+	defer done()
+	ids, err := m.mailbox.DeleteRead(ctx, uid, req.GetGroupKeys(), req.GetMailIdList())
+	ret, message := operationResult(err, len(ids))
+	return &mailpb.MseMailDeleteRead{Ret: ret, MailIdList: ids, Message: message}
+}
+
+func operationResult(err error, count int) (int32, string) {
+	if err == nil {
+		return mail.RetOK, ""
+	}
+	if count > 0 {
+		return mail.RetPartial, err.Error()
+	}
+	return retCode(err), err.Error()
+}
+func retCode(err error) int32 {
+	switch {
+	case err == nil:
+		return mail.RetOK
+	case errors.Is(err, mail.ErrInvalid):
+		return mail.RetInvalid
+	case errors.Is(err, mail.ErrNotFound):
+		return mail.RetNotFound
+	case errors.Is(err, mail.ErrBusy):
+		return mail.RetBusy
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return mail.RetTimeout
+	default:
+		return mail.RetInternal
+	}
+}
+
+func (m *Module) record(ctx context.Context, name string, uid int64, err error) {
+	if m.opts.Observe == nil {
 		return
 	}
-	_ = m.observe.Write(ctx, []observe.Event{observe.Metric(name, 1, dimensions)})
-}
-
-func cloneBase(base *mailpb.MailBase) *mailpb.MailBase {
-	if base == nil {
-		return nil
+	tags := map[string]string{"uid": fmt.Sprint(uid)}
+	if err != nil {
+		tags["error"] = err.Error()
 	}
-	out := *base
-	out.ContentList = append([]string(nil), base.ContentList...)
-	if base.CustomContent != nil {
-		out.CustomContent = &mailpb.MailCustomContent{
-			Title: base.CustomContent.GetTitle(),
-			Body:  base.CustomContent.GetBody(),
-		}
-	}
-	out.ItemList = make([]*mailpb.MailItem, 0, len(base.ItemList))
-	for _, item := range base.ItemList {
-		if item == nil {
-			continue
-		}
-		cp := *item
-		out.ItemList = append(out.ItemList, &cp)
-	}
-	return &out
+	_ = m.opts.Observe.Write(context.WithoutCancel(ctx), []observe.Event{observe.Metric(name, 1, tags)})
 }
 
 func validateMailBase(base *mailpb.MailBase) error {
@@ -390,6 +521,9 @@ func validateMailBaseLimit(base *mailpb.MailBase, bodyLimit int) error {
 	}
 	if strings.TrimSpace(customContent.GetBody()) == "" {
 		return fmt.Errorf("custom mail body is required")
+	}
+	if !utf8.ValidString(customContent.GetTitle()) || !utf8.ValidString(customContent.GetBody()) {
+		return fmt.Errorf("mail custom content is not UTF-8")
 	}
 	if utf8.RuneCountInString(customContent.GetTitle()) > maxCustomTitleRunes {
 		return fmt.Errorf("custom mail title exceeds %d characters", maxCustomTitleRunes)

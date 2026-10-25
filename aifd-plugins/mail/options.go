@@ -2,6 +2,7 @@ package mail
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/li9chuan/aifirstdev/aifd-plugins/mail/generated/mailpb"
@@ -37,7 +38,7 @@ type IDGenerator interface {
 }
 
 // MailPushPort delivers a newly stored personal mail to online client sessions.
-// Delivery is best effort: a push failure must not roll back persisted mail.
+// Delivery is best effort: a push failure must not roll back accepted mail.
 type MailPushPort interface {
 	PushMailReceived(context.Context, int64, *mailpb.MseMailReceived) error
 }
@@ -53,7 +54,9 @@ func (f MailPushPortFunc) PushMailReceived(ctx context.Context, rootID int64, ev
 	return f(ctx, rootID, event)
 }
 
-// Awarder grants mail attachments to a root. Implementations must be idempotent by rootID and mailID.
+// Awarder executes one ordinary award operation and must respect the context deadline.
+// Nil means business success, not merely that a message was sent. Mail does not retry
+// this call automatically and does not require recipient-side deduplication.
 type Awarder interface {
 	AwardMail(context.Context, int64, *mailpb.MailData) error
 }
@@ -64,10 +67,13 @@ type AwarderFunc func(context.Context, int64, *mailpb.MailData) error
 // AwardMail calls the wrapped function.
 func (f AwarderFunc) AwardMail(ctx context.Context, rootID int64, data *mailpb.MailData) error {
 	if f == nil {
-		return nil
+		return ErrAwarderMissing
 	}
 	return f(ctx, rootID, data)
 }
+
+// ErrAwarderMissing leaves both claim state and CD unchanged.
+var ErrAwarderMissing = errors.New("mail awarder is missing")
 
 // TemplateValidator allows a business project to validate mail templates without coupling the plugin to config tables.
 type TemplateValidator interface {

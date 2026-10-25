@@ -32,6 +32,13 @@ type retryState struct {
 	lastErr    error
 }
 
+// Failed writes stay unresolved, but are retried only by an explicit Flush.
+type failedWrite struct {
+	op       finalIntent
+	attempts int
+	err      error
+}
+
 // DB owns the narrow Set/HSet storage backend and delayed save queue used by mixin savers.
 type DB struct {
 	store store
@@ -39,6 +46,7 @@ type DB struct {
 	queueMu  sync.Mutex
 	wait     *waitList
 	retrying *retryState
+	failed   map[entityKey]failedWrite
 
 	minDelay              time.Duration
 	maxDelay              time.Duration
@@ -63,7 +71,6 @@ type DB struct {
 	stateMu sync.Mutex
 	closing bool
 	closed  bool
-	errs    []error
 }
 
 // NewMemoryDB creates an in-memory DB with the same delayed-save behavior as Redis DB.
@@ -147,6 +154,7 @@ func newDB(store store, cfg options) *DB {
 	return &DB{
 		store:                 store,
 		wait:                  newWaitList(),
+		failed:                make(map[entityKey]failedWrite),
 		minDelay:              cfg.minSaveDelay,
 		maxDelay:              cfg.maxSaveDelay,
 		saveStayMin:           cfg.saveStayMin,
@@ -215,9 +223,10 @@ func (db *DB) enqueue(ctx context.Context, ops ...finalIntent) error {
 		if db.retrying != nil && db.retrying.op.entityKey() == op.entityKey() {
 			db.retrying = nil
 		}
+		delete(db.failed, op.entityKey())
 		db.wait.PushBack(op)
 	}
-	waitSize := db.wait.Len()
+	waitSize := db.wait.Len() + len(db.failed)
 	if db.retrying != nil {
 		waitSize++
 	}
@@ -234,35 +243,39 @@ func (db *DB) WaitSize() int {
 	}
 	db.queueMu.Lock()
 	defer db.queueMu.Unlock()
-	size := db.wait.Len()
+	size := db.wait.Len() + len(db.failed)
 	if db.retrying != nil {
 		size++
 	}
 	return size
 }
 
-// Flush tries to write all pending final intents; retryable failures remain queued.
+// Flush retries previously failed writes once, then drains pending final intents.
+// Any unresolved failure remains observable and prevents a successful Flush.
 func (db *DB) Flush(ctx context.Context) error {
 	if err := db.validate(); err != nil {
 		return err
 	}
 	db.drainMu.Lock()
 	defer db.drainMu.Unlock()
+	if err := db.flushFailed(ctx); err != nil {
+		return errors.Join(err, db.failedErrors())
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		op, attempts, ok := db.takeNext(true)
 		if !ok {
-			return db.takeErrors()
+			return db.failedErrors()
 		}
 		if err := db.applyFinalIntent(ctx, "flush", op, attempts); err != nil {
 			if isRetryableError(err) {
 				db.installRetry(ctx, "flush", op, attempts, err)
-				return errors.Join(err, db.takeErrors())
+				return errors.Join(err, db.failedErrors())
 			}
 			db.reportError(ctx, "flush", op, attempts, false, false, err)
-			db.recordError(err)
+			db.retainFailed(op, attempts, err)
 		}
 	}
 }
@@ -275,7 +288,7 @@ func (db *DB) Close(ctx context.Context) error {
 	db.stateMu.Lock()
 	if db.closed {
 		db.stateMu.Unlock()
-		return db.takeErrors()
+		return db.failedErrors()
 	}
 	db.closing = true
 	db.stateMu.Unlock()
@@ -294,7 +307,7 @@ func (db *DB) Close(ctx context.Context) error {
 	db.stateMu.Lock()
 	db.closed = true
 	db.stateMu.Unlock()
-	return errors.Join(err, db.takeErrors())
+	return errors.Join(err, db.failedErrors())
 }
 
 func (db *DB) flushForClose() error {
@@ -319,7 +332,7 @@ func (db *DB) flushForClose() error {
 				return err
 			}
 			db.reportError(context.Background(), "close", op, attempts, false, true, err)
-			db.recordError(err)
+			db.retainFailed(op, attempts, err)
 		}
 	}
 }
@@ -365,7 +378,7 @@ func (db *DB) drainDue(ctx context.Context) {
 			return
 		}
 		db.reportError(ctx, "worker", op, attempts, false, false, err)
-		db.recordError(err)
+		db.retainFailed(op, attempts, err)
 	}
 }
 
@@ -514,22 +527,56 @@ func (db *DB) reportError(ctx context.Context, stage string, op finalIntent, att
 	db.reportSaveError(ctx, stage, op, attempts, retryable, final)
 }
 
-func (db *DB) recordError(err error) {
-	if err == nil {
-		return
+// A newer queued intent supersedes the failure of an in-flight older write.
+func (db *DB) retainFailed(op finalIntent, attempts int, err error) {
+	db.queueMu.Lock()
+	defer db.queueMu.Unlock()
+	if !db.wait.Has(op.entityKey()) {
+		db.failed[op.entityKey()] = failedWrite{op: op, attempts: attempts, err: err}
 	}
-	db.stateMu.Lock()
-	db.errs = append(db.errs, err)
-	db.stateMu.Unlock()
 }
 
-func (db *DB) takeErrors() error {
-	db.stateMu.Lock()
-	defer db.stateMu.Unlock()
-	if len(db.errs) == 0 {
-		return nil
+func (db *DB) failedErrors() error {
+	db.queueMu.Lock()
+	defer db.queueMu.Unlock()
+	errs := make([]error, 0, len(db.failed))
+	for _, failed := range db.failed {
+		errs = append(errs, failed.err)
 	}
-	err := errors.Join(db.errs...)
-	db.errs = nil
-	return err
+	return errors.Join(errs...)
+}
+
+// Caller holds drainMu. Snapshot keys so a newly failed intent is not retried
+// again in this Flush; enqueue may replace one with a newer Save/Delete meanwhile.
+func (db *DB) flushFailed(ctx context.Context) error {
+	db.queueMu.Lock()
+	keys := make([]entityKey, 0, len(db.failed))
+	for key := range db.failed {
+		keys = append(keys, key)
+	}
+	db.queueMu.Unlock()
+	for _, key := range keys {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		db.queueMu.Lock()
+		failed, ok := db.failed[key]
+		delete(db.failed, key)
+		db.queueMu.Unlock()
+		if !ok {
+			continue
+		}
+		attempts := failed.attempts + 1
+		if err := db.applyFinalIntent(ctx, "flush", failed.op, attempts); err != nil {
+			retryable := isRetryableError(err)
+			db.reportError(ctx, "flush", failed.op, attempts, retryable, false, err)
+			db.retainFailed(failed.op, attempts, err)
+			// Explicitly retried failures stay separate from the one automatic
+			// retry slot, which may already belong to a different entity.
+			if retryable {
+				return err
+			}
+		}
+	}
+	return nil
 }

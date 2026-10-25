@@ -14,8 +14,13 @@ const (
 	TopicMseMailDeleteRead = "MseMailDeleteRead"
 	TopicMseMailReceived   = "MseMailReceived"
 
-	TopicMailAdd      = "Mail.Add"
-	TopicMailAddBatch = "Mail.AddBatch"
+	TopicMailAdd        = "Mail.Add"
+	TopicMailAddBatch   = "Mail.AddBatch"
+	TopicMailList       = "Mail.List"
+	TopicMailGet        = "Mail.Get"
+	TopicMailRead       = "Mail.Read"
+	TopicMailClaim      = "Mail.Claim"
+	TopicMailDeleteRead = "Mail.DeleteRead"
 )
 
 const (
@@ -23,4 +28,7 @@ const (
 	RetInvalid  int32 = 1
 	RetNotFound int32 = 2
 	RetInternal int32 = 3
+	RetPartial  int32 = 4
+	RetBusy     int32 = 5
+	RetTimeout  int32 = 6
 )

@@ -268,6 +268,11 @@ func (s alwaysRetrySetStore) HKeys(context.Context, string) ([]string, error) {
 	return nil, nil
 }
 
+func (s alwaysRetrySetStore) HGetAll(context.Context, string) (map[string][]byte, error) {
+	return nil, nil
+}
+func (s alwaysRetrySetStore) Persist(context.Context, string) error { return nil }
+
 func TestObserveReportsRetryAndCloseJournal(t *testing.T) {
 	ctx := context.Background()
 	recorder := &observeRecorder{}

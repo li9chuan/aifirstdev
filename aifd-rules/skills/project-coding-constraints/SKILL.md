@@ -71,7 +71,7 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 - 账号映射、唯一 ID 分配、绑定查重这类即时一致性能力可以直接使用 Redis Store；不要强行接入异步 rdb 队列。
 - 异步持久化队列必须说明合并 entity、Save/Delete 合并规则、flush/close 语义和失败处理；`Save -> Delete`、新绑定对象 `Delete -> Save`、重复 Save 合并和删除后同一 saver Save no-op 都是必测边界。
 - final-intent journal 只保证单个持久化 entity 的最终保存/删除意图，不保证中间命令历史、跨 entity 事务顺序或中间 TTL 副作用。
-- Redis 连接类失败可以 retry；marshal、权限、类型错误等不可恢复错误不能进入 retry 或 replay journal。
+- Redis 连接类失败可以后台 retry；marshal、权限、类型错误不进入后台 retry 或 replay journal，但必须保留未解决最终意图及错误，不能以空队列冒充已落盘。显式 Flush 对旧失败意图各尝试一次，新的 Save/Delete 可替代旧失败意图；失败未解决前不能淘汰权威对象。
 
 ## 注释、日志和错误
 

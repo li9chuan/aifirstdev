@@ -25,10 +25,10 @@ description: 开发 aifd-robot 或业务 robot module 时使用。适用于 Agen
 
 ## Scenario 与统计
 
-- Scenario 描述人数、账号范围、tick 间隔、行为树、持续时间和目标 adapter。
+- Scenario 描述人数、账号范围、tick 间隔、行为树和持续时间；目标 transport factory 放在 RunGroupOptions。
 - RunGroup 负责创建 agent、启动、关闭和汇总 report。
 - callback 必须有超时清理，避免压测长跑后内存增长。
-- Report 至少覆盖 login、send、receive、error、latency 和业务 custom counter。
+- 当前 Report 覆盖 login、send、receive、error 和 custom counter，没有内置 latency 字段；延迟分析需显式扩展观测，不写成已实现的统计。
 - observe sink 用于压测指标，不作为业务结算真相。
 - 业务 action 名称由业务项目注册；AIFD-robot 只保证编排、transport、callback、behavior、report 和统计输出。
 

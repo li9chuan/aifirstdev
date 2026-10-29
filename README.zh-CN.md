@@ -2,9 +2,10 @@
 
 [English](./README.md) | 简体中文
 
-**v0.5.0 将邮件收敛为单 owner、单组投递和 Mail 自主管理领取，修复 RDB 写入失败后的状态恢复。API 仍可能发生不兼容变更。**
+**v0.6.0 新增可选原生 HTTPS/WSS、免费证书自动申请和续期，完善文档导航与业务持久化选型。API 仍可能发生不兼容变更。**
 
-本次邮件接口和旧数据接管有变化，升级前阅读 [v0.5.0 发布说明](docs/releases/v0.5.0.md)。
+升级与能力边界见 [v0.6.0 发布说明](docs/releases/v0.6.0.md)；更早版本的邮件迁移要求见 [v0.5.0](docs/releases/v0.5.0.md)。
+文档随所在源码快照维护，业务项目使用所锁定版本的文档和规则。
 
 本版本要求 Go 1.27.3 或更新版本；前端开发使用 Node.js 24.22.1 LTS 或更新的 24.x 版本。
 正式仓库为 [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev)。
@@ -68,16 +69,18 @@ Scope runtime 的组织原则见 [docs/scope-runtime.md](docs/scope-runtime.md)�
 
 ## 文档导航
 
+- [按任务查找文档与代码](docs/README.md)：使用说明、设计依据、实现和测试入口。创建业务项目先读[业务接入](docs/application-integration.md)。
 - AI 开发与审查：从[Agent 规则](AGENTS.md)进入；[rules 使用入口](aifd-rules/README.md)说明资料分工，[skills 索引](aifd-rules/skills/README.md)按任务选择流程。
 - 代码审查：[项目与 Feature 代码评审](aifd-rules/skills/runtime-feature-review/SKILL.md)按范围引用已有[评审清单](aifd-rules/checklists/review.md)。
 - 设计依据：[模块边界](docs/module-boundary.md)、[runtime 组织原则](docs/scope-runtime.md)、[更新策略](docs/update-policy.md)。上方模块链接进入各自用法和相关工作流，接线参考[示例入口](aifd-examples/README.md)。
+- 公网安全接入：[原生 HTTPS/WSS](aifd-proxy/adapters/httpserver/README.md)支持可选手动证书、免费 ACME 自动申请及续期，不依赖反向代理；[最小示例](aifd-examples/native-https/README.md)在根模块直接运行。
 
 ## 快速开始
 
 AI 优先指开发工作流：通过仓库规则、skills、模板和可复现检查，帮助 AI 在模块边界内开发。
 应用运行时不要求接入 LLM；`aifd-llm` 是可选模块。
 
-安装 Go 1.27 或更新版本和 Git，启动内存存储后端示例：
+安装 Go 1.27.3 或更新版本和 Git，启动内存存储后端示例：
 
 ```powershell
 git clone https://github.com/li9chuan/aifirstdev.git
@@ -103,8 +106,8 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 使用统一框架版本：
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.5.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.5.0
+go get github.com/li9chuan/aifirstdev@v0.6.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.6.0
 ```
 
 框架、CLI 和官方插件共用根 `go.mod/go.sum`，一次发版只使用一个根标签。
@@ -116,7 +119,7 @@ go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.5.0
 
 ## 构建与验证
 
-需要 Go 1.27 或更新版本、Node.js 22.12 或更新版本及 npm，以及 PowerShell 5.1 或 7。
+需要 Go 1.27.3 或更新版本、Node.js 24.22.1 或更新的 24.x 版本及 npm，以及 PowerShell 5.1 或 7。
 将 `go`、`node`、`npm` 加入 PATH，在仓库根目录执行：
 
 ```powershell
@@ -136,6 +139,9 @@ desktool 的 Go 入口 embed `frontend/dist`，因此必须先构建前端，再
 
 未设置 `AIFD_NATS_URL` 时，两个外部 NATS 集成测试会跳过。设置为可连接的测试 NATS 服务地址后才会运行，
 验证脚本不会启动外部服务。原生桌面运行和 Windows 安装包构建是独立检查，见 [desktool](aifd-examples/desktool/README.md)。
+原生 ACME/Pebble 集成测试还需 `integration` tag 和 `AIFD_PEBBLE_BIN`，默认脚本不执行，见 [HTTPS 验证](aifd-proxy/adapters/httpserver/README.md#验证)。
+邮件的真实 Redis 测试使用 `AIFD_REDIS_SERVER` 或 PATH 中的可执行文件；缺失时默认跳过，
+`AIFD_MAIL_REDIS_REQUIRED=1` 可要求缺失即失败，见 [Mail 验证](aifd-plugins/mail/README.md#验证)。
 
 ## 许可证
 

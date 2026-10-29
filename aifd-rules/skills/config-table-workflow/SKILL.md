@@ -28,6 +28,7 @@ description: 处理配置表、Luban、cfgtable 适配和 aifd-config 工作流�
 - cfgtable 与派生索引需要强一致时，应放入同一个业务 typed bundle，在发布前一起构建完成。
 - normalize、remap、补默认值和派生索引构建属于 loader/builder；validator 和 prepare hook 只读检查 bundle。
 - 失败时保留旧 bundle，不发布半热更状态。
+- 调用 Reload 后同时检查 error、Applied 和 Issues；validator 拒绝可以返回 nil error 与 Applied=false。宿主串行触发热更，Apply 不承载可失败的外部工作。
 - 必填字段、唯一键、引用完整性和派生索引在 validator 中集中表达。
 - 配置值不应重复写入协议或存盘，除非存在明确冻结、隐藏或性能原因。
 

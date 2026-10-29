@@ -17,6 +17,7 @@
 - `minigame`：完整游戏后端框架示例，使用 game/world 业务服务名展示账号、proxy、
   玩家根文档、service module、配置、observe、server/client/robot 入口、all-in-one 和 split 部署。
 - `desktool`：Wails 桌面工具示例，展示桌面应用壳、Go binding、前端状态流和登录前后状态。
+- [native-https](native-https/README.md)：根模块内的最小传输示例，展示原生 HTTPS/WSS、免费证书自动管理及退出清理；不新增独立 Go module。
 
 ## 不负责
 

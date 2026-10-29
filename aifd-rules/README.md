@@ -27,6 +27,8 @@
 
 业务项目可以复制、扩展或引用这些规则，让 AI agent 在实现 feature 时遵守相同的模块
 边界和评审习惯。
+使用所锁定框架版本的规则，并保留相对引用的 references 和设计文档；不要只复制单个 SKILL.md 后留下断链。
+接入用法从[文档与代码导航](../docs/README.md)查找，新业务先读[业务接入](../docs/application-integration.md)，不把本页当作完整 API 手册。
 
 从[Agent 高频规则](AGENTS.md)和[skills 索引](skills/README.md)选择任务入口：
 

@@ -80,6 +80,9 @@ LoginHandler、RPC bus 和可选 embedded broker；`cmd/minigame` 才是 all-in-
 NATS、Redis、proxy 和 proxy-broker 行为配置。`cmd/game` 和 `cmd/world` 可用 `--nats`
 覆盖要连接的 proxy-broker TCP client 地址。
 
+当前 split 示例的 game/world 仍显式使用 `NewMemoryDB`；配置中的 Redis 字段不会自动切换持久化后端。
+需要跨重启保存时，在业务入口根据 [RDB 用法](../../aifd-rdb/README.md)显式注入 Redis DB，不把 split 运行当作持久化部署验收。
+
 `configs/service.example.toml` 是单 proxy 本地默认配置，已经启用 proxy-broker：
 
 ```toml

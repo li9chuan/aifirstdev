@@ -40,6 +40,18 @@ Loader/Builder 负责构建、normalize、remap、补默认值和派生索引。
 typed config，再显式组装 `proxy`、`rpc`、`rdb`、`observe` 和 `runtime` 的 Options。底层框架包不
 直接读取配置文件，也不直接依赖 Viper。
 
+### API 入口与 reload 结果
+
+契约导入 `aifd-config/contracts`（通常别名 `config`），Manager 位于 `aifd-config/runtime`；
+根目录不是另一个 Go facade 包。以 loader 和 validators 构造 `runtime.NewManager`，调用 `Reload(ctx)` 后检查两层结果：
+
+- `err != nil`：加载或 prepare 失败。
+- `err == nil` 但 `result.Applied == false`：可能是 error 级 validator issue 拒绝，从 `result.Issues` 取原因；不能仅凭 nil error 宣布配置已应用。
+
+`Current()` 返回已提交 bundle 与 loaded 标记。宿主串行触发 Reload，框架不协调并发加载的版本顺序。
+Prepare 应完成可失败工作，Apply 是提交后执行的无错误返回回调，不提供 panic 回滚或多组件数据库事务。
+实现见 [Manager](runtime/manager.go) 和 [Hook](runtime/hooks.go)。真正的 Luban 生成命令在 [aifd-tools](../aifd-tools/README.md)；`tools/luban` 当前只是包占位。
+
 ## 更新边界
 
 小版本可以增加 validator、adapter 或 manifest 元数据，但 reload 语义必须保持“失败时不发布”。

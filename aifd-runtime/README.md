@@ -48,7 +48,8 @@ err = users.Server("ReadUser", func(s *rpc.Session, u *user.User[*pb.DBUser], re
 
 普通后台任务直接 `LoadUser(ctx, uid)`。管理员先校验权限，再加载目标 UID，保留原 Session 的操作者与响应通道。全局/非用户路由仍使用 `rpc.Client/Server/Admin/Stream`。
 
-`Read/Snapshot` 读取主 PB；`Mutate(ctx, fn)` 修改私有候选并保存入队，回调错误、panic、取消或队列拒绝保留已发布值。回调短暂执行，不保留 PB 引用。`Save(ctx)` 只负责保存主块。
+`Read(fn)` 在读锁内传入实际主 PB，回调只读且不保留引用；`Snapshot()` 返回深拷贝，可在锁外使用，修改快照不更改 User。
+`Mutate(ctx, fn)` 修改私有候选并保存入队，回调错误、panic、取消或队列拒绝保留已发布值。回调短暂执行，不保留 PB 引用。`Save(ctx)` 只负责保存主块。
 
 `LoadedFromStore()` 保留初次主 PB 读取结果，供存储适配层初始化可缺省块，不再重复查询。它不表示当前落库状态，也不定义身份或在线状态。
 
@@ -62,7 +63,13 @@ UserRuntime 组合 Proxy 的 ClientSessions。WS socket、握手/登录包认证
 
 ## Service
 
-`service.Service` 管理 Module 的 Recover、RegisterRPC、Start、Close 顺序，恢复完成前不接受状态推进。关系、索引、投递、聚合和后台任务由业务或插件自己的 service module 拥有。同进程与拆进程部署使用相同状态归属。
+`service.Service` 按传入顺序调用 Module，Close 反向调用。宿主应依次执行 Recover → RegisterRPC → Start，
+恢复成功后才安装/开放 RPC 或启动任务。Service 本身不记录阶段、不按 `Descriptor.Depends` 排序，也不自动回滚部分启动。
+各阶段（包括 Close）遇到首个 hook 错误即返回，入口需处理已创建资源的清理。
+关系、索引、投递、聚合和后台任务仍由业务或插件 service module 拥有；同进程和拆进程使用相同归属。
+
+`lifecycle.Runner` 则有实际 tick gate：`MarkRecovered` 前 `RunOnce` 拒绝推进。
+精确契约见 [Service](service/service.go)、[Runner](lifecycle/runner.go) 和 [entrypoint](entrypoint/runtime.go)。
 
 可选插件由应用入口显式组合，import 无副作用。框架不拥有具体业务字段、玩法、配置表或持久化 key。更新边界仍是整体根模块发布，不保留历史实验 API 包装层。
 

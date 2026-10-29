@@ -2,9 +2,10 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-**v0.5.0 introduces single-owner mail, single-group delivery and Mail-managed claims, and fixes recovery after RDB write failures. APIs may change incompatibly.**
+**v0.6.0 adds optional native HTTPS/WSS, automatic free certificate issuance and renewal, and clearer documentation and persistence guidance. APIs may change incompatibly.**
 
-Mail APIs and legacy-data takeover have changed. Read the [v0.5.0 release notes](docs/releases/v0.5.0.md) before upgrading.
+Read the [v0.6.0 release notes](docs/releases/v0.6.0.md) for upgrade requirements and limits; earlier Mail migrations are covered in [v0.5.0](docs/releases/v0.5.0.md).
+Documentation follows its source snapshot. Applications should use the documentation and rules for their pinned version.
 
 This release requires Go 1.27.3 or newer. Frontend development uses Node.js 24.22.1 LTS or a newer 24.x release.
 The canonical repository is [li9chuan/aifirstdev](https://github.com/li9chuan/aifirstdev).
@@ -85,9 +86,11 @@ principles are described in [docs/scope-runtime.md](docs/scope-runtime.md).
 
 ## Documentation
 
+- [Task-oriented documentation and source map](docs/README.md): find usage, design, code, and verification entrypoints. Start a business application with the [integration guide](docs/application-integration.md).
 - AI development and review: start with [agent rules](AGENTS.md). The [rules guide](aifd-rules/README.md) explains document ownership, and the [skills index](aifd-rules/skills/README.md) routes tasks to workflows.
 - Code review: use the [project and feature review skill](aifd-rules/skills/runtime-feature-review/SKILL.md), which selects relevant items from the [review checklist](aifd-rules/checklists/review.md).
 - Design references: [module boundaries](docs/module-boundary.md), [runtime organization](docs/scope-runtime.md), and [update policy](docs/update-policy.md). Module links above lead to usage and related workflows; see the [examples guide](aifd-examples/README.md) for application wiring.
+- Public HTTPS/WSS: [native HTTP server](aifd-proxy/adapters/httpserver/README.md), [design and limitations](docs/native-https-design.md), and a [runnable example](aifd-examples/native-https/README.md). Manual certificates and automatic ACME management are optional; CA rate-limit handling is still incomplete.
 
 The linked design documents and skills are currently written in Chinese.
 
@@ -97,7 +100,7 @@ AI-first describes the development workflow: repository rules, skills, templates
 and reproducible checks help AI agents work within module boundaries. Applications
 do not require an LLM at runtime; `aifd-llm` is optional.
 
-Install Go 1.27 or later and Git, then start the in-memory backend example:
+Install Go 1.27.3 or later and Git, then start the in-memory backend example:
 
 ```powershell
 git clone https://github.com/li9chuan/aifirstdev.git
@@ -124,8 +127,8 @@ From an initialized Go module outside this workspace, pin the whole framework.
 Use the unified framework version and its current package APIs:
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.5.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.5.0
+go get github.com/li9chuan/aifirstdev@v0.6.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.6.0
 ```
 
 Framework packages, CLI, and official plugins share the root `go.mod/go.sum` and
@@ -138,7 +141,7 @@ download, or apply updates. Third-party tool versions remain pinned in `aifd.loc
 
 ## Build and verify
 
-Use Go 1.27 or later, Node.js 22.12 or later with npm, and PowerShell 5.1 or 7.
+Use Go 1.27.3 or later, Node.js 24.22.1 or a newer 24.x release with npm, and PowerShell 5.1 or 7.
 Put `go`, `node`, and `npm` on PATH, then run from the repository root:
 
 ```powershell
@@ -166,6 +169,11 @@ The two external NATS integration tests are skipped when `AIFD_NATS_URL` is unse
 Set it to a reachable test NATS server to include them; the verification script
 does not start an external server. Native desktop execution and Windows installer
 builds are separate checks; see [desktool](aifd-examples/desktool/README.md).
+ACME/Pebble integration tests additionally require the `integration` build tag and
+`AIFD_PEBBLE_BIN`; the default script does not run them. See [HTTPS verification](aifd-proxy/adapters/httpserver/README.md#验证).
+Mail's real Redis tests use `AIFD_REDIS_SERVER` or a `redis-server` executable on PATH,
+and otherwise skip by default. Set `AIFD_MAIL_REDIS_REQUIRED=1` to make a missing dependency fail;
+see [Mail verification](aifd-plugins/mail/README.md#验证).
 
 ## License
 

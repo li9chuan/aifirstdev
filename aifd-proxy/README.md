@@ -9,11 +9,12 @@
 
 - Connection 和 session 契约。
 - Gateway 投递和路由原语。
-- Local、TCP 和 websocket adapter 形态。
+- 可用的 Local、WebSocket 和 NATS 下行 adapter；`adapters/tcp` 当前仅为包占位，没有 TCP listener 或分帧实现。
 - WebSocket binary frame 接入、登录状态、重复登录策略和断线清理。
-- 客户端 wire protocol 对 `aifd.schema` 中通用 PB 帧头语义的使用。
+- 客户端 wire protocol 对 `aifd-schema` 中通用 PB 帧头语义的使用。
 - 可选 proxy-broker 入口能力：`adapters/nats/broker` 只封装 embedded NATS server
   生命周期，供 proxy 进程显式组合。
+- 可选[原生 HTTP/HTTPS/WSS 入口](adapters/httpserver/README.md)：复用现有 handler，支持手动证书与 ACME 自动申请、持久化、续期及显式关闭。
 
 ## 不负责
 
@@ -29,7 +30,7 @@
 runtime 服务。玩法代码应放在目标服务之后，不放在 proxy 中。
 
 前端与 proxy 的 PB 帧头定义在 `aifd-schema/proto/aifd/proxy/proxy.proto`。
-字段语义参考现有项目的 `MsgHead`：`len` 是 body 长度，`inbox` 是 RPC 回调编号，
+协议事实源是 [proxy.proto](../aifd-schema/proto/aifd/proxy/proxy.proto)：`len` 是 body 长度，`inbox` 是 RPC 回调编号，
 `topic` 是路由主题，`pbType` 是 body 的 protobuf 结构名。
 
 客户端上行 `MsgHead.topic` 必须使用 `Mc` 开头的业务协议名，例如 `MceAuth`、
@@ -61,12 +62,17 @@ Go 和 [Web 客户端](web/README.md) 会把匹配 inbox 的 `RPCError` 识别�
 消息需要服务端和客户端都使用修复后的实现；仅升级服务端不能修复旧 Go 客户端
 的错误识别。普通成功响应允许空 protobuf body，不以 body 是否为空判断成败。
 
-WebSocket adapter 使用 `github.com/coder/websocket`，只接受 binary frame。业务项目
-需要提供 `LoginHandler`，由它解析登录 PB、校验账号中心签发的 signed token，并返回
-`Identity` 和可选登录回包。proxy 在登录成功后才把连接注册进 `Gateway`，并订阅该
-uid 的下行消息。
-未登录连接只接受登录 topic；如果业务启用心跳，也应配置为 `McePing` / `MsePong`
-这类业务协议名，并且只在登录成功后由 proxy 本地回复。
+WebSocket adapter 使用 `github.com/coder/websocket`，只接受 binary frame。支持登录包
+`LoginHandler` 和 upgrade 前的 `HandshakeHandler` 两种认证入口，至少配置一种。使用登录包时，
+业务解析登录 PB、验签并返回 `Identity` 和可选回包。认证成功后才将连接注册进 `Gateway`，并订阅 UID 下行。
+
+未登录缺省只接受登录 topic；显式配置 `PublicTopics` 和 `PublicHandler` 可开放指定匿名请求。
+该分支直接返回当前连接的回包，不建立身份、UID 订阅或业务连接租约。PublicHandler 只用于未登录分支，
+登录后的普通请求仍走网关路由。只配置 PublicHandler 不能替代上述认证入口。
+
+缺省带有登录后本地 `McePing` / `MsePong`，空的 PingTopic/PongTopic 会补默认值。
+本地 Ping 不进入业务 RPC，也不续期 UserRuntime 连接租约；续租使用不同的业务心跳 topic，
+或启用 Runtime 的 `WithDefaultHeartbeat()` 处理 `MceSessionHeartbeat`。
 
 推荐业务使用 typed login 简写入口：
 
@@ -99,7 +105,7 @@ websocket.NewServer(websocket.Config{
 ### 握手、租约与多设备
 
 `Config.HandshakeHandler` 可在 upgrade 前鉴权 HTTP 凭据。没有适用凭据返回
-`Handled=false`，继续登录包入口；已提供凭据认证失败返回 error，不能降级。业务返回
+`Handled=false`，进入未登录处理分支，要完成登录包认证仍需配置 LoginHandler；已提供凭据认证失败返回 error，不能降级。业务返回
 Identity 和可选 InitialMessage，消息内容属于业务。两种认证共用重复登录策略、UID
 订阅、连接 Open、读循环和幂等清理。订阅、Open 或就绪消息失败会回滚连接。
 
@@ -134,6 +140,12 @@ NATS Downlink 使用普通 PubSub；local Downlink 直接订阅 local Bus 的 UI
   adapter 的 NATS client 配置表达，不读取 nats-server 配置文件。
 
 这个能力不通过 import 副作用启动；只有应用入口显式 wiring 后才生效。
+
+### 原生 HTTPS/WSS
+
+已有 `websocket.Server` 仍是 HTTP handler。宿主将同一 mux 交给 `httpserver.Start`，
+并传入 WS 关闭回调；不在 LoginHandler、消息编解码或业务 feature 内管理证书。
+详细接入见[原生入口](adapters/httpserver/README.md)，职责、持久化和未完成项见[设计说明](../docs/native-https-design.md)。
 
 ## 更新边界
 

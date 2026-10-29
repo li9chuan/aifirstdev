@@ -37,10 +37,24 @@ transport, err := proxyws.NewWebSocketTransport(ctx, proxyws.WebSocketConfig{
 	URL:         "ws://127.0.0.1:18080/ws",
 	DialTimeout: time.Second,
 })
+if err != nil { return err }
 cli, err := aifdclient.New(transport, aifdclient.Options{AwaitTimeout: 10 * time.Second})
+if err != nil {
+	_ = transport.Close(ctx)
+	return err
+}
+defer cli.Close()
+// Register any initial push handlers before starting the reader.
+if err := cli.Start(); err != nil { return err }
+// Now make the application's typed login request.
 ```
 
 该 adapter 只负责 WebSocket 和 proxy packet 编解码，不理解业务登录、robot 场景或 runtime 服务。
+
+公网可配置 `URL: "wss://api.example.com/ws", RequireTLS: true`；`HTTPClient` 是可选的受控代理/测试根证书适配入口，客户端与标准 transport 会复制后使用。
+安全初始 URL 拒绝明文降级、跨源重定向和标准 transport 的 `InsecureSkipVerify`，即使调用者 redirect hook 改写目标也会重新检查；最低 TLS 为 1.2。
+未启用 RequireTLS 的既有本地 WS 保留原行为，WSS 的重定向安全限制是明确的行为收紧。自定义 RoundTripper 的真实 TLS 校验仍由受信任调用者负责。
+服务端接线和证书生命周期见[原生入口](../aifd-proxy/adapters/httpserver/README.md)。
 
 `Request(ctx, req, rsp)` 与 `RequestAs(ctx, topic, req, rsp)` 同步等待回包。
 `Session.Error` 的错误回包会返回 `*rpc.StatusError`，其 `Code` 和 `Message` 保留服务端错误，
@@ -61,6 +75,9 @@ StopHeartbeat 和显式 Close 取消当前 Probe，不报失联；异常断连�
 inbox 为 0 的 UID 事件通过 `On/OnAs` 独立消费，不完成待返回的 Call。不同设备
 可以使用相同 inbox；响应仍只回原连接。重连重新读取业务事实，不从在线 Push
 历史推断离线同步。详见 [业务调用规则](../aifd-rules/skills/feature-development/references/rpc-user-and-multidevice.md)。
+
+Client 不自动重连或重放请求。宿主可从 `Done()/Err()` 观察连接结束，关闭旧客户端后重建 transport/client、
+重新鉴权并读取业务事实。实现入口是 [client.go](client.go) 和 [heartbeat.go](heartbeat.go)。
 
 ## 相关文档
 

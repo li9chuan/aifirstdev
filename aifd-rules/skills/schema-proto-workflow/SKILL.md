@@ -9,7 +9,7 @@ description: 处理 proto/schema 工作流时使用。适用于 aifd-schema、�
 
 ## 文件归属
 
-- 框架默认 PB 放在 `aifd-schema/proto/aifd/<domain>/vN/<domain>.proto`。
+- 当前框架默认 PB 放在 `aifd-schema/proto/aifd/<domain>/<domain>.proto`，例如 proxy 和 observe，没有默认 `vN/` 子目录。如需版本化路径，应显式评估所有生成和消费方。
 - 示例 proto 放在 `aifd-examples/<example>/proto/`。
 - 业务 proto 放在业务项目自己的 `proto/`。
 - 生成的 pb 代码放在业务项目或明确的 generated 目录，不放进 `aifd-contracts`、`aifd-runtime`、`aifd-rpc`。

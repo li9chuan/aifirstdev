@@ -30,6 +30,7 @@
 - `aifd-observe`：日志、指标、trace、audit、stat sink。
 - `aifd-proxy`：客户端连接、gateway、session、delivery 和登录接入边界；可选
   `adapters/nats/broker` 只作为 proxy-broker 入口显式封装 embedded NATS server 生命周期。
+  `adapters/httpserver` 拥有可选的原生 HTTP/TLS 监听与证书生命周期，复用既有 HTTP/WS handler；runtime 只编排其显式启动、就绪及关闭，不拥有证书资产或 ACME 协议。
 - `aifd-robot`：集成测试机器人、行为树、scenario、run group 和 report。
 - `aifd-rpc`：message、session、route、dispatcher 和 transport adapter。
 - `aifd-rdb`：saver、store、codec、Redis/memory 持久化抽象。

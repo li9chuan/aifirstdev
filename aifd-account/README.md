@@ -9,6 +9,17 @@
 账号中心核心不 import 业务 proto；业务项目通过 `TokenIssuer` 把 `AuthPayload`
 转换成自己的登录 payload protobuf 后签名。
 
+## 接入顺序
+
+1. 提供 `Verifier` 校验并规范化 credential；框架自带 `DemoVerifier` 仅供示例和测试，不是生产密码/OAuth/短信验证器。
+2. 用 `NewService(store, verifier, issuer, Options{})` 构造服务，由 `TokenIssuer` 调用业务的 payload 序列化与签名。
+3. 调用 `Service.Login` 取得账号与 token；`AutoCreate=false` 时不存在即失败。禁用账号、损坏主档和存储错误不会当作新账号重建。
+
+服务自身不注册 HTTP 或 RPC 入口。最小接线见 [minigame account](../aifd-examples/minigame/internal/app/account.go)，
+完整类型与登录流程见 [types.go](types.go) 和 [service.go](service.go)。
+
+## Redis 存储
+
 生产入口使用 `NewRedisStore(redis.UniversalClient, RedisStoreOptions{})` 直接落 Redis。
 Redis key 模型固定为：
 

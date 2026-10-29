@@ -1,11 +1,13 @@
 ---
 name: service-entrypoint-development
-description: 开发或调整服务入口、CLI 入口、启动链、配置加载、信号处理、adapter 注册和进程级 wiring 时使用。适用于 aifd-tools、示例 cmd、proxy/runtime 服务壳或业务服务入口，不用于 feature 内部业务逻辑。
+description: 开发或调整服务/CLI 入口、启动链、配置、信号、adapter 与进程 wiring 时使用，包括原生 HTTP/HTTPS/WSS、TLS 和 ACME 证书生命周期接入。适用于 aifd-tools、示例 cmd、proxy/runtime 服务壳，不用于 feature 内部业务逻辑。
 ---
 
 # 服务入口开发
 
 这个 skill 处理进程级启动链，不处理 feature 内部业务规则。
+
+涉及原生 HTTPS/WSS、TLS、ACME 自动证书、证书缓存或续期时，先读取[原生安全入口](references/native-https.md)，复用 `aifd-proxy/adapters/httpserver`。
 
 ## 工作流
 
@@ -18,6 +20,7 @@ description: 开发或调整服务入口、CLI 入口、启动链、配置加载
 ## 边界
 
 - CLI 命令可以调用 `aifd-tools` 中的工作流入口，但不隐藏业务 migration。
+- RPC runner 需关闭 Bus 输入后等待返回，再释放 handler 依赖；`rpc.Run` 的 context 只传给处理过程，不能将 cancel 当作消费循环已退出。用法见 [RPC](../../../aifd-rpc/README.md)。
 - 服务入口可以组合 `rpc`、`rdb`、`proxy`、`observe`、`runtime`，但不 import 这些模块的 internal 包。
 - 示例入口按示例目标展示接线：`minigame` 覆盖完整游戏后端框架链路，`desktool` 聚焦桌面工具入口；示例不承诺生产部署治理能力。
 - 配置加载和热更策略应交给 `aifd-config` 或业务配置模块，不在入口层散落解析规则。
@@ -29,7 +32,7 @@ description: 开发或调整服务入口、CLI 入口、启动链、配置加载
 - `cmd/proxy` 只组 WebSocket proxy、LoginHandler、下行订阅和外部 RPC bus；不创建 game/world 业务服务。
 - `cmd/proxy` 可以显式组装 proxy-broker embedded NATS server，并让自身 RPC bus 使用
   in-process NATS connection；broker 生命周期关闭顺序应排在 proxy 和 rpc-bus 之后。
-- `cmd/game` 只组 user runtime、root Store、user module、业务 game route 和外部 RPC bus；不监听客户端连接。
+- `cmd/game` 只组 user runtime、User Store、user module、业务 game route 和外部 RPC bus；不监听客户端连接。
 - `cmd/world` 只组 service lifecycle、service module、恢复/启动顺序和外部 RPC bus；不创建 proxy/game。
 - `cmd/game`、`cmd/world` 和其他业务服只作为 NATS client 连接 broker 集群，不隐式启动
   embedded broker。
@@ -41,7 +44,7 @@ description: 开发或调整服务入口、CLI 入口、启动链、配置加载
 - feature 自己定义配置读取 helper，例如 `CounterLimit()`，入口只传入已解释后的 config 视图。
 - feature 自己注册 validator，并把配置语义留在业务项目；入口不解析具体玩法字段。
 - feature 自己定义指标名和维度，例如 `counter.add`、`result=limit`；observe sink 只作为出口注入。
-- 内存 config/observe 可用于示例和测试，真实 Luban、Redis、Prometheus、日志 sink 后续由 adapter 替换。
+- 内存 config/observe 可用于示例和测试；已有 Redis、Luban builder 和 JSONL 等 adapter 按各模块说明接入，真实业务表、provider 和没有实现的观测出口仍由宿主适配。
 
 ## 验证
 

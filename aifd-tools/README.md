@@ -61,6 +61,7 @@ aifd dev down
 
 如果 `proto gen` 或 `config gen` 不传显式参数，CLI 会尝试读取
 `.aifd/proto.args` 或 `.aifd/config.args`，一行可写多个参数，空行和 `#` 注释会被忽略。
+显式生成参数会整体替换文件中的参数，不做逐项合并。参数文件按空白分词，不解析 shell 引号；含空格路径用 CLI 参数传入。
 
 `tools install` 默认安装 `protoc`、`protoc-gen-go` 和 Luban。Redis 只作为可诊断工具保留：
 Windows 下默认显示 unsupported，显式安装会失败并提示使用 WSL、Memurai、Docker、PATH 或
@@ -112,6 +113,7 @@ Tools 由 `aifd.lock` 锁定。Wails 3 升级必须同步 Go 依赖、CLI、前�
 
 ## 相关文档
 
+- 命令和参数事实源：[CLI main.go](cmd/aifd/main.go)、[工具解析](internal/toolchain/toolchain.go)、[安装清单](internal/installer/manifest.go)。
 - [项目首页](../README.zh-CN.md)
 - [服务入口开发](../aifd-rules/skills/service-entrypoint-development/SKILL.md)
 - [版本与更新策略](../docs/update-policy.md)

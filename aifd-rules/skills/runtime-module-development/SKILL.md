@@ -21,7 +21,7 @@ description: 开发 aifd-runtime、业务 runtime feature 模块或可选功能�
 
 1. 先确定状态归属：user runtime、service lifecycle、service module 或业务 feature；业务应用自己命名承载服务。
 2. 定义最小接口和数据模型，不提前实现完整业务闭环。
-3. 接入 config hook、schema/rpc route、rdb saver 和 observe sink。
+3. 接入 config hook、schema/rpc route、存储和 observe sink；持久化按[业务持久化选型](../feature-development/references/rdb-selection.md)选择现有能力。
 4. 实现启动恢复，再允许 tick、RPC 写入或 lifecycle 推进。
 5. 补最小测试：模块注册、恢复、写入拒绝、tick 条件、memory adapter。
 
@@ -39,6 +39,7 @@ description: 开发 aifd-runtime、业务 runtime feature 模块或可选功能�
 - 启动恢复、热更和状态推进要有明确顺序和日志锚点；恢复完成前不要开放 tick、RPC 写入或外部推送。
 - `service` 是逻辑生命周期边界，不等于必须拆成物理微服务；all-in-one、拆分进程和 hybrid 部署
   都不能改变状态真相源归属。
+- `service.Service` 不强制阶段顺序或自动排序 Depends；恢复后才开放 RPC/Start 是宿主必须落实的接线约束，不是已有的自动保护。
 - 邮件、好友、公会、排行榜这类可选能力的代码归属是插件包或业务项目，不是 `aifd-runtime`；
   需要跨 root 真相源时，在插件自己的 service module 中实现。
 

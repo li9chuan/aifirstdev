@@ -28,7 +28,7 @@ max_message_bytes = 4194304
 duplicate_policy = "kick_old"
 ```
 
-实例差异仍由命令行参数提供，例如 `--conf`、`--addr`、`--sid`、`--pprof` 和 `--metrics`。共享 TOML 不包含监听地址、实例编号、Redis DB index、Redis key prefix、WS path、ping topic 或 pong topic。
+示例入口将 `--addr`、`--sid`、`--pprof` 和 `--metrics` 等实例参数放在 CLI；这是示例的装配约定，不是 Viper adapter 的字段限制。业务项目自己定义 typed config 及 CLI/文件配置边界。
 
 ```go
 cfg, err := viper.Load[AppConfig](ctx, viper.Options{
@@ -46,6 +46,10 @@ cfg, err := viper.Load[AppConfig](ctx, viper.Options{
 ```
 
 业务项目可以不使用该 adapter，直接实现自己的 loader 或 typed config reader。
+
+`Load/LoadInto` 只执行一次读取，不自动 watch 或 reload。缺省拒绝未使用配置键；只存在于环境变量的键用 `EnvKeys` 显式绑定。
+例如嵌入 `httpserver.TLSConfig` 时，可将 `httpserver.TLSConfigEnvKeys("http.tls")` 追加到 `EnvKeys`，
+实际启动仍由宿主调用[原生入口](../../../aifd-proxy/adapters/httpserver/README.md)。
 
 ## 相关文档
 

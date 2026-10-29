@@ -20,6 +20,7 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 ## 路由表
 
 - 最小公共类型、模块描述、服务角色：`aifd-contracts`。
+- signed payload ticket：`aifd-auth`；可选账号中心：`aifd-account`；Go PB 客户端、await 和心跳：`aifd-client`。
 - proto 描述、消息兼容、默认框架 PB、生成检查：`aifd-schema`，使用 [schema-proto-workflow](../schema-proto-workflow/SKILL.md)。
 - Luban/config typed bundle 生命周期、热更、manifest diff、validator：`aifd-config`，使用 [config-table-workflow](../config-table-workflow/SKILL.md)。
 - LLM provider-neutral 调用门面、stream、usage、tool call、JSON 输出和 provider adapter：`aifd-llm`。
@@ -28,13 +29,14 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 - user/service runtime、User、module/lifecycle：`aifd-runtime`，使用 [runtime-module-development](../runtime-module-development/SKILL.md)。
 - 客户端连接、gateway、session、delivery，以及显式 proxy-broker embedded NATS
   生命周期 adapter：`aifd-proxy`。
+  原生 HTTP/HTTPS/WSS、TLS 与 ACME 证书生命周期也归 `aifd-proxy/adapters/httpserver`，按[服务入口规则](../service-entrypoint-development/SKILL.md)组合。
 - 日志门面、指标、trace、audit、stat sink、KindRouter 和 observe-agent：`aifd-observe`。
 - 集成测试机器人、行为树、run group、report：`aifd-robot`，使用 [robot-module-development](../robot-module-development/SKILL.md)。
 - CLI、update、proto/config 命令入口、本地开发工具链安装与诊断：`aifd-tools`，服务入口变更使用 [service-entrypoint-development](../service-entrypoint-development/SKILL.md)。
 - AI 规则、技能、模板、检查清单：`aifd-rules`。
 - 示例用法和业务形态接线：`aifd-examples`。其中 `minigame` 展示完整游戏后端框架链路，`desktool` 展示桌面工具形态。
 - Wails 桌面壳、Go binding、React + Ant Design 页面、桌面登录流程、桌面整包更新流程：业务项目或 `aifd-examples/desktool`，使用 [desktop-app-development](../desktop-app-development/SKILL.md)；组件 API 查询叠加 [ant-design-ui-development](../ant-design-ui-development/SKILL.md)。
-- 官方可选功能能力，例如 mail、friend、guild、ranking：优先落到 `aifd-plugins/<name>` 或业务项目插件包；runtime 只接收其实现的 `root.Module` 或 `service.Module` 接口。
+- 官方可选功能能力，例如 mail、friend、guild、ranking：优先落到 `aifd-plugins/<name>` 或业务项目插件包；runtime 只接收其实现的 `user.Module[T]` 或 `service.Module` 接口。
 - 具体业务 feature、业务 proto、业务配置表、业务生成物：业务项目。
 - 业务 prompt、provider key、额度策略、审计落库和 prompt 管理平台：业务项目或单独业务服务，不进入 `aifd-llm`。
 
@@ -49,7 +51,7 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
   proxy 入口显式 wiring；game/world/其他业务服只作为 NATS client 接入，不隐式启动 broker。
 - `aifd-auth` 当前先保持独立，承载账号中心和 proxy 共享的 signed login ticket 基础件；不要为了减少 module 数量把它误并入 `aifd-account` 或 `aifd-proxy`。
 - Wails CLI 属于 `aifd-tools` 的按需开发工具，使用 `aifd tools install --tool wails`；它不进入默认工具安装集合。
-- NSIS 是 Windows 安装器环境，首版只在桌面示例和文档中作为构建前置检查，不由 `aifd-tools` 自动安装。
+- Windows NSIS 可通过 `aifd tools install --tool nsis` 显式安装到项目目录，不进入默认安装集合；桌面打包不隐式安装系统工具。
 - 未来只有出现更多同类基础件，并且这些能力无领域归属、无运行时依赖、至少被两个基础设施根模块的生产代码稳定复用、且不能合理归属现有模块时，才考虑收敛为 `aifd-core/<package>`，例如 `aifd-core/ticket`。
 - 进入未来基础工具集的包必须有明确包名和窄职责；不允许新增 `aifd-share`、`aifd-common` 或泛化的杂物目录。
 - 当前 `Clock`、`Clone`、`ErrorKind`、`Retry/Backoff`、`SSEReader` 和 `Func adapter` 都不收进 core；优先留在拥有语义的模块内。

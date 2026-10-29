@@ -9,6 +9,8 @@
 `Save`、`SaveUnsafe`、`Delete` 和 `DeleteUnsafe` 默认只进入 final-intent 延迟保存
 队列；真正的 Redis 或 memory 写入由后台 worker、`Flush` 或 `Close` 完成。
 
+RDB 与原生 Redis/Lua 的适用场景见[业务持久化选型](../aifd-rules/skills/feature-development/references/rdb-selection.md)。
+
 SET/HSET 实际保存成功后，通过进程默认的 `aifd-observe/logging` 输出 `Rdb save Set`
 或 `Rdb save HSet`。`size` 是已序列化 protobuf 的整数字节数，例如 `"size":1536`，
 不换算 KB、不使用小数；空 protobuf 为 `0`。定位字段使用 `key_hash` / `field_hash`，
@@ -19,7 +21,7 @@ SET/HSET 实际保存成功后，通过进程默认的 `aifd-observe/logging` �
 - `SetSaver`：一个 Redis key 保存一个 protobuf message。
 - `HashSaver`：一个 Redis hash field 保存一个 protobuf message。
 - `DB`：隐藏 memory 或 Redis 后端，并负责 WaitList final-intent 延迟合并写入。
-- `DbGlobal` 心智：业务 saver 默认绑定包级 `DefaultDB`。
+- 包级 `DefaultDB` 兼容入口；新业务优先显式注入同一个 DB。
 - TTL 语义：`WithTTL` 设置/续期；默认不设置 TTL；`KeepTTL` 仅对 Set 保留已有 TTL。
 - failed final-intent journal：`Close` 遇到 Redis 连接类最终失败时，把未确认的最终意图写到本地文件。
 
@@ -103,21 +105,26 @@ db, err := rdb.NewRedisDB(redisClient, rdb.WithObserveSink(observeSink))
 db, err := rdb.NewRedisDB(redisClient, rdb.WithObserveSink(localSink), rdb.WithObserveRawKeys())
 ```
 
-关服或模块退出时强制落盘并停止 worker：
+普通业务调用 `Save` / `SaveUnsafe` 提交保存意图，由后台 worker 按延迟策略合并写入，无需逐次调用 `Flush`。
+
+宿主停服时，先停止业务写入，再对其创建的同一个 DB 调用 `Close`，排空队列并停止 worker，检查返回错误：
 
 ```go
-if err := rdb.CloseDefaultDB(ctx); err != nil {
+if err := db.Close(ctx); err != nil {
 	return err
 }
 ```
 
-需要在低频锚点确认已落盘时，可显式 flush：
+测试、迁移等需要主动排空队列时，可显式调用 `Flush`。它处理该 DB 的待写队列，普通业务通常不调用：
 
 ```go
-if err := rdb.FlushDefaultDB(ctx); err != nil {
+if err := db.Flush(ctx); err != nil {
 	return err
 }
 ```
+
+只有使用包级默认 DB 的兼容接线才使用 `CloseDefaultDB/FlushDefaultDB`；它们不会遍历其他 DB 实例。
+`DB.Close` 不关闭宿主传入的 Redis client，应先停止业务写入、检查 DB 关闭结果，再关闭 client。
 
 ## 使用方式
 
@@ -195,7 +202,8 @@ if err := state.Save(ctx); err != nil {
 应把生命周期维度写进 hash key 或 field，并在结算、归档或清理流程中显式删除 field。
 
 final-intent journal 不保证中间 `EXPIRE` 副作用，也不保证不同 entity 之间的事务顺序。
-它只保证 Redis 故障窗口内每个 Set key 或 Hash field 的最终保存/删除意图可被恢复。
+可 replay 的是 Close 已成功写成 journal 的最终意图，不是故障窗口内的全部写入历史。
+未执行正常 Close 就强杀进程，仍可能丢失队列中未落盘的状态。
 
 ## 相关文档
 

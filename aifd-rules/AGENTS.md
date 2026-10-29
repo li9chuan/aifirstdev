@@ -3,7 +3,9 @@
 AI 辅助框架开发的高频规则：
 
 - 不确定用哪个 skill 时，先读取 [skills 索引](skills/README.md)。
+- 用法、设计与实现入口从[文档导航](../docs/README.md)按任务查找；业务项目使用所锁定版本的文档和规则，不用未发布文档推断旧版能力。
 - 进入代码编辑、重排、问题分析或 review 后修代码时，先使用 [project-coding-constraints](skills/project-coding-constraints/SKILL.md)。
+- 新增或调整业务持久化（含 Redis/Lua）时，先按[业务持久化选型](skills/feature-development/references/rdb-selection.md)选择现有能力。
 - 涉及 `aifd-account`、登录身份、账号 Redis 模型、token payload 或业务项目接入账号中心时，读取 [account-identity-store-workflow](skills/account-identity-store-workflow/SKILL.md)。
 - 审查项目、框架模块或业务 feature 时，使用[项目与 Feature 代码评审](skills/runtime-feature-review/SKILL.md)，按范围读取其关联清单和规则。
 - 编辑前先选择最小职责归属模块。
@@ -21,7 +23,7 @@ AI 辅助框架开发的高频规则：
 - Lifecycle runner 只有在恢复完成后才能推进全局状态。
 - Wails / React / Ant Design 桌面应用先用 [desktop-app-development](skills/desktop-app-development/SKILL.md)，组件实现再叠加 [ant-design-ui-development](skills/ant-design-ui-development/SKILL.md)。
 - Ant Design MCP、CLI、LLMs.txt、X Skills 是开发期 AI 辅助体系；普通桌面示例运行时不默认接 A2UI、XCard 或 Agent。
-- Wails CLI 由 `aifd-tools` 按需安装和诊断；NSIS 属于 Windows 安装器环境，不作为默认工具自动安装。
+- Wails CLI 和 Windows NSIS 可由 `aifd tools install --tool wails` / `--tool nsis` 按需安装到项目目录，均不进入默认工具集合；打包不隐式安装系统工具。
 - 桌面运行时通信、缓存、数据分析和整包更新流程默认放 Go binding 后端，React 只负责 UI 展示。
 - 产生文件修改后，最终交付需要给提交描述时给出 `提交描述`；提交标题第一个方括号写主模块标签，例如 `[aifd-rules]`。需要详细正文格式时读取 [svn-commit-description](skills/svn-commit-description/SKILL.md)。
 - 最终交付中的提交描述必须提供独立的 `text` 代码块；代码块内只放可直接复制的提交标题/正文，不包含“提交描述：”标签、解释文字或 Markdown 项目符号。

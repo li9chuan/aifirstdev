@@ -24,7 +24,7 @@ and not a feature plugin.
 ```go
 client := deepseek.NewClient(deepseek.Options{APIKey: apiKey})
 rsp, err := client.Complete(ctx, llm.Request{
-    Model: "deepseek-flash",
+    Model: model, // application-selected model; omit to use the adapter's DefaultModel
     Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}},
     ProviderOptions: map[string]any{"thinking": map[string]string{"type": "disabled"}},
 })
@@ -32,6 +32,10 @@ rsp, err := client.Complete(ctx, llm.Request{
 
 Business code should depend on the `llm.Client` interface and keep provider
 SDK or HTTP details inside adapters.
+
+The caller supplies a bounded context and handles errors. For streaming, call
+`Stream(ctx, req)`, receive events with `Recv()`, and always close the reader.
+Tool calls are returned as data; the library does not execute business tools or run an agent loop.
 
 OpenAI-compatible adapters (including DeepSeek) serialize `ProviderOptions` as
 additional top-level JSON request fields in both `Complete` and `Stream`.
@@ -46,6 +50,11 @@ alone does not prove that an adapter forwarded them. Tests cover forwarding,
 streaming, reserved-field collisions, and invalid values. No protobuf, runtime,
 or stored-data migration is required; callers that formerly supplied a reserved
 common field in `ProviderOptions` must use the corresponding `Request` field.
+
+`ProviderOptions` forwarding described above applies to the OpenAI-compatible adapters;
+the current Anthropic adapter does not serialize that map. Check the owning adapter
+before relying on a provider extension. Contracts live in [client.go](client.go) and
+[stream.go](stream.go); defaults and mapping live in [adapters](adapters).
 
 ## Related documentation
 

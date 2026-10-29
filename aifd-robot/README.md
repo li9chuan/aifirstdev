@@ -39,9 +39,17 @@ agent.On(func(msg *pbmsg.Push) {
 })
 ```
 
-await 超时使用底层 client 默认超时配置，不支持单次调用单独设置。底层
+await 超时缺省 15 秒，直接构造 Agent 时可用 `AgentOptions.CallbackTimeout` 设置；Call 不支持单次覆盖。底层
 `rpc.Message`、`HeaderClientInbox` 和 callback cache 都属于 runtime/transport 内部细节，
 业务模块不要直接访问。
+
+组运行入口是 `runtime.NewRunGroup(RunGroupOptions{Scenario, Transport, Modules, ...})`，
+显式 `Start(ctx)` 后由宿主管理运行时间并 Close，最后读取 `Report()`。
+Scenario 保存人数/账号范围/行为和时间，传输工厂在 RunGroupOptions，不是 Scenario 字段。
+Report 当前只有 Login、Send、Receive、Error 和 Custom 计数，没有内置延迟直方图。
+
+`adapters/b3` 接受外部 Loader 输出的中立 Project 并构建独立行为树，不直接解析 `.b3` 文件。
+实际接线见 [minigame robot](../aifd-examples/minigame/cmd/robot/main.go)，类型见 [RunGroup](runtime/rungroup.go) 和 [Report](contracts/report.go)。
 
 ## 更新边界
 

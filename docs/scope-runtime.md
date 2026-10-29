@@ -10,6 +10,9 @@ User module 只拥有当前用户的数据块；跨用户的关系、索引、�
 
 Service 是逻辑边界。all-in-one、split 和 hybrid 只改变接线，不改变状态真相源归属；框架不要求复杂服务编排。Wails 前端调用 Go binding 的业务门面，不接触 Runtime 或传输对象。
 
+恢复顺序由宿主实现：`service.Service` 按传入顺序执行 hook，不自动阻止跳过 Recover 调用 Start，
+也不自动按 Depends 排序。带明确恢复门禁的定时推进使用 `lifecycle.Runner`；具体约束见 [Runtime 用法](../aifd-runtime/README.md#service)。
+
 ## 相关文档
 
 - [Runtime 模块开发](../aifd-rules/skills/runtime-module-development/SKILL.md)

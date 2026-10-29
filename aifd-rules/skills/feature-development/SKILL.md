@@ -1,6 +1,6 @@
 ---
 name: feature-development
-description: 开发业务项目 feature 时使用。适用于判断 feature 归 user、service 还是混合拥有，组织 features 目录，定义跨 feature 契约，接入 runtime、schema、config、rpc、rdb 和 robot 测试。
+description: 开发业务项目 feature 时使用。适用于判断 feature 归 user、service 还是混合拥有，组织 features 目录，定义跨 feature 契约，选择业务持久化方式，接入 runtime、schema、config、rpc、rdb 和 robot 测试。
 ---
 
 # Feature 开发
@@ -14,9 +14,10 @@ description: 开发业务项目 feature 时使用。适用于判断 feature 归 
 3. 共享内部状态前，先定义跨 feature 契约。
 4. 当前主体根文档拥有的状态通过 user module 承载。
 5. 全局、跨主体、排行或定时状态通过 service module 或插件 service module 承载。
-6. 协议放业务项目 `proto/`；配置放业务项目配置源；生成物放 generated 目录。
-7. 涉及用户 RPC、Call 回包、Push 或多设备同步时，先读取 [用户调用与多设备投递](references/rpc-user-and-multidevice.md)。
-8. 单元测试优先使用 memory/local adapter；传输改动必须验证同 inbox 的多设备隔离及真实跨 Proxy 广播。
+6. 新增或调整存储时，先按[业务持久化选型](references/rdb-selection.md)选择 RDB、Redis Store 或 Lua。
+7. 协议放业务项目 `proto/`；配置放业务项目配置源；生成物放 generated 目录。
+8. 涉及用户 RPC、Call 回包、Push 或多设备同步时，先读取 [用户调用与多设备投递](references/rpc-user-and-multidevice.md)。
+9. 单元测试优先使用 memory/local adapter；传输改动必须验证同 inbox 的多设备隔离及真实跨 Proxy 广播。
 
 ## 推荐目录
 

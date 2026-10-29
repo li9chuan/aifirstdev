@@ -46,7 +46,7 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 - 普通桌面或 Web 前端默认使用固定 React/Vue/原生组件和普通业务数据；A2UI、XCard、运行时 Agent 动态 UI 只能在用户明确要求该产品形态时单独设计。
 - Ant Design 组件知识查询归 [ant-design-ui-development](../ant-design-ui-development/SKILL.md)，Wails 桌面壳归 [desktop-app-development](../desktop-app-development/SKILL.md)；不要在业务项目中新增无边界的 UI command runtime。
 - Wails CLI 是 `aifd-tools` 的按需工具，使用 `aifd tools install --tool wails` 管理；不要把 Wails CLI 路径硬编码进示例，也不要把它加入默认服务端工具安装集合。
-- NSIS、dmg/pkg、Sparkle、AppImage 等安装包生态属于桌面发布环境；首版只做显式检查和文档说明，不在无授权情况下自动安装系统级工具。
+- Windows NSIS 由 `aifd tools install --tool nsis` 按需安装到项目 `.aifd/tools`，不进入默认工具集合；构建不隐式安装系统级工具。其他平台安装包能力以示例说明为准。
 - 桌面端运行时通信、PB/WS、缓存、数据分析、本地文件访问和整包更新流程应放 Go 后端；JS/React 保持 UI 和轻量交互态。
 
 ## 命名与 API
@@ -67,6 +67,7 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 
 ## 持久化
 
+- 新增或调整业务存储时，按[业务持久化选型](../feature-development/references/rdb-selection.md)优先复用 RDB、Redis Store 或 adapter。
 - 先明确存储模型是同步强一致、异步 final-intent、命令历史还是普通缓存；不同模型不能混用同一套安全承诺。
 - 账号映射、唯一 ID 分配、绑定查重这类即时一致性能力可以直接使用 Redis Store；不要强行接入异步 rdb 队列。
 - 异步持久化队列必须说明合并 entity、Save/Delete 合并规则、flush/close 语义和失败处理；`Save -> Delete`、新绑定对象 `Delete -> Save`、重复 Save 合并和删除后同一 saver Save no-op 都是必测边界。
@@ -89,6 +90,7 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 
 - 代码改动后优先跑受影响模块测试；命名收敛要补静态旧名检查。
 - 文档或 skill 改动至少检查 YAML frontmatter、触发描述和索引是否仍准确。
+- 用法留在模块 README，跨模块设计留在 `docs/`，开发约束留在 skill；新增入口接入[文档导航](../../../docs/README.md)。区分可用、占位、未实现和未发布，不把期望约束写成代码已强制的保证。
 - 每次分析问题、review 或完成改动后，判断是否产生可复用规则。
 - 可复用规则先归并到已有 skill、checklist 或模板；只有没有合适承载点时才新增 skill。
 - 最终交付必须说明“项目级经验”：新增、变更、合并建议，或明确没有发现。

@@ -10,7 +10,7 @@
 - 中立的可观测事件 envelope。
 - Sink 接口，以及 fan-out 或异步投递 helper。
 - 用于测试和示例的本地 memory、console、stat adapter。
-- local-first 日志门面：业务通过 AIFD logger 写日志，本地文件是必达路径，observe 是可选转发。
+- local-first 日志门面：业务通过 AIFD logger 优先写本地文件，本地处理成功后再做 observe 可选转发。
 - 业务打点门面：`log.Stat` / `log.Statf` 生成 `KindStat` 事件，由 sink 决定输出到本地文件、
   observe-agent 或外部打点日志服务器。
 - 可选 observe-agent：按预注册文件 tail/filter 本地已输出日志，供 observe 聚合端通过 RPC 查询。
@@ -43,12 +43,21 @@ logging.Info("service started", logging.String("module", "game"))
 logging.InfoContext(ctx, "rpc handled", logging.String("topic", topic))
 ```
 
+包级 logger 在初始化前默认丢弃输出；宿主应先成功调用 `InitDefault`，再启动其他组件。
+`InitDefault` 的关闭函数只关闭它自己拥有的本地资源，传入的 observe sink 由宿主单独关闭。
+初始化时的本地文件打开失败会返回 error；运行期 `Info/Warn/Error` 不返回写盘错误，不提供逐条 fsync 保证。
+local-first 表示输出顺序，不表示每条日志均已可持久恢复。
+
 业务打点也走 `logging` 包的全局门面，但它不是普通运行日志：
 
 ```go
 logging.Stat("friend.add", logging.Int64("uid", uid), logging.Int64("friend_uid", friendUID))
 logging.Statf("type=%s uid=%d", typ, uid)
 ```
+
+`Stat/Statf` 写入 `Config.Observe` 或 `SetDefaultSink` 指定的 sink；未配置时不输出，也不会自动写入 `LocalPath`。
+需要打点文件时显式组合 [JSONL sink](adapters/jsonl/sink.go) 和 KindRouter；agent 作为 sink 只计数，不保存事件正文。
+默认打点调用同步调用 sink，高频或慢出口可由宿主加 AsyncSink，不是自动异步。
 
 `Info` / `Warn` / `Error` 的首要目标是本地 stdout/file。observe 查询日志时，聚合端通过
 RPC 调用各进程 observe-agent，agent 只按逻辑 file 名查询预注册日志或 stat 文件。
@@ -72,6 +81,10 @@ agent 初始化失败默认只应记录 warn 并让业务继续启动。只有�
 `Stat` / `Statf` 生成 `KindStat` 事件。入口层可以使用 `runtime.KindRouter`、
 `runtime.MultiSink` 和 `runtime.AsyncSink` 将打点路由到本地 JSONL、observe-agent、
 外部打点日志服务器或测试 recorder。业务代码不判断输出目标。
+
+AsyncSink 需显式 `Start(ctx)`；队列满会丢弃并累计 `Dropped()`，底层写入错误不自动重试。
+要排空队列时先停止生产者并调用 Close，再取消 worker context 和关闭底层 sink；先取消 context 不保证队列排空。
+实现见 [logging](logging/logger.go)、[AsyncSink](runtime/async.go) 和 [agent](agent/agent.go)。
 
 新增功能文件不需要机械打日志；只在启动/恢复、RPC 入口关键失败、外部依赖失败、
 异步 worker、跨期结算和关键状态迁移等边界写日志。日志字段必须能定位主体、周期、

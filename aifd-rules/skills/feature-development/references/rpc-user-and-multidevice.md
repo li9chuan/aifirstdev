@@ -32,7 +32,7 @@ inbox 只标识一条连接上的一次请求，不是 UID 消息通道、业务
 
 每条连接以 Proxy 启动实例 ID 和连接 ID 绑定租约。关闭或到期的旧引用不能被迟到心跳复活；加载用户不会续期。业务心跳先校验业务条件，再 `users.RenewConnection(s)`，最后返回自己的强类型 PB。没有业务心跳时可以启用 `WithDefaultHeartbeat()`。
 
-认证成功后启动 SDK 心跳，Probe 使用有期限的强类型 Request；关闭客户端时停止。Go Probe 必须遵守 Context。失联通知只触发一次；显式停止或关闭不报失联。Proxy 本地 Pong 不能证明业务服存活。业务服重启后客户端必须重新鉴权连接，不能只按 UID 恢复在线状态。
+认证成功后启动 SDK 心跳，Probe 使用有期限的强类型 Request；关闭客户端时停止。Go Probe 必须遵守 Context。失联通知只触发一次；显式停止或关闭不报失联。Proxy 本地 Pong 不能证明业务服存活，也不续期 UserRuntime 租约；业务续租 topic 不与 Proxy 的 PingTopic 冲突。业务服重启后客户端必须重新鉴权连接，不能只按 UID 恢复在线状态。
 
 ## 验证
 

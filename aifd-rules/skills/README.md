@@ -1,6 +1,7 @@
 # aiFirstDev Skills Map
 
 这份索引用于选择 aiFirstDev 的项目级和框架级 skill。具体业务项目可以在此基础上追加自己的业务 skill。
+如果需要的是接入用法、设计依据或实现文件，从[文档与代码导航](../../docs/README.md)查找，不需要先读全部 skill。
 
 ## 默认选择顺序
 
@@ -35,7 +36,7 @@
   - 用于 `aifd-config`、Luban/cfgtable 适配、typed bundle、validator、manifest diff 和热更边界。
 - [service-entrypoint-development](service-entrypoint-development/SKILL.md)
   - 用于 CLI、service、gateway、worker、example 的启动链和进程级 wiring；proxy/game/world
-    split-mode 入口和 config/observe 注入模板优先读取它。
+    split-mode 入口、原生 HTTPS/WSS、TLS/ACME 以及 config/observe 注入模板优先读取它。
 - [runtime-module-development](runtime-module-development/SKILL.md)
   - 用于 `aifd-runtime` 的 user/service/User/module/lifecycle 和业务 runtime feature 接入；重点判断 runtime 只拥有生命周期和模块编排，不拥有具体业务状态与协议。
 - [robot-module-development](robot-module-development/SKILL.md)
@@ -45,13 +46,13 @@
 - [ant-design-ui-development](ant-design-ui-development/SKILL.md)
   - 用于 Ant Design React UI 开发；需要查询组件 API、demo、token、semantic DOM、doctor/lint/migrate、MCP、CLI、LLMs.txt 或 X Skills 边界时读取。
 - [feature-development](feature-development/SKILL.md)
-  - 用于业务项目 feature 的 user/service 归属、目录、协议配置和测试接入。
+  - 用于业务项目 feature 的 user/service 归属、目录、协议配置、[持久化选型](feature-development/references/rdb-selection.md)和测试接入。
 
 ## 前端和桌面开发
 
 - 桌面应用先读取 [desktop-app-development](desktop-app-development/SKILL.md)，再按 UI 组件需求叠加 [ant-design-ui-development](ant-design-ui-development/SKILL.md)。
 - Ant Design MCP、CLI、LLMs.txt 和 X Skills 都是开发期辅助；普通 desktool 运行时不默认接 A2UI、XCard 或在线 Agent。
-- Wails CLI 由 `aifd-tools` 按需管理，使用 `aifd tools install --tool wails`；NSIS 是 Windows 安装器环境，首版不自动安装。
+- Wails CLI 和 Windows NSIS 由 `aifd-tools` 按需管理，使用 `aifd tools install --tool wails` 或 `--tool nsis`，两者均不进入默认安装集合。
 - 桌面应用中的 WS/PB、缓存、数据分析和更新下载/安装启动默认放 Go binding 后端，React 只负责 UI 展示和轻量交互态。
 
 ## 交付格式

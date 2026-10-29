@@ -9,8 +9,15 @@
 `aifd-auth` 不 import 业务 proto，也不保存 `accountID`、`ownerID` 这类业务字段；
 这些基础数据由业务登录 payload 承载，例如 minigame 的 `MAuthPayload`。
 
-后续如果需要非对称签名、JWKS 或 key rotation，仍应保持业务 feature 只接触登录结果，
-不直接处理签名细节。
+## 接入与 key 更换
+
+账号入口用 `NewSigner(Key{ID, Secret}, Options{})` 构造签名器，对业务 payload bytes 调用
+`Sign(payload, SignOptions{IssuedAt, ExpiresAt})`。Proxy 用 `NewVerifier([]Key{...}, Options{})`
+构造验签器，对相同 bytes 调用 `Verify(payload, token)`；业务层仍需解释身份和权限。
+
+当前已支持 key ID 和多 key 验签，可由宿主在过渡期保留旧 key、用新 key 签发；构造时会拷贝 key，
+配置变更需要显式重建并替换实例。尚无自动轮换、JWKS、非对称签名或撤销查询。
+Token 不嵌入也不加密业务 payload，传输保护使用 HTTPS/WSS。精确 API 见 [token.go](token/token.go)。
 
 ## 相关文档
 

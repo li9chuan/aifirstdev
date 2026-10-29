@@ -13,7 +13,7 @@
 - 进程内 router、delivery、runner、callback timeout 和统计行为。
 - Local adapter，用于本进程 RPC、单测、runtime 回环和 mock。
 - NATS adapter，用于 `RPC.` request/reply、`S.` client push 和 `js.` JetStream 事件。
-- 反射式 protobuf handler binding，用于兼容 `func(uid, *Req)`、`func(session, *Req) *Rsp` 等写法。
+- 旧 `binding/proto` 中保留的反射绑定兼容入口；新业务使用顶层 Session + PB 门面。
 
 ## 不负责
 
@@ -52,6 +52,13 @@ Local Bus 通过 UID 订阅直接投递当前事件，不保存推送历史。�
 - `rpcpb` 子包保留为 deprecated 兼容别名；新业务代码直接使用顶层 `rpc`。
 - `binding/proto` 保留为迁移兼容辅助；新业务代码优先使用顶层 `rpc`。
 - 业务 protobuf 不进入 `aifd-rpc`。
+
+宿主先恢复业务模块并完成注册，再 `rpc.Start(ctx, bus, reg)` 安装并启动 runner，或显式 Install + Run。
+Bus 仍由宿主构造和 Close。当前 `rpc.Start` 以 background context 启动 runner；显式 Install +
+`rpc.Run(ctx, bus)` 可将宿主 context 传给 delivery/handler，但取消 context 不会停止 runner 的取消息循环。
+两种接线都以 Bus 的 Deliveries channel 结束作为消费退出条件。`rpc.Start` 不暴露 runner 等待接口；
+需要确认排空时，由宿主显式 Install + Run 并保留 Run 的完成信号，关闭 Bus、等待 Run 返回后再关闭 handler 依赖。
+实现和完整签名见 [facade.go](facade.go)、[registry.go](registry.go) 和 [Session](session.go)。
 
 默认 header 语义：
 

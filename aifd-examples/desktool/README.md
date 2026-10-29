@@ -61,7 +61,8 @@ wails3 dev -config ./build/config.yml -port 5173
 绑定由 `wails3 generate bindings -ts -i -names` 生成，不能手工编辑。
 
 浏览器预览需在 `frontend` 目录显式运行 `npm run dev`（preview 模式）。
-原生开发使用 `npm run dev:native`；原生和生产模式只调用 Go 绑定，启动失败会显示错误，不自动切换到模拟数据。
+原生开发由 `wails3 dev` 启动桌面进程；`npm run dev:native` 只是它使用的前端服务，不会单独启动 Wails 窗口。
+原生和生产模式只调用 Go 绑定，启动失败会显示错误，不自动切换到模拟数据。
 
 Windows 发布包可使用 NSIS installer：
 
@@ -72,6 +73,7 @@ wails3 package VERSION=0.1.2
 NSIS 是 Windows 安装器，不是运行时热更新。`desktool` 的更新流程是：检查 manifest、下载新的 `.exe` 安装包、校验 sha256、启动安装器、让用户完成覆盖安装。
 
 Wails 和 NSIS 需要预先准备；NSIS 可在 PATH 中提供，或通过 `AIFD_MAKENSIS` 指定。
+也可在仓库根目录显式运行 `go run ./aifd-tools/cmd/aifd tools install --tool nsis`，按 [Tools 说明](../../aifd-tools/README.md)将安装目录加入 PATH。
 打包命令不会自动安装系统工具，`VERSION` 同时写入程序版本、Windows 资源和安装器。
 `build/bin`、`build/tmp`、临时 `.syso` 和 `build/windows/nsis/MicrosoftEdgeWebview2Setup.exe`
 是本地构建输出。图标、manifest、安装脚本和生成的 TypeScript 绑定保留在版本控制中。

@@ -2,9 +2,9 @@
 
 [English](./README.md) | 简体中文
 
-**v0.6.0 新增可选原生 HTTPS/WSS、免费证书自动申请和续期，完善文档导航与业务持久化选型。API 仍可能发生不兼容变更。**
+**v0.6.1 完善 AI 开发中的上下文、工具证据和验证修复规则，补充复杂任务的目标与取舍。API 仍可能发生不兼容变更。**
 
-升级与能力边界见 [v0.6.0 发布说明](docs/releases/v0.6.0.md)；更早版本的邮件迁移要求见 [v0.5.0](docs/releases/v0.5.0.md)。
+本次规则更新见 [v0.6.1 发布说明](docs/releases/v0.6.1.md)；HTTPS/WSS 接入与边界见 [v0.6.0](docs/releases/v0.6.0.md)，更早版本的邮件迁移要求见 [v0.5.0](docs/releases/v0.5.0.md)。
 文档随所在源码快照维护，业务项目使用所锁定版本的文档和规则。
 
 本版本要求 Go 1.27.3 或更新版本；前端开发使用 Node.js 24.22.1 LTS 或更新的 24.x 版本。
@@ -106,8 +106,8 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 使用统一框架版本：
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.6.0
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.6.0
+go get github.com/li9chuan/aifirstdev@v0.6.1
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.6.1
 ```
 
 框架、CLI 和官方插件共用根 `go.mod/go.sum`，一次发版只使用一个根标签。

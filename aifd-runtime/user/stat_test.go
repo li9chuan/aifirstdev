@@ -10,16 +10,21 @@ import (
 	"testing"
 
 	"github.com/li9chuan/aifirstdev/aifd-log"
+	"github.com/li9chuan/aifirstdev/aifd-log/testdata/other"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type runtimeStatJob struct {
+type JobFinished struct {
 	Result string `stat:"result"`
 }
 
-type runtimeStatLogin struct {
+type LoginSucceeded struct {
 	Method string `stat:"method"`
+}
+
+type runtimeStatCollision struct {
+	UID int64 `stat:"uid"`
 }
 
 type runtimeStatHeader struct {
@@ -33,19 +38,17 @@ type runtimeStatHeader struct {
 
 type runtimeStatModule struct {
 	*testModule
-	events     []logging.StatSchema
 	routes     int
 	emitOnLoad bool
 }
 
-func (m *runtimeStatModule) StatEvents() []logging.StatSchema { return m.events }
-func (m *runtimeStatModule) RegisterRPC(*rpc.Registry) error  { m.routes++; return nil }
+func (m *runtimeStatModule) RegisterRPC(*rpc.Registry) error { m.routes++; return nil }
 func (m *runtimeStatModule) OnLoad(ctx context.Context, owner *User[*wrapperspb.Int64Value]) error {
 	if err := m.testModule.OnLoad(ctx, owner); err != nil {
 		return err
 	}
 	if m.emitOnLoad {
-		owner.Stat(runtimeStatJob{Result: "loaded"})
+		owner.Stat(JobFinished{Result: "loaded"})
 	}
 	return nil
 }
@@ -72,25 +75,22 @@ func setupRuntimeStat(t *testing.T, enabled bool) string {
 	return path
 }
 
-func TestUserStatCollectsInitialAndAppendedFeaturesAndBuildsEachHeader(t *testing.T) {
+func TestUserStatDiscoversEventsOnUseAndBuildsEachHeader(t *testing.T) {
 	ctx := context.Background()
 	path := setupRuntimeStat(t, true)
 	setupMemoryDB(t)
-	first := &runtimeStatModule{testModule: &testModule{}, events: []logging.StatSchema{logging.DefineStat[runtimeStatJob]("job_finished", 2)}, emitOnLoad: true}
-	second := &runtimeStatModule{testModule: &testModule{}, events: []logging.StatSchema{
-		first.events[0], // Repeated definitions do not duplicate records.
-		logging.DefineStat[runtimeStatLogin]("login_succeeded", 1),
-	}}
+	first := &runtimeStatModule{testModule: &testModule{}, emitOnLoad: true}
+	second := &runtimeStatModule{testModule: &testModule{}}
 	modules := NewManager[*wrapperspb.Int64Value](first)
 	modules.Register(second)
 	captures := 0
-	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), modules, WithStatHeader(func(owner *User[*wrapperspb.Int64Value], event logging.StatSchema) runtimeStatHeader {
+	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), modules, WithStatHeader(func(owner *User[*wrapperspb.Int64Value], eventName string) runtimeStatHeader {
 		captures++
 		var state int64
 		if err := owner.Read(func(value *wrapperspb.Int64Value) { state = value.Value }); err != nil {
 			t.Fatal(err)
 		}
-		return runtimeStatHeader{9, event.Name, event.Version, owner.UID(), state, captures}
+		return runtimeStatHeader{9, eventName, 2, owner.UID(), state, captures}
 	}))
 	if err := rt.RegisterRPC(); err != nil {
 		t.Fatal(err)
@@ -102,13 +102,13 @@ func TestUserStatCollectsInitialAndAppendedFeaturesAndBuildsEachHeader(t *testin
 	if err := u.Mutate(ctx, func(value *wrapperspb.Int64Value) error { value.Value = 77; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	u.Stat(runtimeStatJob{Result: "success"})
+	u.Stat(JobFinished{Result: "success"})
 	other, err := rt.CreateUser(ctx, 1002)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other.Stat(&runtimeStatJob{Result: "other"})
-	other.Stat(runtimeStatLogin{Method: "token"})
+	other.Stat(&JobFinished{Result: "other"})
+	other.Stat(LoginSucceeded{Method: "token"})
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -118,11 +118,11 @@ func TestUserStatCollectsInitialAndAppendedFeaturesAndBuildsEachHeader(t *testin
 		t.Fatal(err)
 	}
 	want := [][]string{
-		{"9", "job_finished", "2", "1001", "1001", "1", "loaded"},
-		{"9", "job_finished", "2", "1001", "77", "2", "success"},
-		{"9", "job_finished", "2", "1002", "1002", "3", "loaded"},
-		{"9", "job_finished", "2", "1002", "1002", "4", "other"},
-		{"9", "login_succeeded", "1", "1002", "1002", "5", "token"},
+		{"9", "JobFinished", "2", "1001", "1001", "1", "loaded"},
+		{"9", "JobFinished", "2", "1001", "77", "2", "success"},
+		{"9", "JobFinished", "2", "1002", "1002", "3", "loaded"},
+		{"9", "JobFinished", "2", "1002", "1002", "4", "other"},
+		{"9", "LoginSucceeded", "2", "1002", "1002", "5", "token"},
 	}
 	if !reflect.DeepEqual(rows, want) || first.routes != 1 || second.routes != 1 {
 		t.Fatalf("rows=%#v routes=%d/%d", rows, first.routes, second.routes)
@@ -132,16 +132,60 @@ func TestUserStatCollectsInitialAndAppendedFeaturesAndBuildsEachHeader(t *testin
 	}
 }
 
-func TestUserStatRegistrationConflictPrecedesAllBusinessRoutes(t *testing.T) {
+func TestUserStatCrossPackageNameConflictIsReportedWithoutChangingUser(t *testing.T) {
 	setupRuntimeStat(t, true)
-	first := &runtimeStatModule{testModule: &testModule{}, events: []logging.StatSchema{logging.DefineStat[runtimeStatJob]("job", 1)}}
-	second := &runtimeStatModule{testModule: &testModule{}, events: []logging.StatSchema{logging.DefineStat[runtimeStatJob]("different", 1)}}
-	rt := NewRuntime(rpc.NewRegistry(), (*Store[*wrapperspb.Int64Value])(nil), NewManager[*wrapperspb.Int64Value](first, second))
-	if err := rt.RegisterRPC(); err == nil || !strings.Contains(err.Error(), "already binds") {
-		t.Fatalf("conflict=%v", err)
+	setupMemoryDB(t)
+	module := &runtimeStatModule{testModule: &testModule{}}
+	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), NewManager[*wrapperspb.Int64Value](module), WithStatHeader(
+		func(owner *User[*wrapperspb.Int64Value], eventName string) runtimeStatHeader {
+			return runtimeStatHeader{Event: eventName, UID: owner.UID()}
+		},
+	))
+	if err := rt.RegisterRPC(); err != nil {
+		t.Fatal(err)
 	}
-	if first.routes != 0 || second.routes != 0 {
-		t.Fatal("business routes were registered before stat validation")
+	u, err := rt.CreateUser(context.Background(), 1001)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Stat(JobFinished{Result: "success"})
+	u.Stat(other.JobFinished{Result: "conflicting"})
+	if got := logging.GetStatCounters(); got.RecordErrors != 1 || got.LocalWritten != 1 || u.Snapshot().Value != 1001 {
+		t.Fatalf("counters=%+v user=%v", got, u.Snapshot())
+	}
+	if module.routes != 1 {
+		t.Fatal("event discovery changed business route registration")
+	}
+}
+
+func TestUserStatInvalidPayloadSkipsHeaderAndLeavesUserUnchanged(t *testing.T) {
+	path := setupRuntimeStat(t, true)
+	setupMemoryDB(t)
+	captures := 0
+	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), nil, WithStatHeader(
+		func(owner *User[*wrapperspb.Int64Value], eventName string) runtimeStatHeader {
+			captures++
+			return runtimeStatHeader{Event: eventName, UID: owner.UID()}
+		},
+	))
+	u, err := rt.CreateUser(context.Background(), 1001)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, payload := range []any{(*JobFinished)(nil), struct{}{}, 42} {
+		u.Stat(payload)
+	}
+	if got := logging.GetStatCounters(); got.RecordErrors != 3 || got.LocalWritten != 0 || captures != 0 || u.Snapshot().Value != 1001 {
+		t.Fatalf("counters=%+v captures=%d user=%v", got, captures, u.Snapshot())
+	}
+	u.Stat(&JobFinished{Result: "valid pointer"})
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(strings.NewReader(string(raw))).ReadAll()
+	if err != nil || len(rows) != 1 || rows[0][1] != "JobFinished" || rows[0][6] != "valid pointer" || captures != 1 {
+		t.Fatalf("rows=%v captures=%d err=%v", rows, captures, err)
 	}
 }
 
@@ -149,11 +193,11 @@ func TestUserStatHeaderValidationRejectsWrongUserNilBuilderAndUnsupportedFields(
 	type invalidHeader struct {
 		Data map[string]int `stat:"data"`
 	}
-	var nilBuilder func(*User[*wrapperspb.Int64Value], logging.StatSchema) runtimeStatHeader
+	var nilBuilder func(*User[*wrapperspb.Int64Value], string) runtimeStatHeader
 	for name, option := range map[string]Option{
-		"wrong user type": WithStatHeader(func(*User[*wrapperspb.StringValue], logging.StatSchema) runtimeStatHeader { return runtimeStatHeader{} }),
+		"wrong user type": WithStatHeader(func(*User[*wrapperspb.StringValue], string) runtimeStatHeader { return runtimeStatHeader{} }),
 		"nil builder":     WithStatHeader(nilBuilder),
-		"invalid header":  WithStatHeader(func(*User[*wrapperspb.Int64Value], logging.StatSchema) invalidHeader { return invalidHeader{} }),
+		"invalid header":  WithStatHeader(func(*User[*wrapperspb.Int64Value], string) invalidHeader { return invalidHeader{} }),
 	} {
 		t.Run(name, func(t *testing.T) {
 			setupRuntimeStat(t, true)
@@ -168,8 +212,8 @@ func TestUserStatHeaderValidationRejectsWrongUserNilBuilderAndUnsupportedFields(
 func TestUserStatDisabledDoesNotReadApplicationHeader(t *testing.T) {
 	setupRuntimeStat(t, false)
 	setupMemoryDB(t)
-	module := &runtimeStatModule{testModule: &testModule{}, events: []logging.StatSchema{logging.DefineStat[runtimeStatJob]("job", 1)}}
-	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), NewManager[*wrapperspb.Int64Value](module), WithStatHeader(func(*User[*wrapperspb.Int64Value], logging.StatSchema) runtimeStatHeader {
+	module := &runtimeStatModule{testModule: &testModule{}}
+	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), NewManager[*wrapperspb.Int64Value](module), WithStatHeader(func(*User[*wrapperspb.Int64Value], string) runtimeStatHeader {
 		t.Fatal("disabled stat called header builder")
 		return runtimeStatHeader{}
 	}))
@@ -180,7 +224,7 @@ func TestUserStatDisabledDoesNotReadApplicationHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u.Stat(runtimeStatJob{})
+	u.Stat(JobFinished{})
 	if counters := logging.GetStatCounters(); counters != (logging.StatCounters{}) {
 		t.Fatalf("disabled counters=%+v", counters)
 	}
@@ -189,7 +233,7 @@ func TestUserStatDisabledDoesNotReadApplicationHeader(t *testing.T) {
 func TestUserStatMissingBuilderReportsFailureWithoutChangingUser(t *testing.T) {
 	setupRuntimeStat(t, true)
 	setupMemoryDB(t)
-	module := &runtimeStatModule{testModule: &testModule{}, events: []logging.StatSchema{logging.DefineStat[runtimeStatJob]("job", 1)}}
+	module := &runtimeStatModule{testModule: &testModule{}}
 	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), NewManager[*wrapperspb.Int64Value](module))
 	if err := rt.RegisterRPC(); err != nil {
 		t.Fatal(err)
@@ -198,22 +242,50 @@ func TestUserStatMissingBuilderReportsFailureWithoutChangingUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u.Stat(runtimeStatJob{})
+	u.Stat(JobFinished{})
 	if counters := logging.GetStatCounters(); counters.RecordErrors != 1 || counters.LocalWritten != 0 || u.Snapshot().Value != 1001 {
 		t.Fatalf("counters=%+v", counters)
 	}
 }
 
-func TestUserRejectsHeaderAndOwnedEventColumnCollisionBeforeRoutes(t *testing.T) {
+func TestUserStatHeaderEventCollisionIsReportedOnFirstUse(t *testing.T) {
 	setupRuntimeStat(t, true)
-	type collision struct {
-		UID int64 `stat:"uid"`
-	}
-	module := &runtimeStatModule{testModule: &testModule{}, events: []logging.StatSchema{logging.DefineStat[collision]("collision", 1)}}
-	rt := NewRuntime(rpc.NewRegistry(), (*Store[*wrapperspb.Int64Value])(nil), NewManager[*wrapperspb.Int64Value](module), WithStatHeader(
-		func(*User[*wrapperspb.Int64Value], logging.StatSchema) runtimeStatHeader { return runtimeStatHeader{} },
+	setupMemoryDB(t)
+	module := &runtimeStatModule{testModule: &testModule{}}
+	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), NewManager[*wrapperspb.Int64Value](module), WithStatHeader(
+		func(*User[*wrapperspb.Int64Value], string) runtimeStatHeader { return runtimeStatHeader{} },
 	))
-	if err := rt.RegisterRPC(); err == nil || module.routes != 0 {
-		t.Fatalf("error=%v routes=%d", err, module.routes)
+	if err := rt.RegisterRPC(); err != nil {
+		t.Fatal(err)
+	}
+	u, err := rt.CreateUser(context.Background(), 1001)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Stat(runtimeStatCollision{UID: 7})
+	if got := logging.GetStatCounters(); got.RecordErrors != 1 || got.LocalWritten != 0 || module.routes != 1 {
+		t.Fatalf("counters=%+v routes=%d", got, module.routes)
+	}
+	u.Stat(JobFinished{Result: "valid"})
+	if got := logging.GetStatCounters().LocalWritten; got != 1 {
+		t.Fatalf("valid event after failure: %d", got)
+	}
+}
+
+func TestUserStatNeedsNoFeatureOrRPCRegistration(t *testing.T) {
+	setupRuntimeStat(t, true)
+	setupMemoryDB(t)
+	rt := NewRuntime(rpc.NewRegistry(), newInt64Store(t), nil, WithStatHeader(
+		func(owner *User[*wrapperspb.Int64Value], eventName string) runtimeStatHeader {
+			return runtimeStatHeader{Event: eventName, UID: owner.UID()}
+		},
+	))
+	u, err := rt.CreateUser(context.Background(), 1001)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Stat(JobFinished{Result: "standalone"})
+	if got := logging.GetStatCounters(); got.LocalWritten != 1 || got.RecordErrors != 0 {
+		t.Fatalf("counters=%+v", got)
 	}
 }

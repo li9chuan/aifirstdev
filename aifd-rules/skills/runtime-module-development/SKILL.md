@@ -64,10 +64,10 @@ description: 开发 aifd-runtime、业务 runtime feature 模块或可选功能�
 
 ### Typed Stat 接线
 
-- user/service module 可实现 `aifd-log` 的 `logging.StatEventProvider`，沿已有模块列表在 `RegisterRPC` 的业务路由前批量校验并注册；启动前 `Manager.Register` 追加的模块同样覆盖。
-- `WithStatHeader` 绑定应用头回调，User 初始化时在 OnLoad 前继承；`User.Stat(payload)` 在当前调用完成头与编码，异步出口只接收成品文本。
-- 框架不定义业务头字段、HeaderName、头版本或平台转换。包装内部 feature 的模块显式转交 `StatEvents()`，不增加全局业务扫描。
-- 宿主先 `logging.InitDefault`、后模块注册；停服先停生产者再关闭日志。文件和转发契约见 [Typed Stat](../../../docs/stat.md)。
+- 事件直接使用具名 struct 或非 nil 指针，`aifd-log` 从类型名取得事件名并检查跨类型同名冲突；不声明身份方法或框架版本。User 和独立服务任务直接记录事件，不枚举 feature 定义，也不依赖 RPC 注册；类型重命名需同步消费端映射。
+- `WithStatHeader` 绑定 `func(owner *User[T], eventName string) H` 应用头回调，User 初始化时在 OnLoad 前继承；`User.Stat(payload)` 在当前调用完成头与编码，异步出口只接收成品文本。
+- `RegisterRPC` 保留头回调与头字段检查；事件布局、身份冲突及头与事件的组合冲突在使用时检查，记录失败不能回滚业务。默认应用头示例为 `Time、EventName、UID`，时间构造成 `2006-01-02 15:04:05` 字符串；具体字段和版本仍由业务决定。
+- 宿主先 `logging.InitDefault`、后启动生产者；不恢复事件清单接口或全局扫描。停服先停生产者再关闭日志，见 [Typed Stat](../../../docs/stat.md)。
 
 ### 加载与关闭
 

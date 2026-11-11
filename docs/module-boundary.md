@@ -46,8 +46,10 @@
 
 logging 是少数允许全局门面的横切能力。业务和框架代码通过 `aifd-log` 使用 `logging.Info/Warn/Error`、格式化 helper 与 typed Stat；不保留旧 `aifd-observe` 日志路径或默认 Sink 全局入口。不要新增 `share.Log`、`share.Stat` 或通用全局依赖中心。
 
-Typed Stat 的定义、编码、本地追加与可选转发归 `aifd-log`；feature 发现与 User
-公共头接线归 `aifd-runtime`。头字段和版本、接收服务、补录与数据消费归项目；成品 Stat
+Typed Stat 的结构体事件名、首次使用校验与缓存、编码、本地追加及可选转发归 `aifd-log`；User
+公共头接线归 `aifd-runtime`。事件名直接取具名 struct 的类型名，值和指针共用身份，跨类型
+同名冲突在使用时拒绝；runtime 不收集 feature 事件清单，头回调只接收事件名字符串。
+头字段和版本、时间格式、接收服务、补录与数据消费归项目；成品 Stat
 转发不要求 observe-agent，也不引入框架聚合服务，见 [Stat](stat.md)。
 
 普通日志默认文本、Stat 保持 CSV，共用 Lumberjack 文件组件，默认 1 GiB 与本地自然日

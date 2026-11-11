@@ -26,17 +26,18 @@ type statTestHeader struct {
 	UID           int64     `stat:"uid"`
 }
 
-type statTestJob struct {
+type JobFinished struct {
 	JobType string `stat:"job_type"`
 	Count   int64  `stat:"count"`
 }
 
-type statTestLogin struct {
+type LoginSucceeded struct {
 	Method string `stat:"method"`
 }
 
-func statTestBuild(event StatSchema) any {
-	return statTestHeader{9, event.Name, event.Version, time.Date(2026, 1, 2, 3, 4, 5, 123, time.UTC), 1001}
+func statTestBuild(eventName string) any {
+	// Both versions are application-owned columns, independent of type naming.
+	return statTestHeader{9, eventName, 2, time.Date(2026, 1, 2, 3, 4, 5, 123, time.UTC), 1001}
 }
 
 func initStatTest(t *testing.T, config StatConfig) (string, CloseFunc) {
@@ -77,25 +78,22 @@ func readStatRows(t *testing.T, path string) [][]string {
 
 func TestTypedStatCSVPreservesHeaderOrderVersionsAndEscaping(t *testing.T) {
 	path, closeLog := initStatTest(t, StatConfig{})
-	if err := RegisterStatHeader[statTestHeader](); err != nil {
-		t.Fatal(err)
-	}
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job_finished", 2), DefineStat[statTestLogin]("login_succeeded", 1)); err != nil {
+	if err := ValidateStatHeader[statTestHeader](); err != nil {
 		t.Fatal(err)
 	}
 	text := "import,\"quoted\"\n你好"
-	if err := RecordStat(&statTestJob{text, 0}, statTestBuild); err != nil {
+	if err := RecordStat(&JobFinished{text, 0}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
-	if err := RecordStat(statTestLogin{"password"}, statTestBuild); err != nil {
+	if err := RecordStat(LoginSucceeded{"password"}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	if err := closeLog(); err != nil {
 		t.Fatal(err)
 	}
 	want := [][]string{
-		{"9", "job_finished", "2", "2026-01-02T03:04:05.000000123Z", "1001", text, "0"},
-		{"9", "login_succeeded", "1", "2026-01-02T03:04:05.000000123Z", "1001", "password"},
+		{"9", "JobFinished", "2", "2026-01-02T03:04:05.000000123Z", "1001", text, "0"},
+		{"9", "LoginSucceeded", "2", "2026-01-02T03:04:05.000000123Z", "1001", "password"},
 	}
 	if got := readStatRows(t, path); !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows = %#v, want %#v", got, want)
@@ -110,10 +108,7 @@ func TestStatHeaderIsEntirelyApplicationOwned(t *testing.T) {
 	type customHeader struct {
 		Tenant string `stat:"tenant"`
 	}
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(statTestJob{"import", 1}, func(StatSchema) any { return customHeader{"tenant-7"} }); err != nil {
+	if err := RecordStat(JobFinished{"import", 1}, func(string) any { return customHeader{"tenant-7"} }); err != nil {
 		t.Fatal(err)
 	}
 	if got := readStatRows(t, path); !reflect.DeepEqual(got, [][]string{{"tenant-7", "import", "1"}}) {
@@ -124,10 +119,7 @@ func TestStatHeaderIsEntirelyApplicationOwned(t *testing.T) {
 func TestStatLogSuffixPreservesRawCSVAndReopensInAppendMode(t *testing.T) {
 	dir := t.TempDir()
 	path, closeLog := initStatTest(t, StatConfig{LocalPath: filepath.Join(dir, "stat.log")})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(statTestJob{"first", 1}, statTestBuild); err != nil {
+	if err := RecordStat(JobFinished{"first", 1}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	Info("ordinary log stays separate")
@@ -135,10 +127,7 @@ func TestStatLogSuffixPreservesRawCSVAndReopensInAppendMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, closeReopened := initStatTest(t, StatConfig{LocalPath: path})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(statTestJob{"second", 2}, statTestBuild); err != nil {
+	if err := RecordStat(JobFinished{"second", 2}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	if err := closeReopened(); err != nil {
@@ -147,79 +136,6 @@ func TestStatLogSuffixPreservesRawCSVAndReopensInAppendMode(t *testing.T) {
 	rows := readStatRows(t, path)
 	if len(rows) != 2 || rows[0][5] != "first" || rows[1][5] != "second" {
 		t.Fatalf("Stat file was wrapped as JSON, mixed with ordinary logs or truncated: %#v", rows)
-	}
-}
-
-func TestStatRegistrationIsAtomicAndIdenticalDefinitionsAreIdempotent(t *testing.T) {
-	initStatTest(t, StatConfig{})
-	job := DefineStat[statTestJob]("job", 1)
-	if err := RegisterStatEvents(job, job, DefineStat[*statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 2)); err == nil {
-		t.Fatal("one type accepted two identities")
-	}
-	type conflicting struct {
-		Value string `stat:"value"`
-	}
-	if err := RegisterStatEvents(DefineStat[statTestLogin]("login", 1), DefineStat[conflicting]("job", 1)); err == nil {
-		t.Fatal("one identity accepted different structs")
-	}
-	if err := RecordStat(statTestLogin{}, statTestBuild); err == nil || !strings.Contains(err.Error(), "not registered") {
-		t.Fatalf("failed batch partially registered login: %v", err)
-	}
-	if err := RecordStat(statTestJob{}, statTestBuild); err != nil {
-		t.Fatalf("failed batch damaged original definition: %v", err)
-	}
-}
-
-func TestInvalidStatDefinitionsAndHeaderCollisionsFailBeforeWriting(t *testing.T) {
-	type missingTag struct{ Value string }
-	type nested struct {
-		Value []int `stat:"value"`
-	}
-	type duplicate struct {
-		A string `stat:"value"`
-		B string `stat:"value"`
-	}
-	for name, event := range map[string]StatSchema{
-		"missing tag":     DefineStat[missingTag]("missing", 1),
-		"unsupported":     DefineStat[nested]("nested", 1),
-		"duplicate":       DefineStat[duplicate]("duplicate", 1),
-		"scalar":          DefineStat[int]("scalar", 1),
-		"name":            DefineStat[statTestJob]("", 1),
-		"version":         DefineStat[statTestJob]("job", 0),
-		"zero definition": {Name: "zero", Version: 1},
-	} {
-		t.Run(name, func(t *testing.T) {
-			initStatTest(t, StatConfig{})
-			if err := RegisterStatEvents(event); err == nil {
-				t.Fatal("invalid definition accepted")
-			}
-		})
-	}
-	type collision struct {
-		UID int64 `stat:"uid"`
-	}
-	for _, headerFirst := range []bool{false, true} {
-		t.Run(fmt.Sprint("header_first=", headerFirst), func(t *testing.T) {
-			initStatTest(t, StatConfig{})
-			if headerFirst {
-				if err := RegisterStatHeader[statTestHeader](); err != nil {
-					t.Fatal(err)
-				}
-			}
-			event := DefineStat[collision]("collision", 1)
-			if err := RegisterStatEvents(event); err != nil {
-				t.Fatal(err)
-			}
-			if err := RegisterStatHeader[statTestHeader](event); err == nil {
-				t.Fatal("header/event column collision accepted")
-			}
-			if err := RecordStat(collision{}, statTestBuild); err == nil {
-				t.Fatal("colliding row accepted at write time")
-			}
-		})
 	}
 }
 
@@ -252,12 +168,9 @@ func TestTypedStatFreezesValuesBeforeHTTPForwarding(t *testing.T) {
 		}
 		return response.Body.Close()
 	}})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	header := statTestBuild(DefineStat[statTestJob]("job", 1)).(statTestHeader)
-	payload := &statTestJob{"original", 7}
-	if err := RecordStat(payload, func(StatSchema) any { return &header }); err != nil {
+	header := statTestBuild("JobFinished").(statTestHeader)
+	payload := &JobFinished{"original", 7}
+	if err := RecordStat(payload, func(string) any { return &header }); err != nil {
 		t.Fatal(err)
 	}
 	payload.JobType, header.UID = "changed", 999
@@ -284,11 +197,8 @@ func TestTypedStatFreezesValuesBeforeHTTPForwarding(t *testing.T) {
 
 func TestUnavailableForwarderDoesNotChangeLocalRecords(t *testing.T) {
 	path, closeLog := initStatTest(t, StatConfig{Forward: func(context.Context, string) error { return errors.New("receiver unavailable") }})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
 	for i := range 4 {
-		if err := RecordStat(statTestJob{"import", int64(i)}, statTestBuild); err != nil {
+		if err := RecordStat(JobFinished{"import", int64(i)}, statTestBuild); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -317,10 +227,7 @@ func TestFullForwardQueueDropsOnlyRemoteCopies(t *testing.T) {
 		}
 		return nil
 	}})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(statTestJob{"first", 1}, statTestBuild); err != nil {
+	if err := RecordStat(JobFinished{"first", 1}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -329,7 +236,7 @@ func TestFullForwardQueueDropsOnlyRemoteCopies(t *testing.T) {
 		t.Fatal("forward worker did not start")
 	}
 	for _, text := range []string{"queued", "dropped"} {
-		if err := RecordStat(statTestJob{text, 1}, statTestBuild); err != nil {
+		if err := RecordStat(JobFinished{text, 1}, statTestBuild); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -353,10 +260,7 @@ func TestStatCloseIsBoundedAndCancelsRemoteCall(t *testing.T) {
 		close(cancelled)
 		return ctx.Err()
 	}})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(statTestJob{"in flight", 1}, statTestBuild); err != nil {
+	if err := RecordStat(JobFinished{"in flight", 1}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -364,7 +268,7 @@ func TestStatCloseIsBoundedAndCancelsRemoteCall(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("forward did not start")
 	}
-	if err := RecordStat(statTestJob{"pending", 2}, statTestBuild); err != nil {
+	if err := RecordStat(JobFinished{"pending", 2}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	closed := make(chan error, 1)
@@ -382,7 +286,7 @@ func TestStatCloseIsBoundedAndCancelsRemoteCall(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("forward context was not cancelled")
 	}
-	if err := RecordStat(statTestJob{}, statTestBuild); !errors.Is(err, ErrStatClosed) {
+	if err := RecordStat(JobFinished{}, statTestBuild); !errors.Is(err, ErrStatClosed) {
 		t.Fatalf("append after close = %v", err)
 	}
 	if len(readStatRows(t, path)) != 2 || GetStatCounters().ForwardDropped != 1 {
@@ -395,9 +299,6 @@ func TestStatCloseIsBoundedAndCancelsRemoteCall(t *testing.T) {
 
 func TestConcurrentLocalAppendAndCloseHaveNoPartialRecords(t *testing.T) {
 	path, closeLog := initStatTest(t, StatConfig{})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
 	var successful atomic.Int64
 	var wg sync.WaitGroup
 	start := make(chan struct{})
@@ -408,7 +309,7 @@ func TestConcurrentLocalAppendAndCloseHaveNoPartialRecords(t *testing.T) {
 			defer wg.Done()
 			<-start
 			for index := range 80 {
-				err := RecordStat(statTestJob{fmt.Sprint(worker), int64(index)}, statTestBuild)
+				err := RecordStat(JobFinished{fmt.Sprint(worker), int64(index)}, statTestBuild)
 				if err == nil {
 					successful.Add(1)
 				} else if !errors.Is(err, ErrStatClosed) {
@@ -435,24 +336,21 @@ func TestConcurrentLocalAppendAndCloseHaveNoPartialRecords(t *testing.T) {
 
 func TestStatFailuresAreCountedWithoutWritingMalformedRows(t *testing.T) {
 	path, _ := initStatTest(t, StatConfig{})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	for _, payload := range []any{nil, (*statTestJob)(nil), statTestLogin{}} {
+	for _, payload := range []any{nil, (*JobFinished)(nil), statScalar(42)} {
 		if err := RecordStat(payload, statTestBuild); err == nil {
 			t.Fatalf("invalid payload accepted: %#v", payload)
 		}
 	}
-	if err := RecordStat(statTestJob{}, nil); err == nil {
+	if err := RecordStat(JobFinished{}, nil); err == nil {
 		t.Fatal("missing builder accepted")
 	}
-	if err := RecordStat(statTestJob{}, func(StatSchema) any { panic("builder failed") }); err == nil {
+	if err := RecordStat(JobFinished{}, func(string) any { panic("builder failed") }); err == nil {
 		t.Fatal("builder panic was hidden")
 	}
-	if err := RecordStat(statTestJob{}, func(StatSchema) any { return (*statTestHeader)(nil) }); err == nil {
+	if err := RecordStat(JobFinished{}, func(string) any { return (*statTestHeader)(nil) }); err == nil {
 		t.Fatal("nil header accepted")
 	}
-	if err := RecordStat(statTestJob{}, statTestBuild); err != nil {
+	if err := RecordStat(JobFinished{}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	if len(readStatRows(t, path)) != 1 || GetStatCounters().RecordErrors != 6 {
@@ -462,9 +360,6 @@ func TestStatFailuresAreCountedWithoutWritingMalformedRows(t *testing.T) {
 
 func TestStatDisabledSkipsBuilderAndFailedInitPreservesPreviousLogger(t *testing.T) {
 	path, _ := initStatTest(t, StatConfig{})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
 	previous := currentStat()
 	bad := filepath.Join(t.TempDir(), "same.log")
 	for _, config := range []Config{
@@ -481,7 +376,7 @@ func TestStatDisabledSkipsBuilderAndFailedInitPreservesPreviousLogger(t *testing
 			t.Fatal("failed init replaced the active Stat logger")
 		}
 	}
-	if err := RecordStat(statTestJob{}, statTestBuild); err != nil {
+	if err := RecordStat(JobFinished{}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	closeDisabled, err := InitDefault(Config{LocalPath: filepath.Join(t.TempDir(), "disabled.log")})
@@ -489,17 +384,14 @@ func TestStatDisabledSkipsBuilderAndFailedInitPreservesPreviousLogger(t *testing
 		t.Fatal(err)
 	}
 	defer closeDisabled()
-	if err := RecordStat(nil, func(StatSchema) any { t.Fatal("disabled Stat called builder"); return nil }); err != nil {
+	if err := RecordStat(nil, func(string) any { t.Fatal("disabled Stat called builder"); return nil }); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestTypedStatDoesNotDuplicateIntoOrdinaryLog(t *testing.T) {
 	path, _ := initStatTest(t, StatConfig{})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(statTestJob{}, statTestBuild); err != nil {
+	if err := RecordStat(JobFinished{}, statTestBuild); err != nil {
 		t.Fatal(err)
 	}
 	if len(readStatRows(t, path)) != 1 {
@@ -513,12 +405,9 @@ func TestTypedStatDoesNotDuplicateIntoOrdinaryLog(t *testing.T) {
 
 func TestTypedStatSizeRotationKeepsCompleteCSVRecords(t *testing.T) {
 	path, closeLog := initStatTest(t, StatConfig{Rotation: RotationConfig{MaxSizeMB: 1}})
-	if err := RegisterStatEvents(DefineStat[statTestLogin]("login", 1)); err != nil {
-		t.Fatal(err)
-	}
 	method := strings.Repeat("a", 600*1024) + ",\"quoted\"\nsecond line"
 	for i := 0; i < 2; i++ {
-		if err := RecordStat(statTestLogin{Method: method}, statTestBuild); err != nil {
+		if err := RecordStat(LoginSucceeded{Method: method}, statTestBuild); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -555,10 +444,7 @@ func TestStatFileConfigConvertsOutputOptions(t *testing.T) {
 
 func TestStatSingleEmptyFieldIsARealCSVRecord(t *testing.T) {
 	path, _ := initStatTest(t, StatConfig{})
-	if err := RegisterStatEvents(DefineStat[statTestLogin]("empty", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(statTestLogin{}, func(StatSchema) any { return struct{}{} }); err != nil {
+	if err := RecordStat(LoginSucceeded{}, func(string) any { return struct{}{} }); err != nil {
 		t.Fatal(err)
 	}
 	if got := readStatRows(t, path); !reflect.DeepEqual(got, [][]string{{""}}) {
@@ -567,23 +453,11 @@ func TestStatSingleEmptyFieldIsARealCSVRecord(t *testing.T) {
 }
 
 func TestStatSupportsScalarAliasesAndPreservesApplicationTimezone(t *testing.T) {
-	type category string
-	type payload struct {
-		Category category `stat:"category"`
-		Enabled  bool     `stat:"enabled"`
-		Signed   int8     `stat:"signed"`
-		Unsigned uint64   `stat:"unsigned"`
-		Ratio    float32  `stat:"ratio"`
-		Ignored  []int    `stat:"-"`
-	}
 	type header struct {
 		Time time.Time `stat:"occurred_at"`
 	}
 	path, _ := initStatTest(t, StatConfig{})
-	if err := RegisterStatEvents(DefineStat[payload]("scalars", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(payload{"import", true, -2, ^uint64(0), 1.25, nil}, func(StatSchema) any {
+	if err := RecordStat(statScalarEvent{"import", true, -2, ^uint64(0), 1.25, nil}, func(string) any {
 		return header{time.Date(2026, 1, 2, 3, 4, 5, 0, time.FixedZone("app", 8*60*60))}
 	}); err != nil {
 		t.Fatal(err)
@@ -606,11 +480,8 @@ func TestStatForwardTimeoutAndPanicDoNotStopFollowingRecords(t *testing.T) {
 		}
 		return nil
 	}})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
 	for i := range 3 {
-		if err := RecordStat(statTestJob{"import", int64(i)}, statTestBuild); err != nil {
+		if err := RecordStat(JobFinished{"import", int64(i)}, statTestBuild); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -624,13 +495,10 @@ func TestStatForwardTimeoutAndPanicDoNotStopFollowingRecords(t *testing.T) {
 
 func TestStatLocalWriteFailureDoesNotPretendToAcceptARecord(t *testing.T) {
 	path, _ := initStatTest(t, StatConfig{Forward: func(context.Context, string) error { t.Error("unrecorded event was forwarded"); return nil }})
-	if err := RegisterStatEvents(DefineStat[statTestJob]("job", 1)); err != nil {
-		t.Fatal(err)
-	}
 	if err := currentStat().recorder.file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := RecordStat(statTestJob{}, statTestBuild); err == nil {
+	if err := RecordStat(JobFinished{}, statTestBuild); err == nil {
 		t.Fatal("local write failure hidden")
 	}
 	if got := GetStatCounters(); got.LocalWritten != 0 || got.RecordErrors != 1 || len(readStatRows(t, path)) != 0 {
@@ -640,19 +508,13 @@ func TestStatLocalWriteFailureDoesNotPretendToAcceptARecord(t *testing.T) {
 
 func TestUnrelatedServiceEventCanUseItsOwnHeader(t *testing.T) {
 	path, _ := initStatTest(t, StatConfig{})
-	if err := RegisterStatHeader[statTestHeader](); err != nil {
+	if err := ValidateStatHeader[statTestHeader](); err != nil {
 		t.Fatal(err)
-	}
-	type serviceEvent struct {
-		UID int64 `stat:"uid"`
 	}
 	type serviceHeader struct {
 		Origin string `stat:"origin"`
 	}
-	if err := RegisterStatEvents(DefineStat[serviceEvent]("service_event", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordStat(serviceEvent{7}, func(StatSchema) any { return serviceHeader{"worker"} }); err != nil {
+	if err := RecordStat(statUIDEvent{7}, func(string) any { return serviceHeader{"worker"} }); err != nil {
 		t.Fatal(err)
 	}
 	if got := readStatRows(t, path); !reflect.DeepEqual(got, [][]string{{"worker", "7"}}) {

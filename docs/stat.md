@@ -1,85 +1,90 @@
-# Typed Stat：本地 CSV 与可选转发
+# Typed Stat：结构体事件名、本地 CSV 与可选转发
 
-本页描述当前源码新增的能力，随下一根版本发布。已发布依赖是否可用，以锁定版本为准。
+本页描述当前源码能力，随下一根版本发布。业务项目以所锁定版本为准。
 完整可执行接线见 [User.Stat 示例测试](../aifd-runtime/user/stat_example_test.go)。
 
 ## 职责与记录路径
 
 ```text
 业务 u.Stat(payload)
+  -> 去掉一层指针，取具名 struct 的类型名作为事件名
+  -> 首次使用校验并缓存事件字段布局
   -> 同步调用业务公共头构造函数
   -> 公共头字段 + 事件字段，编码一次
   -> 本进程 Stat 文件追加
   -> 可选有界队列 -> 项目转发函数 -> 项目接收端保存原文
 ```
 
-`aifd-log` 拥有事件定义、列校验、CSV 编码、本地写入与转发队列。
-`aifd-runtime` 沿已有模块收集事件定义，接入 User 公共头回调。业务拥有公共头的全部
-字段、值和顺序，事件含义与版本、接收服务、补录及下游转换。Stat 不要求 observe-agent
-或聚合服务。异步队列只有不可变字符串，不保存 User 或业务对象引用。
+`aifd-log` 拥有事件类型与名称冲突检查、列校验、布局缓存、CSV 编码、本地写入与转发队列。
+`aifd-runtime` 只接入 User 公共头回调；事件不依赖 feature 清单或 RPC 注册。
+业务拥有公共头的全部字段、值、顺序和时间格式，以及事件含义、版本、接收服务、补录与
+下游转换。Stat 不要求 observe-agent 或聚合服务。异步队列只接收不可变字符串。
 
-## 结构与 feature 声明
+## 事件结构体即事件定义
 
 ```go
-type AppHeader struct {
-    HeaderVersion int       `stat:"header_version"`
-    EventName     string    `stat:"event_name"`
-    EventVersion  int       `stat:"event_version"`
-    Time          time.Time `stat:"time"`
-    UID           int64     `stat:"uid"`
-}
-
 type JobFinished struct {
     JobType    string `stat:"job_type"`
     Result     string `stat:"result"`
     DurationMS int64  `stat:"duration_ms"`
 }
+```
 
-func (*JobsFeature) StatEvents() []logging.StatSchema {
-    return []logging.StatSchema{
-        logging.DefineStat[JobFinished]("job_finished", 1),
-    }
+事件无需实现接口或方法。`User.Stat(payload any)` 与
+`RecordStat(payload any, buildHeader func(eventName string) any)` 接受具名 struct 或
+其非 nil 指针；启用 Stat 时，非 struct、匿名 struct、nil 和多层指针在使用时返回记录错误。
+公共头仍允许匿名 struct。业务不传事件名或定义对象，不提供 feature 清单，也无需入口注册。
+
+事件名直接采用去掉指针后的 `reflect.Type.Name()`，因此 `JobFinished{}` 和
+`&JobFinished{}` 都使用 `JobFinished`。保留原始大小写，不转换下划线，不拼接包路径，
+也不读取载荷字段。类型别名仍对应原类型和原事件名，不会产生新事件。
+框架不绑定具体分析平台的命名限制，下游接入方负责检查所用类型名是否满足平台要求。
+
+首次使用校验并缓存字段布局，后续同一类型的值和指针复用缓存。一次 logger 生命周期内，
+同一事件名只能属于一个 Go 类型；不同包或不同作用域中的同名类型也会冲突。
+冲突在写入或转发前拒绝，并报告双方类型及包路径，已接受类型仍可继续记录。
+并发首次使用的发布和冲突检查受锁保护，公共头回调在锁外调用。无效事件字段不会占用名称。
+
+结构体名是数据契约的一部分：重命名结构体会改变事件名，需要同步更新消费端的映射、查询和报表。
+
+字段按 struct 声明顺序输出。导出字段须有显式 `stat` 标签，`stat:"-"` 忽略；不展开嵌套
+对象。支持字符串、布尔、整数、浮点与 `time.Time`；后者仍按 RFC3339Nano 编码并保留
+业务时区。需要其他时间格式时，由业务格式化为 string。零值保留列；重复列名、容器等
+非法字段在首次使用时拒绝。公共头和当前事件之间的列冲突也在写入前检查。
+CSV 使用标准转义，不加普通日志前缀或列名行，至少需要一列。
+
+## 默认应用公共头与 User 接线
+
+应用默认公共头采用三列，时间精确到秒。这是业务示例约定，不是框架强制字段：
+
+```go
+type AppStatHeader struct {
+    Time      string `stat:"time"`
+    EventName string `stat:"event_name"`
+    UID       int64  `stat:"uid"`
 }
 ```
 
-框架不强制 UID、时间、版本等公共列，不引入 HeaderName 或 StatMeta。
-`StatSchema.Name/Version` 来自 feature 声明，框架复制并传递，不判断历史兼容性。
-`DefineStat` 不注册、不做 I/O、不启动 goroutine；错误在启动注册时返回。
-
-一个载荷类型只能绑定一个事件身份；相同定义重复出现是幂等的；不同类型复用同一
-`(Name, Version)` 或同一类型绑定不同身份均拒绝。并存两版时分别定义载荷类型。
-struct 和非 nil struct 指针归一为同一类型。
-
-列序按字段声明顺序。导出字段必须有显式 `stat` 标签，`stat:"-"` 忽略；不推断其他
-标签，不自动展开嵌套对象。支持字符串、布尔、整数、浮点及 `time.Time`，后者使用
-RFC3339Nano，时区由业务提供。零值保留列，结构内重复列名、容器等在注册时拒绝。
-User 模块的公共头与事件列冲突在启动时检查；服务级自由组合在写入前检查，其他头和事件
-可以共存，不因从未组合过的同名字段互相限制。
-CSV 使用标准转义，保留单个空字段记录，至少需要一列；不写普通日志前缀或列名行。
-
-## 启动与 User 接线
-
-在进程已有日志初始化处调用一次 `InitDefault`，先初始化，再注册模块、接流量。
+进程已有日志初始化处调用一次 `InitDefault`，再创建 runtime 和启动生产者：
 
 ```go
 closeLog, err := logging.InitDefault(logging.Config{
     LocalPath: "run/logs/service.log",
     Stat: &logging.StatConfig{
         LocalPath: "run/logs/stat.log",
-        // Forward: applicationForward, // 不配置即只写本地
+        // Forward: applicationForward,
     },
 })
 if err != nil { return err }
 defer closeLog() // 外层入口先停业务任务和 RPC，再返回
 
-modules := user.NewManager[*pb.DBUser](jobsFeature)
-modules.Register(loginFeature) // 启动期追加，同样发现 StatEvents
+modules := user.NewManager[*pb.DBUser](jobsFeature, loginFeature)
 users := user.NewRuntime(reg, store, modules, user.WithStatHeader(
-    func(u *user.User[*pb.DBUser], event logging.StatSchema) AppHeader {
-        return AppHeader{
-            HeaderVersion: 1,
-            EventName: event.Name, EventVersion: event.Version,
-            Time: time.Now().UTC(), UID: u.UID(),
+    func(u *user.User[*pb.DBUser], eventName string) AppStatHeader {
+        return AppStatHeader{
+            Time:      time.Now().UTC().Format("2006-01-02 15:04:05"),
+            EventName: eventName,
+            UID:       u.UID(),
         }
     },
 ))
@@ -89,35 +94,38 @@ if err := users.RegisterRPC(); err != nil { return err }
 u.Stat(JobFinished{JobType: "import", Result: "success", DurationMS: 235})
 ```
 
-`user.Manager.RegisterRPC` 和 `service.Service.RegisterRPC` 在业务路由前批量收集
-`logging.StatEventProvider` 并检查冲突，无需向 `InitDefault` 传事件清单。
-包装内部 feature 的模块显式转交已有列表的 `StatEvents()`，框架不反射遍历业务对象：
+示例沿用 UTC 取时，格式化后的字符串不含时区标记；其他时区由业务显式决定。
+User 在 OnLoad 前继承头回调，每次打点读取当前值。读取 User 数据遵守业务锁约定，在业务
+提交后释放会与回调冲突的锁再记录，不在 User 写锁内递归 Read。
 
-```go
-func (m *Module) StatEvents() []logging.StatSchema {
-    var events []logging.StatSchema
-    for _, feature := range m.features {
-        if provider, ok := feature.(logging.StatEventProvider); ok {
-            events = append(events, provider.StatEvents()...)
-        }
-    }
-    return events
-}
-```
+`RegisterRPC` 仍负责业务路由；若配置 User 头回调，它检查回调与 User 类型、头字段及
+nil builder，不枚举事件或提前检查事件冲突。独立服务任务直接调用
+`logging.RecordStat(payload, buildHeader)`，按需使用 `ValidateStatHeader[H]()` 提前校验
+头字段；两者都不需要事件注册。包装内部 feature 的模块也无需转交事件定义。
 
-仅支持启动期注册；不能运行中重调 `InitDefault` 后继续使用旧接线，因为重新初始化会
-重置当前进程的定义与计数。头回调返回固定具体结构，每次读取当前值。读取 User 数据仍
-遵守业务锁约定；在业务提交后释放会与回调冲突的锁再打点，不在 User 写锁内递归 `Read`。
-异常、未注册载荷、缺失头回调和写入失败会计数并限频记录普通错误日志；`User.Stat`
-不返回业务错误。服务级可用 `logging.RecordStat(payload, buildHeader)`，它同时返回错误。
+事件非法、身份冲突、头回调异常、缺失头配置或写入失败会计数并限频记录普通错误日志。
+`User.Stat` 不返回业务错误，不回滚业务；`RecordStat` 同时返回错误供调用方处理。
+未触发过的事件不会预先检查，迁移后不能依赖原先的启动事件校验。
 
-本例原始记录如下。前三列是否固定、各历史版本的布局与转换均属于业务消费契约：
+默认公共头产生的原始记录例如：
 
 ```csv
-1,job_finished,1,2026-01-02T03:04:05Z,1001,import,success,235
+2026-11-11 08:00:00,JobFinished,1001,import,success,235
 ```
 
-公共头版本只在应用头中声明，事件版本只在 feature 定义中声明，两者独立演进。
+框架不提供事件版本元数据，默认头也不输出任何版本列。需要按版本消费时，由业务显式加入
+版本字段并维护转换规则，或使用新的结构体类型名，例如 `JobFinishedV2`；后者对应新的
+事件名 `JobFinishedV2`。公共头与事件字段的演进仍由业务管理。
+
+## 接口迁移
+
+旧的 `DefineStat`、`RegisterStatEvents`、`StatEventProvider` 和 feature 的 `StatEvents`
+清单已移除，不保留 wrapper。进一步移除 `StatSchema`、`StatEvent` 和事件的身份声明方法；
+`RecordStat` 与 `User.Stat` 接收 `any` 并在运行时校验具名 struct。公共头回调的事件参数改为
+`eventName string`，直接赋给业务事件名列。原先显式命名为 `job_finished` 的事件需要把消费端
+映射迁移到实际结构体名 `JobFinished`，日志内容不会继续保留旧名。旧 `RegisterStatHeader` 改为纯校验
+`ValidateStatHeader[H]()`，与事件组合有关的校验移到首次使用。每次 `InitDefault` 会新建
+缓存与计数；仍应在启动时初始化，避免运行中重设 logger 并关闭仍有生产者使用的旧实例。
 
 ## 可选转发与补录
 
@@ -149,7 +157,7 @@ cfg.Stat.Forward = func(ctx context.Context, record string) error {
 
 ## 配置与生命周期
 
-- `Config.Stat == nil` 禁用 typed Stat，不调用公共头回调；启用时 `LocalPath` 必填。
+- `Config.Stat == nil` 禁用 typed Stat，不校验事件或调用公共头回调；启用时 `LocalPath` 必填。
 - 普通日志与 Stat 复用同一 Lumberjack 文件组件，但使用不同文件和各自的编码。
   Stat 文件命名统一使用 `stat.log`，内容仍为原始 CSV；初始化失败保留原默认 logger。
 - 两者默认按本地自然日和 1 GiB 切分；`Config.Rotation` 与 `StatConfig.Rotation` 独立配置。
@@ -170,9 +178,9 @@ typed 配置由 `InitDefault` 管理，给实例构造函数传非 nil Stat 配�
 ## 验证
 
 ```sh
-go test ./aifd-log ./aifd-observe/... ./aifd-runtime/...
-go test -race ./aifd-log ./aifd-runtime/user ./aifd-runtime/service
+go test ./aifd-log/... ./aifd-observe/... ./aifd-runtime/...
+go test -race ./aifd-log/... ./aifd-runtime/user ./aifd-runtime/service
 ```
 
-race 需要支持 cgo 的 C 编译器。测试覆盖自动注册与冲突、业务公共头、CSV、HTTP 内容一致、
+race 需要支持 cgo 的 C 编译器。测试覆盖结构体名称、值/指针/别名的缓存复用、跨包同名冲突与并发首次使用、非法载荷、业务公共头、CSV、HTTP 内容一致、
 快照、远端缺席/超时/异常/队列满、本地失败、并发追加和限时关闭。

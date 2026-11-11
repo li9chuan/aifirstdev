@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	base "github.com/li9chuan/aifirstdev/aifd-contracts"
 	"github.com/li9chuan/aifirstdev/aifd-log"
@@ -15,7 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type exampleFinished struct {
+type JobFinished struct {
 	JobType    string `stat:"job_type"`
 	Result     string `stat:"result"`
 	DurationMS int64  `stat:"duration_ms"`
@@ -30,9 +31,6 @@ func (exampleStatFeature) OnLoad(context.Context, *user.User[*wrapperspb.Int64Va
 	return nil
 }
 func (exampleStatFeature) RegisterRPC(*rpc.Registry) error { return nil }
-func (exampleStatFeature) StatEvents() []logging.StatSchema {
-	return []logging.StatSchema{logging.DefineStat[exampleFinished]("job_finished", 1)}
-}
 
 func ExampleUser_Stat() {
 	ctx := context.Background()
@@ -60,15 +58,15 @@ func ExampleUser_Stat() {
 	if err != nil {
 		panic(err)
 	}
-	type header struct {
-		HeaderVersion int    `stat:"header_version"`
-		EventName     string `stat:"event_name"`
-		EventVersion  int    `stat:"event_version"`
-		UID           int64  `stat:"uid"`
+	type AppStatHeader struct {
+		Time      string `stat:"time"`
+		EventName string `stat:"event_name"`
+		UID       int64  `stat:"uid"`
 	}
+	occurredAt := time.Date(2026, 11, 11, 8, 0, 0, 0, time.UTC)
 	runtime := user.NewRuntime(rpc.NewRegistry(), store, user.NewManager[*wrapperspb.Int64Value](exampleStatFeature{}), user.WithStatHeader(
-		func(owner *user.User[*wrapperspb.Int64Value], event logging.StatSchema) header {
-			return header{1, event.Name, event.Version, owner.UID()}
+		func(owner *user.User[*wrapperspb.Int64Value], eventName string) AppStatHeader {
+			return AppStatHeader{Time: occurredAt.Format("2006-01-02 15:04:05"), EventName: eventName, UID: owner.UID()}
 		},
 	))
 	defer runtime.Close(ctx)
@@ -79,7 +77,7 @@ func ExampleUser_Stat() {
 	if err != nil {
 		panic(err)
 	}
-	owner.Stat(exampleFinished{JobType: "import", Result: "success", DurationMS: 235})
+	owner.Stat(JobFinished{JobType: "import", Result: "success", DurationMS: 235})
 	if err := closeLog(); err != nil {
 		panic(err)
 	}
@@ -88,5 +86,5 @@ func ExampleUser_Stat() {
 		panic(err)
 	}
 	fmt.Print(string(raw))
-	// Output: 1,job_finished,1,1001,import,success,235
+	// Output: 2026-11-11 08:00:00,JobFinished,1001,import,success,235
 }

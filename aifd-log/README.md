@@ -3,7 +3,7 @@
 本页对应未发布源码；业务项目以所锁定根版本的 API 与升级说明为准。
 
 进程内的统一日志入口，包名为 `logging`，与框架共用根 Go module 和版本。
-它只依赖标准库和 [Lumberjack v2](https://github.com/natefinch/lumberjack)，不依赖
+它使用标准库和 [Lumberjack v2.2.1 内部副本](internal/lumberjack/UPSTREAM.md)，不依赖
 observe、RPC、RDB 或 runtime；import 不启动 worker，也不连接日志服务。
 
 ## 普通日志与 Stat
@@ -34,7 +34,9 @@ time=2026-11-11T15:20:30.000+08:00 level=INFO msg="job finished" source_service=
 ```
 
 Stat 使用业务公共头与事件 struct，写入原始 CSV，不添加普通日志前缀、JSON、列名行或
-框架固定字段。feature 注册、`User.Stat(payload)` 和可选转发见 [完整 Stat 接线](../docs/stat.md)
+框架固定字段。事件名直接取具名 struct 的类型名，例如 `JobFinished`；值与非 nil 指针
+共用名称及布局，不需要声明方法、feature 绑定或事件注册。不同类型使用同名事件时在写入前拒绝。
+`User.Stat(payload)` 和可选转发见 [完整 Stat 接线](../docs/stat.md)
 与 [可执行示例](../aifd-runtime/user/stat_example_test.go)。仅普通日志需要独立实例时可用
 `NewLocalFirstLogger`；typed Stat 配置由 `InitDefault` 管理。
 
@@ -52,8 +54,10 @@ Stat 使用业务公共头与事件 struct，写入原始 CSV，不添加普通�
 | `MaxAgeDays` | 0，不限制归档保留天数 |
 | `Compress` | false；true 时后台 gzip 压缩归档 |
 
-Lumberjack 负责大小切分、归档命名、保留清理及压缩；本包只补齐自然日调度、启动检查、
-写入前日期检查和关闭保护。切分前还检查上游毫秒精度归档名是否已占用，避免快速连续切分
+Lumberjack 负责大小切分、归档命名、保留清理及压缩；内部副本只修正关闭时清理协程不退出的
+生命周期问题，保留上游实现与许可证。本包补齐自然日调度、启动检查、写入前日期检查和关闭保护。
+相对路径在文件组件初始化时解析为绝对路径，后续切换工作目录不改变写入、切分、清理和关闭位置。
+切分前还检查上游毫秒精度归档名是否已占用，避免快速连续切分
 覆盖归档。午夜归档非空活动文件；没有新记录的空文件不会逐日生成归档。
 重启时根据非空活动文件的修改日期检查是否需要先切分，同日则继续追加。
 日切失败会写 stderr 并重试，跨日记录在切分成功前不会追加或转发。
@@ -70,7 +74,7 @@ stat-2026-11-11T18-30-00.000.log.gz
 
 同一天超过上限可产生多份归档。单条编码后的记录超过大小上限时返回错误，不拆分该条记录。
 文件须由单个进程、单个 logger 独占写入；多进程使用不同目录或路径。日志格式不由后缀决定。
-`MaxBackups` 和 `MaxAgeDays` 是归档保留策略，设定前应考虑项目补录所需时间；清理由上游后台执行。
+`MaxBackups` 和 `MaxAgeDays` 是归档保留策略，设定前应考虑项目补录所需时间；清理由文件组件后台执行。
 
 文件配置通过 `FileConfig.ToConfig` 转换，环境变量键由 `FileConfigEnvKeys` 提供，例如：
 
@@ -95,9 +99,10 @@ max_size_mb = 1024
 
 ## 生命周期与可选接入
 
-先成功初始化日志，再注册 feature 并启动业务。初始化前包级 logger 默认丢弃输出。
-停服先停业务生产者，再 `closeLog()`：停止本包日切 worker、同步并关闭活动文件，并限时
-排空可选 Stat 转发队列。关闭可重复调用；关闭后写入不会重新打开文件。
+先成功初始化日志，再启动业务生产者。初始化前包级 logger 默认丢弃输出。
+停服先停业务生产者，再 `closeLog()`：停止日切 worker、同步并关闭活动文件，完成待处理的归档
+清理/压缩并等待其 worker 退出，并限时排空可选 Stat 转发队列。转发排空超时不限制本地文件
+关闭和压缩的耗时。关闭可重复调用；关闭后写入不会重新打开文件。初始化失败也回收已创建的 worker。
 运行期普通日志没有错误返回，文件写入失败输出到 stderr；typed Stat 记录错误还会计数。
 Write 成功表示写入操作系统，不提供逐条 fsync，也不与业务存储组成事务。
 
@@ -113,7 +118,13 @@ Stat 的 `Forward` 则有独立有界 worker，只接收同一份已编码 CSV�
 typed Stat，需要观测 envelope 的已有调用方直接组合 `observe/contracts.Event` 和 `Sink.Write`。
 这些是下一根版本的 breaking change，不要求业务项目立即升级。
 
+Typed Stat 直接接收具名 struct 或非 nil struct 指针，移除事件身份接口及元数据结构，
+公共头回调改为接收 `eventName string`。不转换事件名的大小写或分词方式；结构体重命名会
+改变事件名，升级时需同步消费端映射。字段布局和跨包同名冲突在首次使用时校验，User 启动
+仍检查公共头自身的字段。默认应用头示例为 `Time、EventName、UID`，时间由业务格式化为
+`2006-01-02 15:04:05`；版本字段和演进由业务管理。
+
 ```sh
-go test ./aifd-log ./aifd-observe/... ./aifd-runtime/...
-go test -race ./aifd-log ./aifd-observe/adapters/logging ./aifd-observe/agent ./aifd-runtime/user ./aifd-runtime/service
+go test ./aifd-log/... ./aifd-observe/... ./aifd-runtime/...
+go test -race ./aifd-log/... ./aifd-observe/adapters/logging ./aifd-observe/agent ./aifd-runtime/user ./aifd-runtime/service
 ```

@@ -16,6 +16,7 @@ AI 辅助框架开发的高频规则：
 - 不要把 game、player、world、DBPlayer、具体 feature 概念、业务 `.proto`、生成的 pb 代码、真实 Luban 表、生成的 cfgtable 代码、业务 prompt 或 provider key 加入 `aifd-config`、`aifd-llm`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、`aifd-rpc`、`aifd-rdb` 或 `aifd-schema`。
 - proxy-broker 是 `aifd-proxy/adapters/nats/broker` 的显式入口能力；game/world/其他业务服只作为 NATS client 接入，不隐式启动 broker。
 - logging 全局门面与 typed Stat 只归 `aifd-log`，默认文本/CSV、本地 1 GiB 与自然日轮转；observe 转换由宿主显式接入 adapter。不要新增 `share.Log`/`share.Stat`，高频运行日志本地优先，不通过业务 RPC 主动推送；嵌入式 observe-agent 属于 control plane，必须有 timeout、max bytes、max lines 和 max concurrency，不参与业务热路径。
+- Stat 事件名直接取具名 struct 的类型名，值与非 nil 指针共用布局；首次使用时校验并缓存，拒绝不同类型的同名事件。不恢复身份声明方法、feature 事件清单或入口注册；runtime 只接入业务公共头，回调接收事件名字符串。
 - 业务项目编写 `features/`；生成的 registry 必须可重建。
 - runtime 变更必须在拥有行为的最低层包补测试。
 - 配置 reload 使用 prepare-then-commit。

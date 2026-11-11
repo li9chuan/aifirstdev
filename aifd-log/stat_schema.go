@@ -8,24 +8,9 @@ import (
 	"time"
 )
 
-// StatSchema binds one payload struct to an application-owned event identity.
-// Name and Version are copied at registration; the framework does not infer upgrades.
-type StatSchema struct {
-	Name    string
-	Version int
-	typ     reflect.Type
-	layout  *statLayout
-}
-
-// StatEventProvider lets an existing runtime module declare its typed events.
-// StatEvents must only return definitions, without performing registration or I/O.
-type StatEventProvider interface {
-	StatEvents() []StatSchema
-}
-
-type statKey struct {
-	name    string
-	version int
+type statDefinition struct {
+	name   string
+	layout *statLayout
 }
 
 type statField struct {
@@ -38,73 +23,41 @@ type statLayout struct {
 	fields []statField
 }
 
-// DefineStat constructs a definition without registration or other side effects.
-// Invalid definitions are returned as errors by runtime registration, not panics here.
-func DefineStat[T any](name string, version int) StatSchema {
-	return StatSchema{Name: name, Version: version, typ: reflect.TypeFor[T]()}
+// ValidateStatHeader checks the application header's fields without registering
+// events or invoking a header builder. Header/event collisions are checked on use.
+func ValidateStatHeader[H any]() error {
+	_, err := newStatLayout(reflect.TypeFor[H]())
+	return err
 }
 
-// RegisterStatEvents validates a batch before publishing it to the process logger.
-// Identical registrations are idempotent. Call after InitDefault and before traffic.
-func RegisterStatEvents(events ...StatSchema) error {
-	if len(events) == 0 {
-		return nil
+// eventDefinition receives the non-pointer struct type resolved by statValue.
+// A name belongs to one exact Go type for this logger's lifetime, across packages.
+func (s *statState) eventDefinition(typ reflect.Type) (statDefinition, error) {
+	s.mu.RLock()
+	cached, ok := s.events[typ]
+	s.mu.RUnlock()
+	if ok {
+		return cached, nil
 	}
-	prepared := make([]StatSchema, len(events))
-	for i, event := range events {
-		if event.Name == "" || strings.TrimSpace(event.Name) != event.Name || event.Version < 1 {
-			return fmt.Errorf("stat event requires a nonempty name and positive version: %q/%d", event.Name, event.Version)
-		}
-		layout, err := newStatLayout(event.typ)
-		if err != nil {
-			return fmt.Errorf("stat event %s/%d: %w", event.Name, event.Version, err)
-		}
-		event.typ, event.layout = layout.typ, layout
-		prepared[i] = event
+	name := typ.Name()
+	if name == "" {
+		return statDefinition{}, fmt.Errorf("stat event requires a named struct, got %s", typ)
 	}
-	s := currentStat()
+	layout, err := newStatLayout(typ)
+	if err != nil {
+		return statDefinition{}, fmt.Errorf("stat event %s: %w", name, err)
+	}
+	definition := statDefinition{name: name, layout: layout}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	byType := make(map[reflect.Type]StatSchema, len(s.events)+len(prepared))
-	byKey := make(map[statKey]reflect.Type, len(s.keys)+len(prepared))
-	for typ, event := range s.events {
-		byType[typ] = event
+	if previous, ok := s.events[typ]; ok {
+		return previous, nil
 	}
-	for key, typ := range s.keys {
-		byKey[key] = typ
+	if previous, ok := s.names[name]; ok && previous != typ {
+		return statDefinition{}, fmt.Errorf("stat event %q from %s (%s) already belongs to %s (%s)", name, typ, typ.PkgPath(), previous, previous.PkgPath())
 	}
-	for _, event := range prepared {
-		key := statKey{event.Name, event.Version}
-		if previous, ok := byType[event.typ]; ok && (previous.Name != event.Name || previous.Version != event.Version) {
-			return fmt.Errorf("stat payload %s already binds %s/%d", event.typ, previous.Name, previous.Version)
-		}
-		if previous, ok := byKey[key]; ok && previous != event.typ {
-			return fmt.Errorf("stat event %s/%d already binds %s", event.Name, event.Version, previous)
-		}
-		byType[event.typ], byKey[key] = event, event.typ
-	}
-	s.events, s.keys = byType, byKey
-	return nil
-}
-
-// RegisterStatHeader validates a concrete header and its runtime's event shapes.
-// Unrelated service events may use different headers. There are no framework
-// header names, versions or mandatory business columns.
-func RegisterStatHeader[H any](events ...StatSchema) error {
-	header, err := currentStat().headerLayout(reflect.TypeFor[H]())
-	if err != nil {
-		return err
-	}
-	for _, event := range events {
-		layout, err := newStatLayout(event.typ)
-		if err != nil {
-			return err
-		}
-		if err := validateStatColumns(header, layout); err != nil {
-			return fmt.Errorf("stat header for %s/%d: %w", event.Name, event.Version, err)
-		}
-	}
-	return nil
+	s.events[typ], s.names[name] = definition, typ
+	return definition, nil
 }
 
 func (s *statState) headerLayout(typ reflect.Type) (*statLayout, error) {

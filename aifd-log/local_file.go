@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/li9chuan/aifirstdev/aifd-log/internal/lumberjack"
 )
 
 // RotationConfig applies independently to each ordinary or Stat file. Zero values
@@ -32,8 +32,8 @@ func (c RotationConfig) validate() error {
 }
 
 // rollingFile leaves size rotation, archive naming, retention and compression to
-// Lumberjack. This lock also serializes date checks and prevents reopening after
-// Close, which Lumberjack itself permits. Only the date worker is owned here.
+// Lumberjack. This lock also serializes date checks and writes with Close. The
+// internal Lumberjack copy also stops its cleanup worker when closed.
 type rollingFile struct {
 	mu       sync.Mutex
 	logger   *lumberjack.Logger
@@ -58,6 +58,12 @@ func openLocalFile(path string, config RotationConfig) (*rollingFile, error) {
 func newRollingFile(path string, config RotationConfig, now func() time.Time) (*rollingFile, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
+	}
+	// Bind relative paths before any file operations so later Chdir calls cannot
+	// redirect rotation, cleanup or the final Sync to a different directory.
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve local log path: %w", err)
 	}
 	if config.MaxSizeMB == 0 {
 		config.MaxSizeMB = 1024

@@ -21,11 +21,11 @@ type StatCounters struct {
 }
 
 // statState owns definitions and header codecs for one InitDefault lifetime.
-// They are reconstructed from modules at startup, never from log contents.
+// They are discovered from event types on use, never reconstructed from log files.
 type statState struct {
 	mu           sync.RWMutex
-	events       map[reflect.Type]StatSchema
-	keys         map[statKey]reflect.Type
+	events       map[reflect.Type]statDefinition
+	names        map[string]reflect.Type
 	headers      map[reflect.Type]*statLayout
 	recorder     *statRecorder
 	logger       Logger
@@ -37,8 +37,8 @@ var defaultStat = emptyStatState()
 
 func emptyStatState() *statState {
 	return &statState{
-		events:  make(map[reflect.Type]StatSchema),
-		keys:    make(map[statKey]reflect.Type),
+		events:  make(map[reflect.Type]statDefinition),
+		names:   make(map[string]reflect.Type),
 		headers: make(map[reflect.Type]*statLayout),
 	}
 }
@@ -49,12 +49,14 @@ func currentStat() *statState {
 	return defaultStat
 }
 
-// RecordStat is the typed runtime integration point. It resolves the event,
-// builds the application header and encodes both synchronously. Only the encoded
-// string can enter forwarding. With Stat disabled it does not call buildHeader.
-// Errors (including a header callback panic) are counted and logged, and returned
+// RecordStat accepts a named struct or a non-nil pointer to one. Its exact type
+// name is the event name; distinct types cannot share a name within one logger.
+// It validates/caches the layout on first use, then builds the application header
+// and encodes both synchronously. Only encoded text can enter forwarding.
+// Disabled Stat skips validation and buildHeader. Errors (including a header
+// callback panic) are counted and logged, and returned
 // for adapters that need them; ordinary User.Stat calls do not fail business work.
-func RecordStat(payload any, buildHeader func(StatSchema) any) (err error) {
+func RecordStat(payload any, buildHeader func(eventName string) any) (err error) {
 	s := currentStat()
 	if s.recorder == nil {
 		return nil
@@ -72,16 +74,14 @@ func RecordStat(payload any, buildHeader func(StatSchema) any) (err error) {
 	if err != nil {
 		return err
 	}
-	s.mu.RLock()
-	event, ok := s.events[value.Type()]
-	s.mu.RUnlock()
-	if !ok {
-		return fmt.Errorf("stat payload %s is not registered", value.Type())
+	event, err := s.eventDefinition(value.Type())
+	if err != nil {
+		return err
 	}
 	if buildHeader == nil {
 		return fmt.Errorf("stat header builder is not configured")
 	}
-	header, err := statValue(buildHeader(event))
+	header, err := statValue(buildHeader(event.name))
 	if err != nil {
 		return fmt.Errorf("stat header: %w", err)
 	}

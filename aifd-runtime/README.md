@@ -32,9 +32,12 @@ go func() { _ = users.Run(serviceContext) }()
 
 User module 提供 Descriptor、OnLoad 和 RegisterRPC。OnLoad 在一次成功驻留中执行一次；登录与断线按连接租约处理。模块通过 ModuleContext.Runtime 取得同一门面，不建立第二份主 User 或客户端管理器。
 
-模块可额外实现 `logging.StatEventProvider`。User/Service 的 `RegisterRPC` 在业务路由前
-批量发现定义、拒绝冲突，不要求入口另列事件清单。`user.WithStatHeader` 接收应用头回调，
-每次 `User.Stat` 在入队前完成公共头与编码，不强制公共字段或管理头版本。
+事件直接使用具名 struct 或非 nil 指针，`aifd-log` 从类型名取得事件名，例如 `JobFinished`。
+值与指针复用布局；不同类型的同名事件在首次使用时拒绝，不要求 feature 清单、入口注册或 RPC 接线。
+`user.WithStatHeader` 接收 `func(owner *User[T], eventName string) H` 应用头回调，
+每次 `User.Stat` 在入队前完成公共头与编码。结构体重命名会改变事件名，版本由业务管理。
+`RegisterRPC` 只提前检查头回调与头字段；事件身份、列冲突在使用时报告，不回滚业务。
+默认应用头示例采用 `Time、EventName、UID`，时间格式 `2006-01-02 15:04:05`；框架仍不强制这些列。
 完整接线见 [Typed Stat](../docs/stat.md)，可执行示例见 [ExampleUser_Stat](user/stat_example_test.go)。
 
 ## 用户路由与数据块

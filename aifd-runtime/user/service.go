@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/li9chuan/aifirstdev/aifd-log"
 	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
 	contracts "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
@@ -105,11 +104,7 @@ func (r *Runtime[T]) RegisterRPC() error {
 			return err
 		}
 	}
-	var validateHeader func(...logging.StatSchema) error
-	if r.statHeader != nil {
-		validateHeader = r.statHeader.validate
-	}
-	return r.modules.registerRPC(r.reg, validateHeader)
+	return r.modules.RegisterRPC(r.reg)
 }
 
 // RenewConnection renews the authenticated connection attached to this RPC only.

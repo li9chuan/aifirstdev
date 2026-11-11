@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/li9chuan/aifirstdev/aifd-log"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
 )
 
@@ -34,15 +33,6 @@ func (s *Service) Recover(ctx context.Context) error {
 
 // RegisterRPC allows each module to bind business routes to the service registry.
 func (s *Service) RegisterRPC() error {
-	var events []logging.StatSchema
-	for _, module := range s.modules {
-		if provider, ok := module.(logging.StatEventProvider); ok {
-			events = append(events, provider.StatEvents()...)
-		}
-	}
-	if err := logging.RegisterStatEvents(events...); err != nil {
-		return fmt.Errorf("service stat events: %w", err)
-	}
 	for _, module := range s.modules {
 		if err := module.RegisterRPC(s.reg); err != nil {
 			return fmt.Errorf("service module %s register rpc: %w", module.Descriptor().ID, err)

@@ -36,13 +36,19 @@ func TestACMEProviderRetainsCooldownAcrossRestart(t *testing.T) {
 					TLS: TLSConfig{Mode: ModeACME, Domains: []string{"api.example.test"},
 						CacheDir: cache, ACMEEnvironment: "staging", AgreeTerms: true},
 				}
+				registered, releaseServe := holdHTTPServeUntilShutdown(t, cfg.HTTPServer)
 				s, err := start(context.Background(), cfg, func(ctx context.Context, tlsCfg TLSConfig, addr net.Addr, event func(string)) (certificateProvider, error) {
 					return newACMEProvider(ctx, tlsCfg, addr, event, acmeOptions{directoryURL: ca.URL + "/dir", trustedRoots: roots})
 				})
 				if err != nil {
 					t.Fatal(err)
 				}
-				t.Cleanup(func() { closeTestServer(t, s) })
+				t.Cleanup(func() { releaseServe(); closeTestServer(t, s) })
+				select {
+				case <-registered:
+				case <-time.After(3 * time.Second):
+					t.Fatal("HTTP listener was not registered")
+				}
 				return s
 			}
 			first := startServer()

@@ -70,6 +70,20 @@ type certificateProvider interface {
 
 type providerFactory func(context.Context, TLSConfig, net.Addr, func(string)) (certificateProvider, error)
 
+// onceCloseListener shares one underlying Close between the adapter and
+// net/http's own listener wrapper. Otherwise Shutdown can close a listener that
+// the adapter has already closed while Serve still has it registered.
+type onceCloseListener struct {
+	net.Listener
+	once     sync.Once
+	closeErr error
+}
+
+func (l *onceCloseListener) Close() error {
+	l.once.Do(func() { l.closeErr = l.Listener.Close() })
+	return l.closeErr
+}
+
 // Start binds the configured address and starts serving. ACME may initially be
 // pending; use Ready/Status in the application's existing readiness probe.
 // Construction elsewhere and importing the package perform no ACME operations.
@@ -100,10 +114,11 @@ func start(ctx context.Context, cfg Config, factory providerFactory) (*Server, e
 	if cfg.ShutdownTimeout == 0 {
 		cfg.ShutdownTimeout = defaultShutdownTimeout
 	}
-	ln, err := net.Listen("tcp", cfg.HTTPServer.Addr)
+	rawListener, err := net.Listen("tcp", cfg.HTTPServer.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("http server listen: %w", err)
 	}
+	ln := &onceCloseListener{Listener: rawListener}
 	runCtx, cancel := context.WithCancel(ctx)
 	s := &Server{http: cfg.HTTPServer, listener: ln, cfg: cfg, tlsCfg: tlsCfg, cancel: cancel, done: make(chan struct{})}
 	if tlsCfg.Mode != ModePlain {
@@ -283,12 +298,11 @@ func (s *Server) run(ctx context.Context, serveResult <-chan error) {
 	s.stopping = true
 	s.mu.Unlock()
 	s.cancel()
-	_ = s.listener.Close()
+	closeErr := s.listener.Close()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownTimeout)
 	defer cancel()
-	var closeErr error
 	if s.cfg.CloseWebSockets != nil {
-		closeErr = s.cfg.CloseWebSockets(shutdownCtx)
+		closeErr = errors.Join(closeErr, s.cfg.CloseWebSockets(shutdownCtx))
 	}
 	if err := s.http.Shutdown(shutdownCtx); err != nil {
 		closeErr = errors.Join(closeErr, err, s.http.Close())

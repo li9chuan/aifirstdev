@@ -13,5 +13,6 @@
 - ARI 会单独更新 metadata；必须保留对应的 key/cert 原子落盘，不得与正在暂存的替代证书混配。
 - 所有 ACME 请求复用私有冷却 transport；429/503 `Retry-After` 和失败退避持久保存，不能因重启、调用库内部重试或 ARI 绕过。测试按真实请求计数验证，CA 全局配额仍由 CA 判定。
 - 关闭时结束 WS 并释放租约，限时关闭 HTTP，取消 ACME 并等待持锁任务收尾；库的维护循环停止不代表其异步任务已退出。
+- 适配器与标准 HTTP server 共享幂等的底层 listener.Close，保留首次关闭的真实错误；回归须固定 HTTP 已登记监听器而 Serve 尚未退出的窗口，覆盖 TLS、父 context 取消与并发关闭，不能只靠重复运行等待偶现。
 - WSS 客户端复用 proxyws 的 RequireTLS、HTTPClient 与重定向策略，不修改进程全局 HTTPClient 或手工跳过证书校验。
 - 验收轮换必须观察磁盘与新的完整 TLS 握手序列号，不能只模拟成功回调；本地 CA 通过不能冒充公网 CA 部署验收。

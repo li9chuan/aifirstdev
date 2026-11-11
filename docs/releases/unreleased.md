@@ -1,5 +1,10 @@
 # 未发布变更
 
+## HTTP/HTTPS 关闭
+
+- 修复停止接入与 net/http Shutdown 交错时重复关闭底层监听器，导致正常停服误报 `use of closed network connection`；共享幂等关闭并保留首次真实关闭错误。
+- 新增固定时序回归，覆盖明文/TLS、父 context 取消、并发 Close 和关闭错误保留；ACME 重启冷却用例也固定监听器尚未退出的窗口。WS 收尾与 HTTP 超时强制关闭语义保持不变。
+
 ## 日志拆包与轮转
 
 - 将日志统一入口迁到 `aifd-log`，包名仍为 `logging`，不新建 Go module；runtime、proxy、RDB 和示例迁移导入路径。

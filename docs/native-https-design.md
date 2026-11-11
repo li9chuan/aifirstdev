@@ -28,6 +28,10 @@ WebSocket 升级后的 PB/packet、inbox 和 RPC 语义保持原职责。
    续期失败而旧证书仍有效时可以继续服务并报告 degraded；过期后拒绝新的业务握手。
 5. 退出时取消管理、停止接入，关闭 WS，再限时排空 HTTP，停止证书维护。宿主继续关闭其业务依赖。
 
+适配器停止接入与 net/http 的 Shutdown/Serve 清理共用一次底层 listener.Close，并保留首次关闭错误。
+否则，Serve 尚未移除已登记监听器时，Shutdown 可能再次关闭已关闭的 socket，把正常停服误报为错误。
+回归测试以 BaseContext 和 OnShutdown 固定这个时序，覆盖明文、TLS、主动关闭和父 context 取消。
+
 首次签发前只允许必要的 ACME challenge 握手，公共 HTTPS readiness 路径也可能无法访问。
 宿主可从已有内部控制面读取无网络副作用的 `Status()`；组件不自动增加明文管理端口。
 manual 证书文件没有热重载，更换文件后重启。证书轮换验收须使用新的完整握手，会话恢复可能保留旧 peer certificate 元数据。
@@ -70,6 +74,7 @@ ACME 库日志不直接转发，适配器发布有限的状态与错误码。
 ## 验证入口
 
 [单元测试](../aifd-proxy/adapters/httpserver/server_test.go)覆盖配置、TLS/Host/SNI、状态和退出；
+[关闭回归](../aifd-proxy/adapters/httpserver/server_shutdown_test.go)固定监听器已登记但 Serve 尚未退出的时序，并检查并发关闭与首次真实错误保留；
 [资产测试](../aifd-proxy/adapters/httpserver/assets_test.go)覆盖中断写入、ARI 元数据更新与失败恢复；
 [冷却测试](../aifd-proxy/adapters/httpserver/acme_retry_test.go)与[接入测试](../aifd-proxy/adapters/httpserver/acme_issuer_test.go)覆盖真实 HTTP 响应、重启和取消；
 [Pebble 集成](../aifd-proxy/adapters/httpserver/acme_integration_test.go)覆盖真实 TLS-ALPN 签发、自动续期、ARI、WSS 保持及离线恢复。

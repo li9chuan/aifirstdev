@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/li9chuan/aifirstdev/aifd-observe/logging"
+	log "github.com/li9chuan/aifirstdev/aifd-log"
 )
 
 const defaultShutdownTimeout = 30 * time.Second

@@ -6,9 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"sync"
-	"time"
-
-	"github.com/li9chuan/aifirstdev/aifd-observe/contracts"
 )
 
 // Level configures the minimum emitted log level without exposing slog to callers.
@@ -41,27 +38,20 @@ type slogLogger struct {
 
 var (
 	defaultMu     sync.RWMutex
-	defaultLogger Logger = NewSlogLogger(slog.NewJSONHandler(io.Discard, nil))
-	defaultSink   contracts.Sink
-	defaultSource defaultSourceFields
+	defaultLogger Logger = NewSlogLogger(slog.NewTextHandler(io.Discard, nil))
 )
-
-type defaultSourceFields struct {
-	service  string
-	instance string
-}
 
 // NewSlogLogger wraps a slog handler in the AIFD logging facade.
 func NewSlogLogger(handler slog.Handler) Logger {
 	if handler == nil {
-		handler = slog.NewJSONHandler(io.Discard, nil)
+		handler = slog.NewTextHandler(io.Discard, nil)
 	}
 	return &slogLogger{logger: slog.New(handler)}
 }
 
-// NewTeeLogger creates a local-first logger; observe receives best-effort copies.
-func NewTeeLogger(local slog.Handler, observe slog.Handler) (Logger, error) {
-	handler, err := NewTeeHandler(local, observe)
+// NewTeeLogger creates a local-first logger; secondary receives best-effort copies.
+func NewTeeLogger(local slog.Handler, secondary slog.Handler) (Logger, error) {
+	handler, err := NewTeeHandler(local, secondary)
 	if err != nil {
 		return nil, err
 	}
@@ -76,32 +66,6 @@ func SetDefault(logger Logger) {
 	defaultMu.Lock()
 	defaultLogger = logger
 	defaultMu.Unlock()
-}
-
-// SetDefaultSink installs the process-wide observe sink used by Stat helpers.
-func SetDefaultSink(sink contracts.Sink) {
-	defaultMu.Lock()
-	defaultSink = sink
-	defaultMu.Unlock()
-}
-
-// DefaultSink returns the process-wide observe sink used by Stat helpers.
-func DefaultSink() contracts.Sink {
-	defaultMu.RLock()
-	defer defaultMu.RUnlock()
-	return defaultSink
-}
-
-func setDefaultSource(service, instance string) {
-	defaultMu.Lock()
-	defaultSource = defaultSourceFields{service: service, instance: instance}
-	defaultMu.Unlock()
-}
-
-func getDefaultSource() defaultSourceFields {
-	defaultMu.RLock()
-	defer defaultMu.RUnlock()
-	return defaultSource
 }
 
 // Default returns the process-wide logger.
@@ -189,63 +153,6 @@ func WarnfContext(ctx context.Context, format string, args ...any) {
 // ErrorfContext writes a formatted error log with an explicit context.
 func ErrorfContext(ctx context.Context, format string, args ...any) {
 	ErrorContext(ctx, fmt.Sprintf(format, args...))
-}
-
-// Stat emits a structured business statistic event through the default observe sink.
-func Stat(name string, fields ...Field) {
-	StatContext(context.Background(), name, fields...)
-}
-
-// StatContext emits a structured business statistic event with an explicit context.
-func StatContext(ctx context.Context, name string, fields ...Field) {
-	event := statEvent(name, "", fields...)
-	writeStat(ctx, event)
-}
-
-// Statf emits a raw formatted business statistic event through the default observe sink.
-func Statf(format string, args ...any) {
-	StatfContext(context.Background(), format, args...)
-}
-
-// StatfContext emits a raw formatted business statistic event with an explicit context.
-func StatfContext(ctx context.Context, format string, args ...any) {
-	event := statEvent("stat.raw", fmt.Sprintf(format, args...))
-	writeStat(ctx, event)
-}
-
-func statEvent(name string, message string, fields ...Field) contracts.Event {
-	if name == "" {
-		name = "stat"
-	}
-	source := getDefaultSource()
-	event := contracts.Event{
-		Kind:           contracts.KindStat,
-		Name:           name,
-		Message:        message,
-		Time:           time.Now().UTC(),
-		Value:          1,
-		SourceService:  source.service,
-		SourceInstance: source.instance,
-		Fields:         fieldsMap(fields),
-	}
-	if traceID, ok := event.Fields["trace_id"].(string); ok {
-		event.TraceID = traceID
-	}
-	if shardKey, ok := event.Fields["shard_key"].(string); ok {
-		event.ShardKey = shardKey
-	}
-	return event
-}
-
-func writeStat(ctx context.Context, event contracts.Event) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	sink := DefaultSink()
-	if sink == nil {
-		return
-	}
-	_ = sink.Write(ctx, []contracts.Event{event})
 }
 
 func (l *slogLogger) Debug(ctx context.Context, msg string, fields ...Field) {

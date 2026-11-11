@@ -17,6 +17,7 @@ type User[T proto.Message] struct {
 	uid             int64
 	saver           *rdb.SetSaver[T]
 	loadedFromStore bool
+	statHeader      *statHeaderOption // Immutable runtime wiring, assigned before OnLoad.
 }
 
 func newUser[T proto.Message](uid int64, saver *rdb.SetSaver[T], loaded bool) *User[T] {

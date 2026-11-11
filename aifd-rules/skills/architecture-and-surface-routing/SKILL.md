@@ -30,7 +30,8 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 - 客户端连接、gateway、session、delivery，以及显式 proxy-broker embedded NATS
   生命周期 adapter：`aifd-proxy`。
   原生 HTTP/HTTPS/WSS、TLS 与 ACME 证书生命周期也归 `aifd-proxy/adapters/httpserver`，按[服务入口规则](../service-entrypoint-development/SKILL.md)组合。
-- 日志门面、指标、trace、audit、stat sink、KindRouter 和 observe-agent：`aifd-observe`。
+- 普通日志门面、typed Stat 定义与 CSV、本地滚动文件和可选成品转发：`aifd-log`。
+- 观测 envelope、指标、trace、audit、显式 stat sink、KindRouter、可选日志 adapter 和 observe-agent：`aifd-observe`。
 - 集成测试机器人、行为树、run group、report：`aifd-robot`，使用 [robot-module-development](../robot-module-development/SKILL.md)。
 - CLI、update、proto/config 命令入口、本地开发工具链安装与诊断：`aifd-tools`，服务入口变更使用 [service-entrypoint-development](../service-entrypoint-development/SKILL.md)。
 - AI 规则、技能、模板、检查清单：`aifd-rules`。
@@ -68,7 +69,7 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
   不拥有 broker 生命周期。
 - robot scenario、client transport、AgentModule、行为树和报告：主面是 `aifd-robot`。
 - 配置 typed bundle、reload、manifest diff、validator、Luban bundle builder adapter：主面是 `aifd-config`。
-- `log.Info/Warn/Error`、`log.Stat/Statf`、observe sink、agent 本地日志 tail/filter 和观测查询 adapter：主面是 `aifd-observe`；不要新增 `share.Log`、`share.Stat` 或把高频日志通过业务 RPC 主动推送。嵌入式 observe-agent 是 control plane，只查询预注册文件，必须限制 timeout、读取量、行数和查询并发，不参与业务热路径。
+- `logging.Info/Warn/Error`、typed Stat 与滚动文件：主面是 `aifd-log`，不依赖 observe 或 runtime。observe sink、可选日志 adapter、agent tail/filter 和观测查询：主面是 `aifd-observe`。不要新增 `share.Log`、`share.Stat` 或把高频日志通过业务 RPC 主动推送；agent 查询必须有 timeout、读取量、行数和并发边界，不参与业务热路径。
 - 具体 `DBPlayer` 字段、业务协议名、业务配置表和玩法状态迁移：主面是业务项目。
 - Host placement、部署 profile、进程启动拓扑和本地 all-in-one/split 选择：主面是业务项目入口或 `aifd-tools` 示例接线；`aifd-runtime` 只候选 descriptor 校验、依赖检查、route ownership 和 ready gate，不做 `WorldRouter`、框架级 placement 表或部署 DSL。
 - 业务 proto、route 常量和 generated route registry：主面是业务项目；`aifd-schema`/`aifd-rpc` 只做 descriptor 校验、route/schema 绑定检查和 typed dispatcher helper，不 import 业务 generated pb，也不保存业务 route 真相。
@@ -81,7 +82,7 @@ description: 判断需求在 aiFirstDev 中应落到哪个模块或项目面时�
 
 ## 边界原则
 
-- 依赖方向保持单向：contracts/llm -> schema/config/rpc/rdb/proxy/observe/robot -> runtime -> business project。
+- 依赖方向保持单向：contracts/log/llm -> schema/config/rpc/rdb/proxy/observe/robot -> runtime -> business project。
 - 基础设施模块不得 import runtime 或业务项目。
 - 业务项目可以组合框架模块，但不应 import 框架 internal 包。
 - 示例不是生产 feature；`minigame` 展示框架链路而不是完整玩法内容，`desktool` 展示桌面工具形态，不要把示例里的业务名提升为框架概念。

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/internal/app"
-	"github.com/li9chuan/aifirstdev/aifd-observe/logging"
+	"github.com/li9chuan/aifirstdev/aifd-log"
 	"github.com/li9chuan/aifirstdev/aifd-runtime/entrypoint"
 	runtimepprof "github.com/li9chuan/aifirstdev/aifd-runtime/pprof"
 )

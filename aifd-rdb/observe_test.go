@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/li9chuan/aifirstdev/aifd-log"
 	observe "github.com/li9chuan/aifirstdev/aifd-observe/contracts"
-	"github.com/li9chuan/aifirstdev/aifd-observe/logging"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )

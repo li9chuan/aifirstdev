@@ -5,6 +5,19 @@ level = "info"
 stdout = true
 dir = "./logs"
 
+[log.rotation]
+max_size_mb = 1024
+# Local calendar-day rotation is enabled by default. Retention is unlimited unless configured.
+# max_age_days = 7
+# max_backups = 30
+# compress = true
+
+# Optional typed CSV Stat, registered by features and given an application header.
+# [log.stat]
+# local_path = "./logs/stat.log"
+# [log.stat.rotation]
+# max_size_mb = 1024
+
 [rpc.nats]
 servers = ["nats://127.0.0.1:4222"]
 timeout = "3s"

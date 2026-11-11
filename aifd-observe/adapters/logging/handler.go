@@ -1,58 +1,12 @@
-package logging
+package loggingsink
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 
 	"github.com/li9chuan/aifirstdev/aifd-observe/contracts"
 )
-
-var errLocalHandlerMissing = errors.New("logging local handler is missing")
-
-type teeHandler struct {
-	local   slog.Handler
-	observe slog.Handler
-}
-
-// NewTeeHandler creates a slog handler that writes local first and observe best-effort.
-func NewTeeHandler(local slog.Handler, observe slog.Handler) (slog.Handler, error) {
-	if local == nil {
-		return nil, errLocalHandlerMissing
-	}
-	return &teeHandler{local: local, observe: observe}, nil
-}
-
-func (h *teeHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	return h.local.Enabled(ctx, level)
-}
-
-func (h *teeHandler) Handle(ctx context.Context, record slog.Record) error {
-	if err := h.local.Handle(ctx, record); err != nil {
-		return err
-	}
-	if h.observe != nil && h.observe.Enabled(ctx, record.Level) {
-		_ = h.observe.Handle(ctx, record)
-	}
-	return nil
-}
-
-func (h *teeHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	var observe slog.Handler
-	if h.observe != nil {
-		observe = h.observe.WithAttrs(attrs)
-	}
-	return &teeHandler{local: h.local.WithAttrs(attrs), observe: observe}
-}
-
-func (h *teeHandler) WithGroup(name string) slog.Handler {
-	var observe slog.Handler
-	if h.observe != nil {
-		observe = h.observe.WithGroup(name)
-	}
-	return &teeHandler{local: h.local.WithGroup(name), observe: observe}
-}
 
 type sinkHandler struct {
 	sink   contracts.Sink
@@ -65,8 +19,8 @@ type groupedAttr struct {
 	attr   slog.Attr
 }
 
-// NewSinkHandler adapts a slog record into observe log events.
-func NewSinkHandler(sink contracts.Sink) slog.Handler {
+// NewHandler adapts a slog record into observe log events.
+func NewHandler(sink contracts.Sink) slog.Handler {
 	return &sinkHandler{sink: sink}
 }
 

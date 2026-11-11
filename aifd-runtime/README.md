@@ -26,10 +26,16 @@ go func() { _ = users.Run(serviceContext) }()
 | `RenewConnection(s)` | 只续期 Proxy 注入的已绑定有效连接；不会根据 UID 建立连接 |
 | `OnlineConnections(uid)` | 当前有效连接数量，不加载用户 |
 | `Run/Close` | 显式租约循环和关闭；Close 不关闭共享 DB |
+| `User.Stat(payload)` | 同步构造业务公共头并追加本地 CSV，可选异步转发同一份记录 |
 
 主 PB 的存在性默认定义用户存在性。如果业务身份源独立、主 PB 可以缺省，Store 的可选 `Exists(ctx, uid)` 只在主 PB 不存在时验证业务用户；加载保留默认 PB 在内存，不保存空文档。这个回调不用于创建用户或恢复在线状态。
 
 User module 提供 Descriptor、OnLoad 和 RegisterRPC。OnLoad 在一次成功驻留中执行一次；登录与断线按连接租约处理。模块通过 ModuleContext.Runtime 取得同一门面，不建立第二份主 User 或客户端管理器。
+
+模块可额外实现 `logging.StatEventProvider`。User/Service 的 `RegisterRPC` 在业务路由前
+批量发现定义、拒绝冲突，不要求入口另列事件清单。`user.WithStatHeader` 接收应用头回调，
+每次 `User.Stat` 在入队前完成公共头与编码，不强制公共字段或管理头版本。
+完整接线见 [Typed Stat](../docs/stat.md)，可执行示例见 [ExampleUser_Stat](user/stat_example_test.go)。
 
 ## 用户路由与数据块
 

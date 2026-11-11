@@ -11,11 +11,11 @@ AI 辅助框架开发的高频规则：
 - 编辑前先选择最小职责归属模块。
 - 框架使用根 Go module 和单一根版本标签；职责目录不单独发版。仅两个示例保留独立 `go.mod`，独立组件发布需求出现后再评估拆分。
 - 对外 API 优先简单，复杂度封装在拥有行为的模块内部；不要把派生配置、内部安全边界或底层组合件暴露成业务必填项。
-- 依赖方向保持单向：contracts/llm -> config/observe/proxy/robot/rpc/rdb/schema -> runtime -> project。
+- 依赖方向保持单向：contracts/log/llm -> config/observe/proxy/robot/rpc/rdb/schema -> runtime -> project；`aifd-log` 不依赖 observe 或 runtime。
 - 模块分类和 `aifd-core` 准入以工作区 [模块边界](../docs/module-boundary.md) 为准；当前不创建 `aifd-core`，不新增 `share`、`common`、`utils` 或泛化工具包。
 - 不要把 game、player、world、DBPlayer、具体 feature 概念、业务 `.proto`、生成的 pb 代码、真实 Luban 表、生成的 cfgtable 代码、业务 prompt 或 provider key 加入 `aifd-config`、`aifd-llm`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、`aifd-rpc`、`aifd-rdb` 或 `aifd-schema`。
 - proxy-broker 是 `aifd-proxy/adapters/nats/broker` 的显式入口能力；game/world/其他业务服只作为 NATS client 接入，不隐式启动 broker。
-- logging 全局门面只归 `aifd-observe/logging`；不要新增 `share.Log`/`share.Stat`，高频运行日志本地优先，不通过业务 RPC 主动推送；嵌入式 observe-agent 属于 control plane，必须有 timeout、max bytes、max lines 和 max concurrency，不参与业务热路径。
+- logging 全局门面与 typed Stat 只归 `aifd-log`，默认文本/CSV、本地 1 GiB 与自然日轮转；observe 转换由宿主显式接入 adapter。不要新增 `share.Log`/`share.Stat`，高频运行日志本地优先，不通过业务 RPC 主动推送；嵌入式 observe-agent 属于 control plane，必须有 timeout、max bytes、max lines 和 max concurrency，不参与业务热路径。
 - 业务项目编写 `features/`；生成的 registry 必须可重建。
 - runtime 变更必须在拥有行为的最低层包补测试。
 - 配置 reload 使用 prepare-then-commit。

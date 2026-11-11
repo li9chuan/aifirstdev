@@ -1,14 +1,15 @@
 package logging
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
-
-	"github.com/li9chuan/aifirstdev/aifd-observe/contracts"
+	"sync"
 )
 
 const (
@@ -26,34 +27,72 @@ type Config struct {
 	Level          Level
 	SourceService  string
 	SourceInstance string
-	Observe        contracts.Sink
+	// SecondaryHandler receives best-effort copies after the local write succeeds.
+	// Adapters and their lifecycle are owned by the host, not this package.
+	SecondaryHandler slog.Handler
+	Rotation         RotationConfig
+	// Stat enables typed CSV output owned by InitDefault. Nil disables typed Stat.
+	Stat *StatConfig
 }
 
 // InitDefault creates a local-first logger and installs it as the process default.
 func InitDefault(cfg Config) (CloseFunc, error) {
 	cfg = cfg.withDefaults()
-	logger, closeFn, err := NewLocalFirstLogger(cfg)
+	if cfg.Stat != nil {
+		local, err := filepath.Abs(cfg.LocalPath)
+		if err != nil {
+			return nil, err
+		}
+		stat, err := filepath.Abs(cfg.Stat.LocalPath)
+		if err != nil {
+			return nil, err
+		}
+		if local == stat || (runtime.GOOS == "windows" && strings.EqualFold(local, stat)) {
+			return nil, fmt.Errorf("ordinary logs and Stat require different local files")
+		}
+	}
+	localCfg := cfg
+	localCfg.Stat = nil
+	logger, closeFn, err := NewLocalFirstLogger(localCfg)
 	if err != nil {
 		return nil, err
 	}
-	SetDefault(logger)
-	SetDefaultSink(cfg.Observe)
-	setDefaultSource(cfg.SourceService, cfg.SourceInstance)
-	return closeFn, nil
+	state := emptyStatState()
+	state.logger = logger
+	if cfg.Stat != nil {
+		state.recorder, err = newStatRecorder(*cfg.Stat, state.reportError)
+		if err != nil {
+			_ = closeFn()
+			return nil, err
+		}
+	}
+	defaultMu.Lock()
+	defaultLogger, defaultStat = logger, state
+	defaultMu.Unlock()
+	var once sync.Once
+	var closeErr error
+	return func() error {
+		once.Do(func() {
+			if state.recorder != nil {
+				closeErr = state.recorder.close()
+			}
+			closeErr = errors.Join(closeErr, closeFn())
+		})
+		return closeErr
+	}, nil
 }
 
-// NewLocalFirstLogger creates a logger whose required path is local JSONL output.
+// NewLocalFirstLogger creates a logger whose required path is local text output.
 func NewLocalFirstLogger(cfg Config) (Logger, CloseFunc, error) {
+	if cfg.Stat != nil {
+		return nil, nil, fmt.Errorf("typed Stat configuration requires InitDefault")
+	}
 	cfg = cfg.withDefaults()
 	local, closeFn, err := newLocalHandler(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-	var observe slog.Handler
-	if cfg.Observe != nil {
-		observe = NewSinkHandler(cfg.Observe)
-	}
-	logger, err := NewTeeLogger(local, observe)
+	logger, err := NewTeeLogger(local, cfg.SecondaryHandler)
 	if err != nil {
 		_ = closeFn()
 		return nil, nil, err
@@ -81,18 +120,15 @@ func (cfg Config) withDefaults() Config {
 }
 
 func newLocalHandler(cfg Config) (slog.Handler, CloseFunc, error) {
-	if err := os.MkdirAll(filepath.Dir(cfg.LocalPath), 0755); err != nil {
-		return nil, nil, fmt.Errorf("logging create local log dir: %w", err)
-	}
-	file, err := os.OpenFile(cfg.LocalPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	file, err := openLocalFile(cfg.LocalPath, cfg.Rotation)
 	if err != nil {
-		return nil, nil, fmt.Errorf("logging open local log file: %w", err)
+		return nil, nil, fmt.Errorf("logging: %w", err)
 	}
 	writer := io.Writer(file)
 	if cfg.AlsoStdout {
 		writer = io.MultiWriter(file, os.Stdout)
 	}
-	handler := slog.NewJSONHandler(writer, &slog.HandlerOptions{Level: slog.Level(cfg.Level)})
+	handler := slog.NewTextHandler(writer, &slog.HandlerOptions{Level: slog.Level(cfg.Level)})
 	return handler, file.Close, nil
 }
 

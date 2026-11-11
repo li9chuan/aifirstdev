@@ -418,7 +418,12 @@ func parseEntry(fileName string, file File, text string) TailEntry {
 	entry := TailEntry{File: fileName, Path: file.Path, Text: text, Kind: file.Kind}
 	var fields map[string]any
 	if err := json.Unmarshal([]byte(text), &fields); err != nil {
-		return entry
+		// CSV Stat headers belong to the application. Only ordinary text logs
+		// have the standard slog keys understood by this generic reader.
+		if file.Kind == contracts.KindStat {
+			return entry
+		}
+		fields = parseTextFields(text)
 	}
 	entry.Time = parseTimeField(fields["time"], fields["Time"])
 	entry.Level = normalizeLevel(firstString(fields["level"], fields["Level"]))

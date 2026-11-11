@@ -20,7 +20,7 @@
 - [project-coding-constraints](project-coding-constraints/SKILL.md)
   - 用于职责边界、最小业务门面、框架复杂度下沉、service/user 命名、文件组织、锁与拷贝、持久化、日志、错误和项目经验沉淀；遇到 `share` / `common` / `core` / `kit` 类小工具归属争议时必须读取，并参考工作区 [模块边界](../../docs/module-boundary.md)。
 - [architecture-and-surface-routing](architecture-and-surface-routing/SKILL.md)
-  - 用于判断需求应落在 `contracts/llm/config/schema/rpc/rdb/runtime/proxy/observe/robot/tools/rules/examples` 还是业务项目；runtime 边界、基础工具集、`aifd-core` 准入、observe-agent 和 `aifd-auth` / `aifd-account` / `aifd-proxy` / `aifd-llm` 归属不清时先用它定主修改面。
+  - 用于判断需求应落在 `contracts/log/llm/config/schema/rpc/rdb/runtime/proxy/observe/robot/tools/rules/examples` 还是业务项目；runtime 边界、独立日志与可选 observe、基础工具集、`aifd-core` 准入和账号/连接归属不清时先用它定主修改面。
 - [complex-backend-workflow](complex-backend-workflow/SKILL.md)
   - 用于复杂能力设计、术语冻结、真相源、恢复模型、分批计划和验收门禁。
 - [svn-commit-description](svn-commit-description/SKILL.md)

@@ -31,7 +31,8 @@ sharing one framework version. Business projects continue to write feature code:
   and Luban bundle builder adapters.
 - [aifd-llm](aifd-llm/README.md): provider-neutral LLM request, response, stream, error, and adapter
   contracts.
-- [aifd-observe](aifd-observe/README.md): observable events, async sinks, and local statistics adapters.
+- [aifd-log](aifd-log/README.md): local text logs, typed CSV Stat, and size/calendar-day rotation.
+- [aifd-observe](aifd-observe/README.md): observable events, optional logging adapters, async sinks, and bounded queries.
 - [aifd-proxy](aifd-proxy/README.md): client gateway contracts, sessions, delivery, and adapters.
 - [aifd-robot](aifd-robot/README.md): integration test robots, run groups, behaviors, and statistics.
 - [aifd-rpc](aifd-rpc/README.md): RPC contracts, routing, dispatchers, and adapters.
@@ -50,24 +51,17 @@ sharing one framework version. Business projects continue to write feature code:
 Dependencies must remain one-way:
 
 ```text
-aifd-contracts        aifd-llm
-  ^                     ^
-  +-- aifd-auth         |
-  +-- aifd-account      |
-  +-- aifd-config       |
-  +-- aifd-observe      |
-  +-- aifd-proxy        |
-  +-- aifd-robot        |
-  +-- aifd-rpc          |
-  +-- aifd-rdb          |
-  +-- aifd-schema       |
-  ^                     |
-aifd-runtime           |
-  ^                     |
-business projects -----+
+business projects
+  -> aifd-runtime
+       -> auth/account/client/config/observe/proxy/robot/rpc/rdb/schema
+       -> aifd-log
+  -> aifd-llm
+
+infrastructure -> aifd-contracts / aifd-log (as needed)
+aifd-log -> standard library + Lumberjack
 ```
 
-`aifd-config`, `aifd-llm`, `aifd-observe`, `aifd-proxy`, `aifd-robot`,
+`aifd-config`, `aifd-llm`, `aifd-log`, `aifd-observe`, `aifd-proxy`, `aifd-robot`,
 `aifd-rpc`, `aifd-rdb`, and `aifd-schema` do not understand player, world,
 feature, DBPlayer, concrete `.proto` files, real Luban tables, or business
 prompt policy. `aifd-runtime` provides `service.Service` and `user.Runtime`;

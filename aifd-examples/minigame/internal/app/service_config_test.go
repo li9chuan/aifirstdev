@@ -19,6 +19,17 @@ level = "debug"
 stdout = true
 dir = "./logs"
 
+[log.rotation]
+max_size_mb = 1024
+max_backups = 5
+
+[log.stat]
+local_path = "./logs/stat.log"
+
+[log.stat.rotation]
+max_size_mb = 2048
+max_age_days = 30
+
 [rpc.nats]
 servers = ["nats://127.0.0.1:4222"]
 timeout = "3s"
@@ -50,6 +61,9 @@ duplicate_policy = "kick_old"
 	}
 	if !logCfg.AlsoStdout || logCfg.SourceService != "minigame" {
 		t.Fatalf("log config = %+v", logCfg)
+	}
+	if logCfg.Rotation.MaxSizeMB != 1024 || logCfg.Rotation.MaxBackups != 5 || logCfg.Stat == nil || logCfg.Stat.Rotation.MaxSizeMB != 2048 || logCfg.Stat.Rotation.MaxAgeDays != 30 {
+		t.Fatalf("log rotation config = %+v / %+v", logCfg.Rotation, logCfg.Stat)
 	}
 	natsCfg, err := cfg.NATSConfig("minigame-proxy", "")
 	if err != nil {

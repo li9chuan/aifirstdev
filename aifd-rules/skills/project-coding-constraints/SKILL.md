@@ -9,7 +9,7 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 
 ## 职责边界
 
-- 先选择最小职责归属模块：`contracts`、`llm`、`schema`、`config`、`rpc`、`rdb`、`proxy`、`observe`、`robot`、`runtime`、`tools`、`rules`、`examples` 或业务项目。
+- 先选择最小职责归属模块：`contracts`、`log`、`llm`、`schema`、`config`、`rpc`、`rdb`、`proxy`、`observe`、`robot`、`runtime`、`tools`、`rules`、`examples` 或业务项目。
 - 基础设施模块只放抽象、契约、适配和通用流程；业务 feature 真相、业务 proto、业务配置、生成物和玩法规则留在业务项目。
 - 可选框架能力包必须由应用入口显式组合，import 必须无副作用；不能用隐藏全局注册绕过启动 wiring，也不要在 `aifd-runtime/user` 或 `aifd-runtime/service` 下为 mail、friend、guild、ranking 这类功能建子目录。
 - proxy-broker embedded NATS 属于 `aifd-proxy/adapters/nats/broker` 的显式入口能力；业务服
@@ -78,10 +78,12 @@ description: 编码、整理、重构、命名调整、问题分析或 review �
 
 - 导出函数、模块入口、异步回调、持久化变更、配置解释 helper 都应有简洁注释，说明行为和边界。
 - 启动、恢复、热更、跨期、发奖、RPC 入口、持久化发布、异步回调等关键流程要有可观测锚点。
-- logging 是允许全局门面的横切例外；使用 `aifd-observe/logging` 的 `log.Info`、`log.Warn`、`log.Error`、`log.Stat` 和 `log.Statf`，不要新增 `share.Log` 或 `share.Stat`。
+- logging 是允许全局门面的横切例外；普通日志和 typed Stat 使用 `aifd-log`，不要新增 `share.Log` 或 `share.Stat`。日志包不得依赖 observe、RPC、RDB 或 runtime；observe handler 由宿主显式注入。
 - 运行日志本地优先写 stdout/file；observe 查询端通过 RPC 拉各进程 observe-agent，agent 只按逻辑 file 名 tail/filter 预注册的本地日志或 stat 文件。高频日志不要通过 RPC 主动推送。
 - 嵌入式 observe-agent 属于 control plane，不参与业务热路径；tail/filter 查询必须有 timeout、max bytes、max lines 和 max concurrency，并发满时直接拒绝，不排队反压业务进程。
-- 业务打点使用 `log.Stat(name, fields...)` 或 `log.Statf(format, args...)` 生成 `KindStat`，输出目标由入口层 sink/router 决定，业务模块不要判断 observe 还是外部打点服务器。
+- typed 打点使用 feature 的 `StatEvents()` 定义和 `User.Stat(payload)`；`WithStatHeader` 注入应用的完整公共头，`InitDefault.Config.Stat` 管理本地 CSV 和可选成品转发。定义不在初始化入口重复汇总，头版本、接收服务和补录留在业务，参见 [Stat](../../../docs/stat.md)。
+- 不恢复字段式 `Stat/Statf` 或全局默认 Sink；需要观测 envelope 时直接组合 observe 的 `Event` 与 `Sink.Write`。typed CSV 不经普通日志的可选 handler；普通运行日志不主动推送 RPC，Stat 转发函数由宿主注入，远端故障不能阻止本地记录。
+- 普通日志默认文本，Stat 保持原始 CSV，共用 Lumberjack 文件组件；默认 1 GiB 与本地自然日切分。日切要覆盖午夜、写入前检查和跨日重启，关闭后不能隐式重开文件；归档名冲突不能覆盖旧记录，快速连续切分必须核对记录完整性。归档清理与补录窗口由项目配置，单路径须由单个进程和 logger 独占。
 - 日志字段要能定位主体、周期、动作、来源、结果和失败原因；不要打印完整大对象或隐私数据。
 - 稳定错误语义集中管理；发生点用错误包装补充现场上下文。
 - 对外错误码、内部哨兵错误和日志原因分层表达，不用泛泛的 `failed` 替代业务可解释失败。

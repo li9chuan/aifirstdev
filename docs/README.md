@@ -22,7 +22,9 @@
 | protobuf 保存、Redis/Lua 选型、TTL、Flush、失败恢复 | [持久化选型](../aifd-rules/skills/feature-development/references/rdb-selection.md)、[RDB](../aifd-rdb/README.md) | [DB](../aifd-rdb/db.go)、[Saver](../aifd-rdb/saver.go)、[journal](../aifd-rdb/journal.go) |
 | typed 配置、校验与热更 | [Config](../aifd-config/README.md)、[Viper](../aifd-config/adapters/viper/README.md) | [Manager](../aifd-config/runtime/manager.go)、[Viper loader](../aifd-config/adapters/viper/loader.go) |
 | proto 兼容、生成与路由绑定 | [Schema](../aifd-schema/README.md)、[生成命令](../aifd-tools/README.md) | [协议源目录](../aifd-schema/proto)、[兼容性检查](../aifd-schema/runtime/validator.go)、[绑定](../aifd-schema/runtime/binder.go) |
-| 本地日志、Stat、observe-agent | [Observe](../aifd-observe/README.md) | [日志初始化](../aifd-observe/logging/config.go)、[agent](../aifd-observe/agent/agent.go)、[admin RPC](../aifd-observe/adapters/agentrpc/rpc.go) |
+| 本地文本日志、CSV Stat、大小与日切 | [日志](../aifd-log/README.md) | [日志初始化](../aifd-log/config.go)、[滚动文件](../aifd-log/local_file.go) |
+| 可选日志观测接入、observe-agent | [Observe](../aifd-observe/README.md) | [日志 adapter](../aifd-observe/adapters/logging/handler.go)、[agent](../aifd-observe/agent/agent.go)、[admin RPC](../aifd-observe/adapters/agentrpc/rpc.go) |
+| typed Stat、业务公共头、CSV 与可选转发 | [Stat 接线](stat.md)、[可执行示例](../aifd-runtime/user/stat_example_test.go) | [事件定义](../aifd-log/stat_schema.go)、[记录](../aifd-log/stat.go)、[User](../aifd-runtime/user/stat.go) |
 | LLM Complete/Stream 与 provider 适配 | [LLM](../aifd-llm/README.md) | [契约](../aifd-llm/client.go)、[adapter](../aifd-llm/adapters) |
 | 测试机器人、行为树、report | [Robot](../aifd-robot/README.md) | [RunGroup](../aifd-robot/runtime/rungroup.go)、[report](../aifd-robot/contracts/report.go) |
 | 可选邮件 owner、领取与迁移 | [Mail](../aifd-plugins/mail/README.md)、[接入规则](../aifd-rules/skills/runtime-module-development/references/mail-owner.md) | [service](../aifd-plugins/mail/service/module.go)、[user](../aifd-plugins/mail/user/module.go)、[mailbox](../aifd-plugins/mail/mailbox) |

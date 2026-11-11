@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	log "github.com/li9chuan/aifirstdev/aifd-observe/logging"
+	log "github.com/li9chuan/aifirstdev/aifd-log"
 	"github.com/li9chuan/aifirstdev/aifd-proxy/adapters/httpserver"
 	"github.com/li9chuan/aifirstdev/aifd-runtime/entrypoint"
 )

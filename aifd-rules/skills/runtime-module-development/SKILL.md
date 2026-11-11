@@ -62,6 +62,15 @@ description: 开发 aifd-runtime、业务 runtime feature 模块或可选功能�
 
 ## User 生命周期
 
+### Typed Stat 接线
+
+- user/service module 可实现 `aifd-log` 的 `logging.StatEventProvider`，沿已有模块列表在 `RegisterRPC` 的业务路由前批量校验并注册；启动前 `Manager.Register` 追加的模块同样覆盖。
+- `WithStatHeader` 绑定应用头回调，User 初始化时在 OnLoad 前继承；`User.Stat(payload)` 在当前调用完成头与编码，异步出口只接收成品文本。
+- 框架不定义业务头字段、HeaderName、头版本或平台转换。包装内部 feature 的模块显式转交 `StatEvents()`，不增加全局业务扫描。
+- 宿主先 `logging.InitDefault`、后模块注册；停服先停生产者再关闭日志。文件和转发契约见 [Typed Stat](../../../docs/stat.md)。
+
+### 加载与关闭
+
 涉及邮件插件的 owner、Game/user 接入、收件资格、领取 CD、恢复或缓存淘汰时，读取 [Mail owner 接入规则](references/mail-owner.md)。
 
 - 框架提供 `user.Runtime[T]`、`User[T]` 和 `UID()`；业务服务仍按真实领域命名。

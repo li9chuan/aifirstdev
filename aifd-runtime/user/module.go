@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	base "github.com/li9chuan/aifirstdev/aifd-contracts"
+	"github.com/li9chuan/aifirstdev/aifd-log"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
 	"google.golang.org/protobuf/proto"
 )
@@ -57,6 +58,24 @@ func (m *Manager[T]) OnLoad(ctx context.Context, owner *User[T]) error {
 
 // RegisterRPC allows modules to bind business routes to the shared registry.
 func (m *Manager[T]) RegisterRPC(reg *rpc.Registry) error {
+	return m.registerRPC(reg, nil)
+}
+
+func (m *Manager[T]) registerRPC(reg *rpc.Registry, validateHeader func(...logging.StatSchema) error) error {
+	var events []logging.StatSchema
+	for _, module := range m.modules {
+		if provider, ok := module.(logging.StatEventProvider); ok {
+			events = append(events, provider.StatEvents()...)
+		}
+	}
+	if validateHeader != nil {
+		if err := validateHeader(events...); err != nil {
+			return fmt.Errorf("user stat header: %w", err)
+		}
+	}
+	if err := logging.RegisterStatEvents(events...); err != nil {
+		return fmt.Errorf("user stat events: %w", err)
+	}
 	for _, module := range m.modules {
 		if err := module.RegisterRPC(reg); err != nil {
 			return err

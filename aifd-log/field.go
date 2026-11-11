@@ -73,14 +73,3 @@ func attrsFromFields(fields []Field) []slog.Attr {
 	}
 	return attrs
 }
-
-func fieldsMap(fields []Field) map[string]any {
-	if len(fields) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(fields))
-	for _, field := range fields {
-		addAttr(out, nil, field.attr)
-	}
-	return out
-}

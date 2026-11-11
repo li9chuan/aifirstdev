@@ -11,7 +11,7 @@
 
 RDB 与原生 Redis/Lua 的适用场景见[业务持久化选型](../aifd-rules/skills/feature-development/references/rdb-selection.md)。
 
-SET/HSET 实际保存成功后，通过进程默认的 `aifd-observe/logging` 输出 `Rdb save Set`
+SET/HSET 实际保存成功后，通过进程默认的 `aifd-log` 输出 `Rdb save Set`
 或 `Rdb save HSet`。`size` 是已序列化 protobuf 的整数字节数，例如 `"size":1536`，
 不换算 KB、不使用小数；空 protobuf 为 `0`。定位字段使用 `key_hash` / `field_hash`，
 不输出原始 key 或 field。宿主使用现有 logging 初始化即可记录；失败或跳过的写入不输出成功保存日志。

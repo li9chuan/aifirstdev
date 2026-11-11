@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/li9chuan/aifirstdev/aifd-log"
 	observe "github.com/li9chuan/aifirstdev/aifd-observe/contracts"
-	"github.com/li9chuan/aifirstdev/aifd-observe/logging"
 )
 
 const (

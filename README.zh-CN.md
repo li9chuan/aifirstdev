@@ -24,7 +24,8 @@ runtime，业务应用按领域命名自己的后端服务，便于扩展到 Wai
 - [aifd-client](aifd-client/README.md)：Go 客户端连接、登录、消息路由和请求。
 - [aifd-config](aifd-config/README.md)：typed 配置 bundle 生命周期、校验、manifest diff 和 Luban bundle builder 适配。
 - [aifd-llm](aifd-llm/README.md)：provider-neutral 的 LLM 请求、响应、stream、错误和 adapter 契约。
-- [aifd-observe](aifd-observe/README.md)：可观测事件、异步 sink 和本地统计适配。
+- [aifd-log](aifd-log/README.md)：本地文本日志、typed CSV Stat，以及大小与自然日切分。
+- [aifd-observe](aifd-observe/README.md)：可观测事件、可选日志适配、异步 sink 和有界查询。
 - [aifd-proxy](aifd-proxy/README.md)：客户端网关契约、session、投递和适配。
 - [aifd-robot](aifd-robot/README.md)：集成测试机器人、运行组、行为和统计。
 - [aifd-rpc](aifd-rpc/README.md)：RPC 契约、路由、分发器和适配。
@@ -39,24 +40,17 @@ runtime，业务应用按领域命名自己的后端服务，便于扩展到 Wai
 依赖方向必须保持单向：
 
 ```text
-aifd-contracts        aifd-llm
-  ^                     ^
-  +-- aifd-auth         |
-  +-- aifd-account      |
-  +-- aifd-config       |
-  +-- aifd-observe      |
-  +-- aifd-proxy        |
-  +-- aifd-robot        |
-  +-- aifd-rpc          |
-  +-- aifd-rdb          |
-  +-- aifd-schema       |
-  ^                     |
-aifd-runtime           |
-  ^                     |
-业务项目 ---------------+
+business projects
+  -> aifd-runtime
+       -> auth/account/client/config/observe/proxy/robot/rpc/rdb/schema
+       -> aifd-log
+  -> aifd-llm
+
+infrastructure -> aifd-contracts / aifd-log (as needed)
+aifd-log -> standard library + Lumberjack
 ```
 
-`aifd-config`、`aifd-llm`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、
+`aifd-config`、`aifd-llm`、`aifd-log`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、
 `aifd-rpc`、`aifd-rdb` 和 `aifd-schema` 不理解 player、world、feature、DBPlayer、
 具体 `.proto` 文件、真实 Luban 表或业务 prompt 策略。`aifd-runtime` 负责提供
 `service.Service` 和 `user.Runtime`；游戏、玩家、世界等词汇只属于业务示例，不是框架公共 API。

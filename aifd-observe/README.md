@@ -1,67 +1,45 @@
 # aifd-observe
 
-## 定位
+## 定位与边界
 
-`aifd-observe` 提供框架级可观测事件和 sink，用于日志、指标、链路、审计、统计和
-健康信号。
+`aifd-observe` 提供中立观测事件、Sink、fan-out/异步投递 helper、memory/console/JSONL
+adapter，以及可选的本地查询 agent。指标、trace、audit、健康信号及显式 `KindStat` 事件
+可通过这些接口组合。
 
-## 负责
+进程日志、typed Stat 的定义和 CSV 编码、本地滚动文件归 [aifd-log](../aifd-log/README.md)。
+本模块不拥有日志全局门面，不要求业务启动 observe 服务，不内置聚合或补录服务；业务状态、
+报表和平台消费语义留在项目。User 公共头接线归 runtime，见 [Stat](../docs/stat.md)。
 
-- 中立的可观测事件 envelope。
-- Sink 接口，以及 fan-out 或异步投递 helper。
-- 用于测试和示例的本地 memory、console、stat adapter。
-- local-first 日志门面：业务通过 AIFD logger 优先写本地文件，本地处理成功后再做 observe 可选转发。
-- 业务打点门面：`log.Stat` / `log.Statf` 生成 `KindStat` 事件，由 sink 决定输出到本地文件、
-  observe-agent 或外部打点日志服务器。
-- 可选 observe-agent：按预注册文件 tail/filter 本地已输出日志，供 observe 聚合端通过 RPC 查询。
+## 可选日志接入
 
-## 不负责
-
-- 玩法聚合真相、排行榜、奖励结算或业务报表。
-- Player、World、DBPlayer、feature 状态或 runtime lifecycle 决策。
-- 超出框架事件形态之外的具体业务日志策略。
-
-## 业务项目如何使用
-
-业务项目可以通过此模块写入指标、日志和统计，也可以接入自己的 sink 实现。feature
-代码应把业务真相留在拥有职责的 feature 模块中，只把观测信号发布到这里。
-
-日志使用 `logging` 包初始化进程级默认 logger：
+需要将普通日志转换为观测事件时，由宿主显式接入 adapter：
 
 ```go
+import (
+    "github.com/li9chuan/aifirstdev/aifd-log"
+    loggingsink "github.com/li9chuan/aifirstdev/aifd-observe/adapters/logging"
+)
+
 closeLog, err := logging.InitDefault(logging.Config{
-	SourceService: "game",
-	LocalPath:     "run/logs/game.log",
-	AlsoStdout:    true,
+    SourceService: "game",
+    LocalPath: "run/logs/game.log",
+    SecondaryHandler: loggingsink.NewHandler(sink),
 })
-if err != nil {
-	return err
-}
+if err != nil { return err }
 defer closeLog()
-
-logging.Info("service started", logging.String("module", "game"))
-logging.InfoContext(ctx, "rpc handled", logging.String("topic", topic))
 ```
 
-包级 logger 在初始化前默认丢弃输出；宿主应先成功调用 `InitDefault`，再启动其他组件。
-`InitDefault` 的关闭函数只关闭它自己拥有的本地资源，传入的 observe sink 由宿主单独关闭。
-初始化时的本地文件打开失败会返回 error；运行期 `Info/Warn/Error` 不返回写盘错误，不提供逐条 fsync 保证。
-local-first 表示输出顺序，不表示每条日志均已可持久恢复。
+普通日志先写本地文本，成功后同步调用可选 handler，其错误不回退本地记录。慢出口可以
+由宿主先组合 `AsyncSink`，并负责其 Start/Close。typed Stat 的 CSV 不经过这个 handler，
+项目如需转发，应显式配置独立的 `StatConfig.Forward`。
 
-业务打点也走 `logging` 包的全局门面，但它不是普通运行日志：
+旧字段式 `Stat/Statf` 与全局默认 Sink 已移除。需要观测 envelope 的调用方直接使用
+`contracts.Event` 和 `Sink.Write`；这类事件与 typed CSV 不自动互转。agent 作为 Sink
+只累计计数，不保存事件正文。所有高频普通日志仍本地优先，不通过业务 RPC 主动推送。
 
-```go
-logging.Stat("friend.add", logging.Int64("uid", uid), logging.Int64("friend_uid", friendUID))
-logging.Statf("type=%s uid=%d", typ, uid)
-```
-
-`Stat/Statf` 写入 `Config.Observe` 或 `SetDefaultSink` 指定的 sink；未配置时不输出，也不会自动写入 `LocalPath`。
-需要打点文件时显式组合 [JSONL sink](adapters/jsonl/sink.go) 和 KindRouter；agent 作为 sink 只计数，不保存事件正文。
-默认打点调用同步调用 sink，高频或慢出口可由宿主加 AsyncSink，不是自动异步。
-
-`Info` / `Warn` / `Error` 的首要目标是本地 stdout/file。observe 查询日志时，聚合端通过
-RPC 调用各进程 observe-agent，agent 只按逻辑 file 名查询预注册日志或 stat 文件。
-高频运行日志不通过 RPC 主动推送。
+agent 的 tail 支持当前普通文本与历史 JSON。应用自定义 CSV 保留原文，不推断头字段或
+事件 schema；不自动遍历归档文件或提供补录。日志级别、名字和时间筛选依赖可识别的普通
+日志字段。
 
 ### Embedded observe-agent
 
@@ -78,13 +56,9 @@ agent 初始化失败默认只应记录 warn 并让业务继续启动。只有�
 `RequireObserveAgent=true` 时，才把 agent 初始化失败升级为服务启动失败；这个开关属于
 宿主项目启动策略，不进入 `agent.Config`。
 
-`Stat` / `Statf` 生成 `KindStat` 事件。入口层可以使用 `runtime.KindRouter`、
-`runtime.MultiSink` 和 `runtime.AsyncSink` 将打点路由到本地 JSONL、observe-agent、
-外部打点日志服务器或测试 recorder。业务代码不判断输出目标。
-
 AsyncSink 需显式 `Start(ctx)`；队列满会丢弃并累计 `Dropped()`，底层写入错误不自动重试。
 要排空队列时先停止生产者并调用 Close，再取消 worker context 和关闭底层 sink；先取消 context 不保证队列排空。
-实现见 [logging](logging/logger.go)、[AsyncSink](runtime/async.go) 和 [agent](agent/agent.go)。
+实现见 [日志门面](../aifd-log/README.md)、[AsyncSink](runtime/async.go) 和 [agent](agent/agent.go)。
 
 新增功能文件不需要机械打日志；只在启动/恢复、RPC 入口关键失败、外部依赖失败、
 异步 worker、跨期结算和关键状态迁移等边界写日志。日志字段必须能定位主体、周期、

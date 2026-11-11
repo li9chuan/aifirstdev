@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	log "github.com/li9chuan/aifirstdev/aifd-observe/logging"
+	log "github.com/li9chuan/aifirstdev/aifd-log"
 	"net/http"
 	"strconv"
 	"sync"

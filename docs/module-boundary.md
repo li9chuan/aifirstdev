@@ -6,7 +6,7 @@
 
 框架统一使用仓库根 Go module `github.com/li9chuan/aifirstdev`，用一个根标签发布整套版本。
 本文的“模块”表示目录、包和职责边界，不表示独立 Go module。现有包名、import 路径、
-依赖方向和显式组合方式保持不变；`aifd-tools` 和官方插件也随框架一起发布。
+依赖方向和显式组合方式保持单向；`aifd-tools` 和官方插件也随框架一起发布。
 
 只有 `aifd-examples/minigame` 和 `aifd-examples/desktool` 保留独立 `go.mod`，用于消费验证和
 隔离示例构建环境，不单独发布模块标签。未来出现真实独立消费者、发布周期或依赖隔离需求时，
@@ -20,14 +20,15 @@
 
 ### 基础设施根模块
 
-`aifd-auth`、`aifd-account`、`aifd-client`、`aifd-config`、`aifd-llm`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、`aifd-rpc`、`aifd-rdb`、`aifd-runtime` 和 `aifd-schema` 按职责组织，在同一个 Go module 中统一版本：
+`aifd-auth`、`aifd-account`、`aifd-client`、`aifd-config`、`aifd-llm`、`aifd-log`、`aifd-observe`、`aifd-proxy`、`aifd-robot`、`aifd-rpc`、`aifd-rdb`、`aifd-runtime` 和 `aifd-schema` 按职责组织，在同一个 Go module 中统一版本：
 
 - `aifd-auth`：账号中心和 proxy 共享的签名 ticket 基础件。
 - `aifd-account`：可选账号中心实现，不强迫已有账号中心的业务项目依赖。
 - `aifd-client`：Go 客户端请求、回包和推送，以及 proxy WebSocket transport。
 - `aifd-config`：typed config bundle 生命周期、reload、manifest diff、validator 和 Luban bundle builder adapter。
 - `aifd-llm`：provider-neutral 的 LLM 调用门面、stream、usage、tool call、JSON 输出、错误语义和 provider adapter。
-- `aifd-observe`：日志、指标、trace、audit、stat sink。
+- `aifd-log`：普通文本日志、typed Stat 定义与 CSV、本地滚动文件及可选成品转发；不依赖 observe、RPC、RDB 或 runtime。
+- `aifd-observe`：观测事件、指标、trace、audit、显式 stat sink、可选日志 adapter 与有界查询 agent。
 - `aifd-proxy`：客户端连接、gateway、session、delivery 和登录接入边界；可选
   `adapters/nats/broker` 只作为 proxy-broker 入口显式封装 embedded NATS server 生命周期。
   `adapters/httpserver` 拥有可选的原生 HTTP/TLS 监听与证书生命周期，复用既有 HTTP/WS handler；runtime 只编排其显式启动、就绪及关闭，不拥有证书资产或 ACME 协议。
@@ -43,7 +44,15 @@
 
 框架默认使用显式构造，不引入 `wire`、`dig` 或运行时 DI container。接口依赖按值传，例如 `rpc.Bus`、`observe.Sink`、`logging.Logger`；有生命周期的具体对象按指针传，例如 `*rdb.DB`、`*rpc.Registry`、`*user.Runtime[T]`。
 
-logging 是少数允许全局门面的横切能力。业务和框架代码可以使用 `log.Info`、`log.Warn`、`log.Error`、`log.Stat` 和 `log.Statf`，但这个门面只归属 `aifd-observe/logging`。不要新增 `share.Log`、`share.Stat` 或通用全局依赖中心。
+logging 是少数允许全局门面的横切能力。业务和框架代码通过 `aifd-log` 使用 `logging.Info/Warn/Error`、格式化 helper 与 typed Stat；不保留旧 `aifd-observe` 日志路径或默认 Sink 全局入口。不要新增 `share.Log`、`share.Stat` 或通用全局依赖中心。
+
+Typed Stat 的定义、编码、本地追加与可选转发归 `aifd-log`；feature 发现与 User
+公共头接线归 `aifd-runtime`。头字段和版本、接收服务、补录与数据消费归项目；成品 Stat
+转发不要求 observe-agent，也不引入框架聚合服务，见 [Stat](stat.md)。
+
+普通日志默认文本、Stat 保持 CSV，共用 Lumberjack 文件组件，默认 1 GiB 与本地自然日
+切分。observe 转换从 `aifd-observe/adapters/logging` 接入；只能由宿主把 handler 传给
+日志配置，日志包不得反向依赖 observe，参见 [日志](../aifd-log/README.md)。
 
 `DB`、`Bus` 和 `Config` 不跟随 logging 放宽：DB 和 Bus 由 app/service host 创建、启动和关闭，再显式传给模块；Config 由 host 管理 reload，module 只接收窄配置接口或 typed config 值。
 

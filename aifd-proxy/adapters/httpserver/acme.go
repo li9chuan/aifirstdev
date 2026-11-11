@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/caddyserver/certmagic"
-	log "github.com/li9chuan/aifirstdev/aifd-observe/logging"
+	log "github.com/li9chuan/aifirstdev/aifd-log"
 	"go.uber.org/zap"
 )
 

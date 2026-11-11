@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
+	"reflect"
 	"sync"
 
+	"github.com/li9chuan/aifirstdev/aifd-log"
+	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc"
 	contracts "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
 	"google.golang.org/protobuf/proto"
@@ -29,6 +31,7 @@ type Runtime[T proto.Message] struct {
 	closed           bool
 	connections      *proxyruntime.ClientSessions
 	defaultHeartbeat bool
+	statHeader       *statHeaderOption
 }
 
 type load[T proto.Message] struct {
@@ -42,6 +45,7 @@ type options struct {
 	bus              contracts.Bus
 	sessions         proxyruntime.ClientSessionOptions
 	defaultHeartbeat bool
+	statHeader       *statHeaderOption
 }
 
 // Option configures runtime-owned capabilities.
@@ -76,6 +80,10 @@ func NewRuntime[T proto.Message](reg *rpc.Registry, store *Store[T], modules *Ma
 	r.connections = proxyruntime.NewClientSessions(config.sessions)
 	r.defaultHeartbeat = config.defaultHeartbeat
 	r.moduleContextErr = modules.BindModuleContext(NewModuleContext[T](r, reg))
+	r.statHeader = config.statHeader
+	if r.statHeader != nil && r.statHeader.userType != reflect.TypeFor[*User[T]]() {
+		r.moduleContextErr = errors.Join(r.moduleContextErr, fmt.Errorf("stat header builder belongs to %s, not %s", r.statHeader.userType, reflect.TypeFor[*User[T]]()))
+	}
 	return r
 }
 
@@ -83,6 +91,11 @@ func NewRuntime[T proto.Message](reg *rpc.Registry, store *Store[T], modules *Ma
 func (r *Runtime[T]) RegisterRPC() error {
 	if err := r.check(); err != nil {
 		return err
+	}
+	if r.statHeader != nil {
+		if err := r.statHeader.validate(); err != nil {
+			return fmt.Errorf("user stat header: %w", err)
+		}
 	}
 	if err := r.connections.RegisterRPC(r.reg); err != nil {
 		return err
@@ -92,7 +105,11 @@ func (r *Runtime[T]) RegisterRPC() error {
 			return err
 		}
 	}
-	return r.modules.RegisterRPC(r.reg)
+	var validateHeader func(...logging.StatSchema) error
+	if r.statHeader != nil {
+		validateHeader = r.statHeader.validate
+	}
+	return r.modules.registerRPC(r.reg, validateHeader)
 }
 
 // RenewConnection renews the authenticated connection attached to this RPC only.
@@ -267,6 +284,7 @@ func (r *Runtime[T]) initialize(ctx context.Context, uid int64, create bool) (ow
 	if err != nil {
 		return nil, fmt.Errorf("user document UID=%d: %w", uid, err)
 	}
+	owner.statHeader = r.statHeader
 	if err = r.modules.OnLoad(ctx, owner); err != nil {
 		return nil, fmt.Errorf("user load hook UID=%d: %w", uid, err)
 	}

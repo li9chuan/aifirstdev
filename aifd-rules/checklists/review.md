@@ -10,7 +10,7 @@
 - 新增小工具是否先尝试归属现有模块，而不是进入 `share` / `common` / `utils`？
 - 如果考虑未来 `aifd-core`，是否满足无领域语义、无运行时依赖、至少两个框架模块稳定复用、有明确窄包名？
 - `aifd-account`、`aifd-auth`、`aifd-proxy` 的边界是否保持：账号中心实现、signed login ticket、连接与登录接入不互相绑死？
-- observe 变更是否保持热路径写入异步或本地缓冲？
+- 日志是否本地优先、`aifd-log` 不反向依赖 observe/runtime、typed Stat 转发独立有界、日切与关闭边界有测试？
 - proxy 变更是否保持认证 session 路由与 owner 状态分离？
 - robot 变更是否把业务 manager 和具体行为 action 留在框架外？
 - schema 变更是否避免 import 生成的 pb 包或具体业务 proto 文件？

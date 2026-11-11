@@ -6,7 +6,7 @@ import (
 	"time"
 
 	configviper "github.com/li9chuan/aifirstdev/aifd-config/adapters/viper"
-	"github.com/li9chuan/aifirstdev/aifd-observe/logging"
+	"github.com/li9chuan/aifirstdev/aifd-log"
 	proxyws "github.com/li9chuan/aifirstdev/aifd-proxy/adapters/websocket"
 	rdb "github.com/li9chuan/aifirstdev/aifd-rdb"
 	rpcnats "github.com/li9chuan/aifirstdev/aifd-rpc/adapters/nats"

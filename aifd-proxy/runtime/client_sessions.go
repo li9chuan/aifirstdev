@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/li9chuan/aifirstdev/aifd-observe/logging"
+	log "github.com/li9chuan/aifirstdev/aifd-log"
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
 	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
 )

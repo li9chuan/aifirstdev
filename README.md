@@ -2,9 +2,9 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-**v0.6.1 clarifies AI development context, tool evidence, verification and repair, and tradeoffs for complex tasks. APIs may change incompatibly.**
+**v0.7.0 introduces the independent aifd-log entry point, local text logs, typed CSV Stat, and size/calendar-day rotation with recovery and retention. APIs may change incompatibly.**
 
-Read the [v0.6.1 release notes](docs/releases/v0.6.1.md) for this rules update. Native HTTPS/WSS setup and limits are covered in [v0.6.0](docs/releases/v0.6.0.md), and earlier Mail migrations in [v0.5.0](docs/releases/v0.5.0.md).
+Read the [v0.7.0 release notes](docs/releases/v0.7.0.md) before upgrading logging imports, handlers, Stat calls, or log consumers. Native HTTPS/WSS setup and limits are covered in [v0.6.0](docs/releases/v0.6.0.md), and earlier Mail migrations in [v0.5.0](docs/releases/v0.5.0.md).
 Documentation follows its source snapshot. Applications should use the documentation and rules for their pinned version.
 
 This release requires Go 1.27.3 or newer. Frontend development uses Node.js 24.22.1 LTS or a newer 24.x release.
@@ -121,8 +121,8 @@ From an initialized Go module outside this workspace, pin the whole framework.
 Use the unified framework version and its current package APIs:
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.6.1
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.6.1
+go get github.com/li9chuan/aifirstdev@v0.7.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.7.0
 ```
 
 Framework packages, CLI, and official plugins share the root `go.mod/go.sum` and

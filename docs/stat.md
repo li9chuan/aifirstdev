@@ -119,6 +119,9 @@ nil builder，不枚举事件或提前检查事件冲突。独立服务任务直
 
 ## 接口迁移
 
+以下条目针对早期未发布的 typed Stat 试验代码；从已发布 v0.6.x 升级时，先阅读
+[v0.7.0 升级说明](releases/v0.7.0.md#升级与兼容性)。
+
 旧的 `DefineStat`、`RegisterStatEvents`、`StatEventProvider` 和 feature 的 `StatEvents`
 清单已移除，不保留 wrapper。进一步移除 `StatSchema`、`StatEvent` 和事件的身份声明方法；
 `RecordStat` 与 `User.Stat` 接收 `any` 并在运行时校验具名 struct。公共头回调的事件参数改为

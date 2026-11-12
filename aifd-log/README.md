@@ -1,6 +1,6 @@
 # aifd-log
 
-本页对应未发布源码；业务项目以所锁定根版本的 API 与升级说明为准。
+本页对应 v0.7.0；业务项目以所锁定根版本的 API 与[升级说明](../docs/releases/v0.7.0.md)为准。
 
 进程内的统一日志入口，包名为 `logging`，与框架共用根 Go module 和版本。
 它使用标准库和 [Lumberjack v2.2.1 内部副本](internal/lumberjack/UPSTREAM.md)，不依赖

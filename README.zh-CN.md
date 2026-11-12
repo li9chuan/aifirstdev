@@ -2,9 +2,9 @@
 
 [English](./README.md) | 简体中文
 
-**v0.6.1 完善 AI 开发中的上下文、工具证据和验证修复规则，补充复杂任务的目标与取舍。API 仍可能发生不兼容变更。**
+**v0.7.0 拆出统一日志入口 aifd-log，提供本地文本日志、typed CSV Stat，以及带恢复和保留策略的大小与自然日轮转。API 仍可能发生不兼容变更。**
 
-本次规则更新见 [v0.6.1 发布说明](docs/releases/v0.6.1.md)；HTTPS/WSS 接入与边界见 [v0.6.0](docs/releases/v0.6.0.md)，更早版本的邮件迁移要求见 [v0.5.0](docs/releases/v0.5.0.md)。
+升级前阅读 [v0.7.0 发布说明](docs/releases/v0.7.0.md)，迁移日志导入、handler、Stat 调用和数据消费；HTTPS/WSS 接入与边界见 [v0.6.0](docs/releases/v0.6.0.md)，更早版本的邮件迁移要求见 [v0.5.0](docs/releases/v0.5.0.md)。
 文档随所在源码快照维护，业务项目使用所锁定版本的文档和规则。
 
 本版本要求 Go 1.27.3 或更新版本；前端开发使用 Node.js 24.22.1 LTS 或更新的 24.x 版本。
@@ -100,8 +100,8 @@ Wails CLI；Windows 安装包构建需要 NSIS。
 使用统一框架版本：
 
 ```powershell
-go get github.com/li9chuan/aifirstdev@v0.6.1
-go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.6.1
+go get github.com/li9chuan/aifirstdev@v0.7.0
+go install github.com/li9chuan/aifirstdev/aifd-tools/cmd/aifd@v0.7.0
 ```
 
 框架、CLI 和官方插件共用根 `go.mod/go.sum`，一次发版只使用一个根标签。

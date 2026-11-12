@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -55,7 +54,15 @@ func openLocalFile(path string, config RotationConfig) (*rollingFile, error) {
 	return newRollingFile(path, config, time.Now)
 }
 
+func openStatFile(path string, config RotationConfig) (*rollingFile, error) {
+	return newFile(path, config, time.Now, true)
+}
+
 func newRollingFile(path string, config RotationConfig, now func() time.Time) (*rollingFile, error) {
+	return newFile(path, config, now, false)
+}
+
+func newFile(path string, config RotationConfig, now func() time.Time, csvRecords bool) (*rollingFile, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -71,6 +78,11 @@ func newRollingFile(path string, config RotationConfig, now func() time.Time) (*
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, fmt.Errorf("create local log directory: %w", err)
 	}
+	if csvRecords {
+		if err := recoverStatCSV(path); err != nil {
+			return nil, err
+		}
+	}
 	location := time.Local
 	if config.UTC {
 		location = time.UTC
@@ -79,6 +91,7 @@ func newRollingFile(path string, config RotationConfig, now func() time.Time) (*
 		logger: &lumberjack.Logger{
 			Filename: path, MaxSize: config.MaxSizeMB, MaxBackups: config.MaxBackups,
 			MaxAge: config.MaxAgeDays, Compress: config.Compress, LocalTime: !config.UTC,
+			RecordWrites: csvRecords, OnError: reportLocalError,
 		},
 		now: now, location: location, daily: !config.DisableDaily,
 		maxSize: int64(config.MaxSizeMB) * 1024 * 1024,
@@ -148,6 +161,14 @@ func (w *rollingFile) Write(p []byte) (int, error) {
 		}
 	}
 	n, err := w.logger.Write(p)
+	if err != nil {
+		// A size rotation may already have succeeded before an append failed.
+		// Refresh only on failures, including a rolled-back partial CSV append.
+		if info, statErr := os.Stat(w.logger.Filename); statErr == nil {
+			w.size, w.hasData = info.Size(), info.Size() > 0
+		}
+		return n, err
+	}
 	if n > 0 {
 		w.hasData = true
 		if rotates {
@@ -185,9 +206,7 @@ func (w *rollingFile) rotateDayUnsafe(now time.Time) error {
 // Only rotations do these filesystem checks; ordinary appends do not stat.
 func (w *rollingFile) waitArchiveName() error {
 	for {
-		ext := filepath.Ext(w.logger.Filename)
-		stamp := time.Now().In(w.location).Format("2006-01-02T15-04-05.000")
-		name := strings.TrimSuffix(w.logger.Filename, ext) + "-" + stamp + ext
+		name := lumberjack.BackupName(w.logger.Filename, w.logger.LocalTime)
 		occupied := false
 		for _, candidate := range []string{name, name + ".gz"} {
 			if _, err := os.Stat(candidate); err == nil {

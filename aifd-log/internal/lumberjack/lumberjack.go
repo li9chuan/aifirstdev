@@ -30,9 +30,10 @@ import (
 )
 
 const (
-	backupTimeFormat = "2006-01-02T15-04-05.000"
-	compressSuffix   = ".gz"
-	defaultMaxSize   = 100
+	backupTimeFormat       = "2006-01-02T15-04-05.000-0700"
+	legacyBackupTimeFormat = "2006-01-02T15-04-05.000"
+	compressSuffix         = ".gz"
+	defaultMaxSize         = 100
 )
 
 // ensure we always implement io.WriteCloser
@@ -55,10 +56,10 @@ var _ io.WriteCloser = (*Logger)(nil)
 // Backups use the log file name given to Logger, in the form
 // `name-timestamp.ext` where name is the filename without the extension,
 // timestamp is the time at which the log was rotated formatted with the
-// time.Time format of `2006-01-02T15-04-05.000` and the extension is the
+// time.Time format of `2006-01-02T15-04-05.000-0700` and the extension is the
 // original extension.  For example, if your Logger.Filename is
 // `/var/log/foo/server.log`, a backup created at 6:30pm on Nov 11 2016 would
-// use the filename `/var/log/foo/server-2016-11-04T18-30-00.000.log`
+// use the filename `/var/log/foo/server-2016-11-11T18-30-00.000+0000.log` in UTC.
 //
 // # Cleaning Up Old Log Files
 //
@@ -101,6 +102,13 @@ type Logger struct {
 	// using gzip. The default is not to perform compression.
 	Compress bool `json:"compress" yaml:"compress"`
 
+	// RecordWrites rolls a failed append back to its previous boundary. It is
+	// used by CSV Stat, where a partial record would corrupt subsequent rows.
+	RecordWrites bool `json:"-" yaml:"-"`
+	// OnError reports archive maintenance failures outside the logger lock.
+	// It must not close this logger or recursively write through it.
+	OnError func(error) `json:"-" yaml:"-"`
+
 	size int64
 	file *os.File
 	mu   sync.Mutex
@@ -111,6 +119,9 @@ type Logger struct {
 	closed    bool
 	closeOnce sync.Once
 	closeErr  error
+	appendErr error
+	// Only the cleanup worker writes millErr; Close reads it after millDone.
+	millErr error
 }
 
 var (
@@ -119,6 +130,10 @@ var (
 
 	// os_Stat exists so it can be mocked out by tests.
 	osStat = os.Stat
+	// writeFile allows deterministic partial-write fault injection in tests.
+	writeFile = (*os.File).Write
+	// removeFile isolates archive-deletion failures for deterministic tests.
+	removeFile = os.Remove
 
 	// megabyte is the conversion factor between MaxSize and bytes.  It is a
 	// variable so tests can mock it out and not need to write megabytes of data
@@ -135,6 +150,9 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 	defer l.mu.Unlock()
 	if l.closed {
 		return 0, os.ErrClosed
+	}
+	if l.appendErr != nil {
+		return 0, l.appendErr
 	}
 
 	writeLen := int64(len(p))
@@ -156,7 +174,23 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	n, err = l.file.Write(p)
+	n, err = writeFile(l.file, p)
+	if l.RecordWrites && (err != nil || n != len(p)) {
+		if err == nil {
+			err = io.ErrShortWrite
+		}
+		if n > 0 {
+			rollbackErr := l.file.Truncate(l.size)
+			if rollbackErr == nil {
+				_, rollbackErr = l.file.Seek(l.size, io.SeekStart)
+			}
+			if rollbackErr != nil {
+				l.appendErr = errors.Join(err, fmt.Errorf("rollback incomplete log record: %w", rollbackErr))
+				return 0, l.appendErr
+			}
+		}
+		return 0, err
+	}
 	l.size += int64(n)
 
 	return n, err
@@ -177,6 +211,7 @@ func (l *Logger) Close() error {
 		if done != nil {
 			<-done
 		}
+		l.closeErr = errors.Join(l.closeErr, l.appendErr, l.millErr)
 	})
 	return l.closeErr
 }
@@ -201,6 +236,9 @@ func (l *Logger) Rotate() error {
 	defer l.mu.Unlock()
 	if l.closed {
 		return os.ErrClosed
+	}
+	if l.appendErr != nil {
+		return l.appendErr
 	}
 	return l.rotate()
 }
@@ -234,7 +272,7 @@ func (l *Logger) openNew() error {
 		// Copy the mode off the old logfile.
 		mode = info.Mode()
 		// move the existing file
-		newname := backupName(name, l.LocalTime)
+		newname := BackupName(name, l.LocalTime)
 		if err := os.Rename(name, newname); err != nil {
 			return fmt.Errorf("can't rename log file: %s", err)
 		}
@@ -257,10 +295,10 @@ func (l *Logger) openNew() error {
 	return nil
 }
 
-// backupName creates a new filename from the given name, inserting a timestamp
-// between the filename and the extension, using the local time if requested
-// (otherwise UTC).
-func backupName(name string, local bool) string {
+// BackupName returns the current rotation filename in local time or UTC. Its
+// numeric offset distinguishes repeated local times. The owning file wrapper
+// also uses it for collision checks, keeping both naming rules identical.
+func BackupName(name string, local bool) string {
 	dir := filepath.Dir(name)
 	filename := filepath.Base(name)
 	ext := filepath.Ext(filename)
@@ -293,14 +331,31 @@ func (l *Logger) openExistingOrNew(writeLen int) error {
 		return l.rotate()
 	}
 
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0644)
+	flags := os.O_APPEND | os.O_WRONLY
+	if l.RecordWrites {
+		// On Windows O_APPEND opens an append-only handle without the write
+		// permission needed by Truncate. Record rollback needs that permission;
+		// the logger's lock and exclusive ownership serialize manual appends.
+		flags = os.O_WRONLY
+	}
+	file, err := os.OpenFile(filename, flags, 0644)
 	if err != nil {
+		if l.RecordWrites {
+			return fmt.Errorf("can't reopen logfile for record writes: %w", err)
+		}
 		// if we fail to open the old log file for some reason, just ignore
 		// it and open a new log file.
 		return l.openNew()
 	}
+	size := info.Size()
+	if l.RecordWrites {
+		size, err = file.Seek(0, io.SeekEnd)
+		if err != nil {
+			return errors.Join(fmt.Errorf("can't seek to logfile end: %w", err), file.Close())
+		}
+	}
 	l.file = file
-	l.size = info.Size()
+	l.size = size
 	return nil
 }
 
@@ -373,7 +428,7 @@ func (l *Logger) millRunOnce() error {
 	}
 
 	for _, f := range remove {
-		errRemove := os.Remove(filepath.Join(l.dir(), f.Name()))
+		errRemove := removeFile(filepath.Join(l.dir(), f.Name()))
 		if err == nil && errRemove != nil {
 			err = errRemove
 		}
@@ -394,8 +449,15 @@ func (l *Logger) millRunOnce() error {
 func (l *Logger) millRun() {
 	defer close(l.millDone)
 	for range l.millCh {
-		// what am I going to do, log this?
-		_ = l.millRunOnce()
+		if err := l.millRunOnce(); err != nil {
+			err = fmt.Errorf("log archive maintenance for %q: %w", l.Filename, err)
+			if l.millErr == nil {
+				l.millErr = err
+			}
+			if l.OnError != nil {
+				l.OnError(err)
+			}
+		}
 	}
 }
 
@@ -415,11 +477,11 @@ func (l *Logger) mill() {
 }
 
 // oldLogFiles returns the list of backup log files stored in the same
-// directory as the current log file, sorted by ModTime
+// directory as the current log file, sorted by the instant encoded in the name.
 func (l *Logger) oldLogFiles() ([]logInfo, error) {
 	files, err := ioutil.ReadDir(l.dir())
 	if err != nil {
-		return nil, fmt.Errorf("can't read log file directory: %s", err)
+		return nil, fmt.Errorf("can't read log file directory: %w", err)
 	}
 	logFiles := []logInfo{}
 
@@ -457,7 +519,39 @@ func (l *Logger) timeFromName(filename, prefix, ext string) (time.Time, error) {
 		return time.Time{}, errors.New("mismatched extension")
 	}
 	ts := filename[len(prefix) : len(filename)-len(ext)]
-	return time.Parse(backupTimeFormat, ts)
+	if t, err := time.Parse(backupTimeFormat, ts); err == nil {
+		return t, nil
+	}
+	// Old names have no offset, so they still require the configured location.
+	location := time.UTC
+	if l.LocalTime {
+		location = currentTime().Location()
+	}
+	t, err := time.ParseInLocation(legacyBackupTimeFormat, ts, location)
+	if err != nil {
+		return time.Time{}, err
+	}
+	// ParseInLocation may select either occurrence of a repeated wall time.
+	// Check the adjacent zone offsets and prefer the latest matching instant:
+	// an ambiguous old archive can stay longer, but must not expire early.
+	// ZoneBounds supplies the real transition size, including non-hour folds.
+	start, end := t.ZoneBounds()
+	if !start.IsZero() {
+		start = start.Add(-time.Nanosecond)
+	}
+	_, offset := t.Zone()
+	latest := t
+	for _, adjacent := range []time.Time{start, end} {
+		if adjacent.IsZero() {
+			continue
+		}
+		_, otherOffset := adjacent.Zone()
+		candidate := t.Add(time.Duration(offset-otherOffset) * time.Second)
+		if candidate.After(latest) && candidate.Format(legacyBackupTimeFormat) == ts {
+			latest = candidate
+		}
+	}
+	return latest, nil
 }
 
 // max returns the maximum size in bytes of log files before rolling.
@@ -487,24 +581,24 @@ func (l *Logger) prefixAndExt() (prefix, ext string) {
 func compressLogFile(src, dst string) (err error) {
 	f, err := os.Open(src)
 	if err != nil {
-		return fmt.Errorf("failed to open log file: %v", err)
+		return fmt.Errorf("failed to open log file: %w", err)
 	}
 	defer f.Close()
 
 	fi, err := osStat(src)
 	if err != nil {
-		return fmt.Errorf("failed to stat log file: %v", err)
+		return fmt.Errorf("failed to stat log file: %w", err)
 	}
 
 	if err := chown(dst, fi); err != nil {
-		return fmt.Errorf("failed to chown compressed log file: %v", err)
+		return fmt.Errorf("failed to chown compressed log file: %w", err)
 	}
 
 	// If this file already exists, we presume it was created by
 	// a previous attempt to compress the log file.
 	gzf, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode())
 	if err != nil {
-		return fmt.Errorf("failed to open compressed log file: %v", err)
+		return fmt.Errorf("failed to open compressed log file: %w", err)
 	}
 	defer gzf.Close()
 
@@ -513,7 +607,7 @@ func compressLogFile(src, dst string) (err error) {
 	defer func() {
 		if err != nil {
 			os.Remove(dst)
-			err = fmt.Errorf("failed to compress log file: %v", err)
+			err = fmt.Errorf("failed to compress log file: %w", err)
 		}
 	}()
 

@@ -241,6 +241,12 @@ func TestRapidSizeAndDateRotationsNeverOverwriteArchives(t *testing.T) {
 	}
 	seen := make(map[byte]bool)
 	for _, file := range files {
+		if file != path {
+			stamp := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(file), "stat-"), ".log")
+			if _, err := time.Parse("2006-01-02T15-04-05.000-0700", stamp); err != nil || !strings.HasSuffix(stamp, "+0000") {
+				t.Fatalf("UTC archive name omitted its offset: %s err=%v", file, err)
+			}
+		}
 		text := readLogText(t, file)
 		if len(text) == 0 || strings.Count(text, "\n") != 1 || seen[text[0]] {
 			t.Fatalf("lost or duplicated record in %s", file)
@@ -309,7 +315,11 @@ func TestLumberjackRetentionAndCompressionAreWired(t *testing.T) {
 	now := time.Now().UTC()
 	var newest string
 	for i, age := range []time.Duration{time.Hour, 2 * time.Hour, 72 * time.Hour} {
-		name := filepath.Join(filepath.Dir(path), "service-"+now.Add(-age).Format("2006-01-02T15-04-05.000")+".log")
+		layout := "2006-01-02T15-04-05.000"
+		if i == 0 {
+			layout = "2006-01-02T15-04-05.000-0700"
+		}
+		name := filepath.Join(filepath.Dir(path), "service-"+now.Add(-age).Format(layout)+".log")
 		if err := os.WriteFile(name, []byte("archived\n"), 0600); err != nil {
 			t.Fatal(err)
 		}

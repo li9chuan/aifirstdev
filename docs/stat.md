@@ -169,6 +169,13 @@ cfg.Stat.Forward = func(ctx context.Context, record string) error {
   达到期限取消当前请求，丢弃待发副本并返回超时；本地原始记录保留。
 - 转发函数必须遵守 context，不能自行派生脱离它的后台投递。
 - 文件 Write 成功不等于逐条 fsync，Stat 与业务存储不组成事务。
+- 启动先扫描活动 CSV，损坏或未以换行结束的尾部原样隔离到 `.corrupt-*`，保留正常前缀和
+  修改日期；无法读取或隔离时拒绝初始化。恢复不补发历史记录，隔离文件由项目检查和处理。
+- 运行期短写回退未完成记录，Windows 重开已有文件后也可回退并继续追加；重开失败保留原文件。回退失败则拒绝后续写入与轮转，关闭报告错误，重启再恢复。
+- 新归档名带数字时区偏移，保留期限按真实时刻计算，一天为 24 小时；旧格式兼容规则见
+  [日志文件](../aifd-log/README.md#文件切分)。
+- 清理/压缩失败写 stderr，并保留首次后台错误到关闭返回。详见
+  [日志恢复与错误](../aifd-log/README.md#csv-恢复与文件错误)。
 
 `aifd-log` 不依赖 observe；typed CSV 不自动发送给普通日志的 `SecondaryHandler`。
 旧字段式 `Stat/Statf` 和全局默认 Sink 入口已移除，观测事件由宿主显式组合 `Event` 与

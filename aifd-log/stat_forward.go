@@ -61,7 +61,7 @@ func newStatRecorder(config StatConfig, report func(error)) (*statRecorder, erro
 	if report == nil {
 		report = func(error) {}
 	}
-	file, err := openLocalFile(config.LocalPath, config.Rotation)
+	file, err := openStatFile(config.LocalPath, config.Rotation)
 	if err != nil {
 		return nil, fmt.Errorf("stat: %w", err)
 	}

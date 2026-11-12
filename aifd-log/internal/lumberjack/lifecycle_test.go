@@ -110,8 +110,8 @@ func TestCloseStopsCleanupAfterOpenFailure(t *testing.T) {
 	if _, err := l.Write(nil); err == nil {
 		t.Fatal("opening a file beneath a regular file succeeded")
 	}
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
+	if err := l.Close(); err == nil {
+		t.Fatal("failed cleanup directory scan was not reported")
 	}
 	assertMillStopped(t, l)
 }

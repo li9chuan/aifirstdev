@@ -4,6 +4,8 @@ English | [简体中文](./README.zh-CN.md)
 
 **v0.7.0 introduces the independent aifd-log entry point, local text logs, typed CSV Stat, and size/calendar-day rotation with recovery and retention. APIs may change incompatibly.**
 
+The [v0.7.1 patch](docs/releases/v0.7.1.md) closes WebSockets whose upgrade overlaps shutdown, without changing public APIs or protocols.
+
 Read the [v0.7.0 release notes](docs/releases/v0.7.0.md) before upgrading logging imports, handlers, Stat calls, or log consumers. Native HTTPS/WSS setup and limits are covered in [v0.6.0](docs/releases/v0.6.0.md), and earlier Mail migrations in [v0.5.0](docs/releases/v0.5.0.md).
 Documentation follows its source snapshot. Applications should use the documentation and rules for their pinned version.
 

@@ -207,6 +207,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.cleanup(r.Context(), conn.ID())
+	// Accept may finish after CloseAll has already drained the registry.
+	// Check again after registration so an in-flight upgrade cannot escape Close.
+	if s.closed.Load() {
+		_ = conn.Close(r.Context())
+		return
+	}
 	if handshake.Handled {
 		if err := s.activateConnection(r.Context(), conn, handshake.Identity); err != nil {
 			return

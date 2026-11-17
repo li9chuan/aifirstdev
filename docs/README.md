@@ -12,6 +12,7 @@
 | 新业务项目、选择同进程或拆分服务 | [业务接入](application-integration.md)、[示例](../aifd-examples/README.md) | [minigame 装配](../aifd-examples/minigame/internal/app/allinone.go) |
 | 判断职责归属、最小公共契约 | [模块边界](module-boundary.md)、[Contracts](../aifd-contracts/README.md) | [模块描述](../aifd-contracts/module.go) |
 | 账号登录、Redis 身份映射 | [Account](../aifd-account/README.md) | [登录服务](../aifd-account/service.go)、[Redis store](../aifd-account/redis_store.go) |
+| 独立凭据、微信/短信、外部账号接入 | [Credential](../aifd-account/credential/README.md)、[外部账号示例](../aifd-examples/external-auth/README.md) | [v0.8.0 迁移与验收](releases/v0.8.0.md) |
 | payload 签名、本地验签与换 key | [Auth](../aifd-auth/README.md) | [token](../aifd-auth/token/token.go) |
 | Go 客户端、await、push、心跳 | [Client](../aifd-client/README.md) | [调用门面](../aifd-client/client.go)、[WS transport](../aifd-client/adapters/proxyws/websocket_transport.go) |
 | 浏览器客户端与 PB packet | [Web SDK](../aifd-proxy/web/README.md)、[Proxy 协议](../aifd-proxy/README.md) | [Web client](../aifd-proxy/web/src/client.ts)、[codec](../aifd-proxy/codec/packet.go) |

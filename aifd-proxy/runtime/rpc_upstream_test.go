@@ -25,7 +25,7 @@ func TestRPCUpstreamForwardsEnvelopeToBus(t *testing.T) {
 	}
 
 	upstream := proxyruntime.NewRPCUpstream(bus, proxyruntime.NewDelivery())
-	if err := upstream.Forward(ctx, proxy.Envelope{UID: 1001, Message: rpc.Message{Name: "McePing", Payload: []byte("ping")}}); err != nil {
+	if err := upstream.Forward(ctx, proxy.Envelope{Auth: proxy.AuthContext{BackendID: "test", Account: "account", ValidUntil: time.Now().Add(time.Hour)}, UID: 1001, Message: rpc.Message{Name: "McePing", Payload: []byte("ping")}}); err != nil {
 		t.Fatalf("Forward error = %v", err)
 	}
 
@@ -60,7 +60,7 @@ func TestMissingRouteErrorKeepsOriginalConnectionInboxAndTrace(t *testing.T) {
 	_ = delivery.Add(a)
 	_ = delivery.Add(b)
 	upstream := proxyruntime.NewRPCUpstream(bus, delivery)
-	if err := upstream.Forward(ctx, proxy.Envelope{UID: 42, ConnectionID: "a", Message: rpc.Message{Name: "MceMissing", Header: map[string]string{rpc.HeaderClientInbox: "9", rpc.HeaderTraceID: "request-trace"}}}); err != nil {
+	if err := upstream.Forward(ctx, proxy.Envelope{Auth: proxy.AuthContext{BackendID: "test", Account: "account", ValidUntil: time.Now().Add(time.Hour)}, UID: 42, ConnectionID: "a", Message: rpc.Message{Name: "MceMissing", Header: map[string]string{rpc.HeaderClientInbox: "9", rpc.HeaderTraceID: "request-trace"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if a.Closed() || b.Closed() || len(a.Sent()) != 1 || len(b.Sent()) != 0 || len(pushes) != 0 {
@@ -113,7 +113,7 @@ func TestRPCRepliesWithEqualClientInboxesStayOnOriginalConnection(t *testing.T) 
 	}
 	upstream := proxyruntime.NewRPCUpstream(bus, delivery)
 	for _, request := range []struct{ id, body string }{{"a", "first"}, {"b", "second"}} {
-		if err := upstream.Forward(ctx, proxy.Envelope{UID: 42, ConnectionID: request.id, Message: rpc.Message{Name: "MceEcho", Payload: []byte(request.body), Header: map[string]string{rpc.HeaderClientInbox: "7"}}}); err != nil {
+		if err := upstream.Forward(ctx, proxy.Envelope{Auth: proxy.AuthContext{BackendID: "test", Account: "account", ValidUntil: time.Now().Add(time.Hour)}, UID: 42, ConnectionID: request.id, Message: rpc.Message{Name: "MceEcho", Payload: []byte(request.body), Header: map[string]string{rpc.HeaderClientInbox: "7"}}}); err != nil {
 			t.Fatal(err)
 		}
 	}

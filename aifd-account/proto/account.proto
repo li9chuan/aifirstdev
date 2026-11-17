@@ -1,20 +1,38 @@
 syntax = "proto3";
 
 package aifd.account;
-
 option go_package = "github.com/li9chuan/aifirstdev/aifd-account/generated/accountpb;accountpb";
 
-// DBAccount stores the durable account-center record for one global account.
-message DBAccount {
-  int64 account_id = 1;
-  AccountStatus status = 2;
-  int64 created_at_unix = 3;
-  int64 updated_at_unix = 4;
-}
-
-// AccountStatus describes whether an account can log in.
+// AccountStatus 表示账号能否参与认证。
 enum AccountStatus {
   ACCOUNT_STATUS_UNSPECIFIED = 0;
   ACCOUNT_STATUS_ACTIVE = 1;
   ACCOUNT_STATUS_DISABLED = 2;
+}
+
+// LoginRef 表示一个已验证身份的索引引用，不是登录凭据。
+message LoginRef {
+  string authority_id = 1;  // 服务端登记的身份命名空间。
+  bytes subject_digest = 2; // 32 字节 HMAC-SHA256 摘要。
+}
+
+// DBAccount 表示账号主档，account_id 由 Redis key 持有。
+message DBAccount {
+  AccountStatus status = 1;         // 账号状态，零值无效。
+  repeated LoginRef identities = 2; // 当前绑定身份，数量有界。
+  uint64 identity_revision = 3;     // 身份集合版本，从 1 开始。
+  uint64 session_epoch = 4;         // 会话有效性版本，从 1 开始。
+}
+
+// LoginSessionRef 表示自带账号中心的会话定位信息，本身不授予访问权。
+message LoginSessionRef {
+  int64 account_id = 1;  // 会话所属账号。
+  string session_id = 2; // 服务端生成的不可复用随机 ID。
+}
+
+// DBLoginSession 表示登录会话，session_id 由 Redis key 持有。
+message DBLoginSession {
+  int64 account_id = 1;       // 所属账号。
+  uint64 session_epoch = 2;   // 创建时的账号会话版本。
+  int64 expires_at_unix = 3;  // 会话绝对到期时间，Unix 秒。
 }

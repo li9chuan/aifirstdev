@@ -2,143 +2,100 @@ package account
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"strings"
 	"time"
+
+	"github.com/li9chuan/aifirstdev/aifd-account/credential"
 )
+
+type AccountStatus uint8
 
 const (
-	// ProviderDemo is the built-in development provider used by examples and tests.
-	ProviderDemo          = "demo"
-	AccountStatusActive   = "active"
-	AccountStatusDisabled = "disabled"
+	AccountStatusUnspecified AccountStatus = iota
+	AccountStatusActive
+	AccountStatusDisabled
 )
 
-// AccountRecord is the public account-center view of one durable account.
-type AccountRecord struct {
-	AccountID int64
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// Credential is provider login input accepted by account center.
-type Credential struct {
-	Provider string
-	Subject  string
-	Secret   string
-}
-
-// Principal is the normalized provider identity after account center verification.
-type Principal struct {
-	Provider string
-	Subject  string
-}
-
-// LoginRef is the storage-safe reference for one verified provider identity.
 type LoginRef struct {
-	Provider    string
-	SubjectHash string
+	AuthorityID   string
+	SubjectDigest [32]byte
 }
 
-// AuthPayload is account center's provider-neutral login payload.
-type AuthPayload struct {
-	AccountID    int64
-	Provider     string
-	SubjectHash  string
-	TokenID      string
-	IssuedAt     int64
-	ExpiresAt    int64
-	IsNewAccount bool
+type SessionRef struct {
+	AccountID int64
+	SessionID string
 }
 
-// LoginRequest asks account center to resolve or create an account.
-type LoginRequest struct {
-	Credential Credential
-	AutoCreate bool
-	TokenID    string
-	TTL        time.Duration
+type AccountSnapshot struct {
+	AccountID        int64
+	Status           AccountStatus
+	Identities       []LoginRef
+	IdentityRevision uint64
+	SessionEpoch     uint64
 }
 
-// LoginResult returns the resolved identity plus a signed proxy login token.
-type LoginResult struct {
-	AccountID    int64
-	Provider     string
-	SubjectHash  string
-	TokenID      string
-	IssuedAt     time.Time
+type LoginSession struct {
+	Ref          SessionRef
+	SessionEpoch uint64
 	ExpiresAt    time.Time
-	IsNewAccount bool
-	Payload      AuthPayload
-	Token        string
 }
 
-// Verifier turns provider credentials into a stable principal.
-type Verifier interface {
-	Verify(context.Context, Credential) (Principal, error)
+const (
+	VerifyRegister      = "register"
+	VerifyLogin         = "login"
+	VerifyBindCandidate = "bind_candidate"
+	VerifyBindCurrent   = "bind_current"
+	VerifyUnbindCurrent = "unbind_current"
+)
+
+// 只属于第二层，用于计算第一层不解释的挑战关联摘要。
+type VerificationContext struct {
+	Purpose          string
+	Actor            SessionRef
+	ExpectedRevision uint64
+	Target           *LoginRef // 仅解绑时有目标；注册与登录的 Actor 为空。
 }
 
-// VerifierFunc adapts a function into a Verifier.
-type VerifierFunc func(context.Context, Credential) (Principal, error)
-
-// Verify invokes the wrapped verifier function.
-func (f VerifierFunc) Verify(ctx context.Context, credential Credential) (Principal, error) {
-	return f(ctx, credential)
+type RegistrationPolicy interface {
+	AuthorizeRegistration(
+		context.Context, credential.Principal, []byte,
+	) error
 }
 
-// TokenIssuer signs an account login payload without coupling account core to business protobuf.
+type RegistrationRequest struct {
+	First          credential.Credential
+	AdmissionProof []byte
+}
+
+type IdentityChange struct {
+	Actor            SessionRef
+	Reauth           credential.Credential
+	ExpectedRevision uint64
+}
+
+type AuthPayload struct {
+	BackendID     string
+	Audience      string
+	Session       SessionRef
+	IssuedAtUnix  int64
+	ExpiresAtUnix int64
+}
+
+type LoginTicket struct {
+	Payload []byte
+	Token   string
+}
+
+type LoginResult struct {
+	AccountID int64
+	Ticket    LoginTicket
+}
+
 type TokenIssuer interface {
-	IssueLoginToken(context.Context, AuthPayload) (string, error)
+	IssueLoginToken(context.Context, AuthPayload) (LoginTicket, error)
 }
 
-// TokenIssuerFunc adapts a function into a TokenIssuer.
-type TokenIssuerFunc func(context.Context, AuthPayload) (string, error)
-
-// IssueLoginToken invokes the wrapped token issuer function.
-func (f TokenIssuerFunc) IssueLoginToken(ctx context.Context, payload AuthPayload) (string, error) {
-	return f(ctx, payload)
-}
-
-// LoginRefFromPrincipal creates the storage key material for a verified principal.
-func LoginRefFromPrincipal(principal Principal) (LoginRef, error) {
-	if err := validatePrincipal(principal); err != nil {
-		return LoginRef{}, err
-	}
-	provider := strings.TrimSpace(principal.Provider)
-	subject := strings.TrimSpace(principal.Subject)
-	sum := sha256.Sum256([]byte(provider + ":" + subject))
-	ref := LoginRef{
-		Provider:    provider,
-		SubjectHash: hex.EncodeToString(sum[:]),
-	}
-	if err := validateLoginRef(ref); err != nil {
-		return LoginRef{}, err
-	}
-	return ref, nil
-}
-
-func validatePrincipal(principal Principal) error {
-	if strings.TrimSpace(principal.Provider) == "" || strings.TrimSpace(principal.Subject) == "" {
-		return fmt.Errorf("%w: provider and subject are required", ErrInvalidCredential)
-	}
-	return nil
-}
-
-func validateLoginRef(ref LoginRef) error {
-	provider := strings.TrimSpace(ref.Provider)
-	if provider == "" || strings.Contains(provider, ":") || strings.ContainsAny(provider, " \t\r\n") {
-		return fmt.Errorf("%w: invalid login provider", ErrInvalidCredential)
-	}
-	subjectHash := strings.TrimSpace(ref.SubjectHash)
-	if len(subjectHash) != 64 {
-		return fmt.Errorf("%w: invalid subject hash", ErrInvalidCredential)
-	}
-	for _, ch := range subjectHash {
-		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
-			return fmt.Errorf("%w: invalid subject hash", ErrInvalidCredential)
-		}
-	}
-	return nil
+type StatusWrite struct {
+	AccountID     int64
+	ExpectedEpoch uint64
+	Status        AccountStatus
 }

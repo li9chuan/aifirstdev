@@ -40,7 +40,7 @@ func TestWebSocketLoginSuccess(t *testing.T) {
 		t.Fatal("owner 1001 is not active")
 	}
 	firstAuth := owner.Snapshot().GetAuth()
-	if firstAuth.GetUid() != 1001 || firstAuth.GetAccountId() != 1001 || !firstAuth.GetIsNewAccount() {
+	if firstAuth.GetUid() != 1001 || firstAuth.GetAccountId() != 1001 || firstAuth.GetSessionId() == "" {
 		t.Fatalf("auth payload = %+v, want first login identity", firstAuth)
 	}
 	if err := app.DB.Flush(context.Background()); err != nil {
@@ -63,7 +63,7 @@ func TestWebSocketLoginSuccess(t *testing.T) {
 		t.Fatal("owner 1001 is not active after second login")
 	}
 	secondAuth := owner.Snapshot().GetAuth()
-	if secondAuth.GetAccountId() != firstAuth.GetAccountId() || secondAuth.GetIsNewAccount() {
+	if secondAuth.GetAccountId() != firstAuth.GetAccountId() || secondAuth.GetSessionId() == firstAuth.GetSessionId() {
 		t.Fatalf("second auth payload = %+v, want existing account", secondAuth)
 	}
 }

@@ -478,6 +478,75 @@ func (x *MseSessionHeartbeat) GetServerTimeUnixMs() int64 {
 	return 0
 }
 
+// AuthContext 表示受信网关为本次调用注入的认证快照。
+type AuthContext struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	BackendId      string                 `protobuf:"bytes,1,opt,name=backend_id,json=backendId,proto3" json:"backend_id,omitempty"`                   // 宿主登记的账号或 token 验证域。
+	Account        string                 `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`                                        // 已验证账号原值，自带模式为规范十进制 ID。
+	SessionId      string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`                   // 可空；是否为空不决定重检策略。
+	ValidUntilUnix int64                  `protobuf:"varint,4,opt,name=valid_until_unix,json=validUntilUnix,proto3" json:"valid_until_unix,omitempty"` // 本连接认证的绝对截止时间，Unix 秒。
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AuthContext) Reset() {
+	*x = AuthContext{}
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthContext) ProtoMessage() {}
+
+func (x *AuthContext) ProtoReflect() protoreflect.Message {
+	mi := &file_aifd_proxy_proxy_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthContext.ProtoReflect.Descriptor instead.
+func (*AuthContext) Descriptor() ([]byte, []int) {
+	return file_aifd_proxy_proxy_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AuthContext) GetBackendId() string {
+	if x != nil {
+		return x.BackendId
+	}
+	return ""
+}
+
+func (x *AuthContext) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *AuthContext) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *AuthContext) GetValidUntilUnix() int64 {
+	if x != nil {
+		return x.ValidUntilUnix
+	}
+	return 0
+}
+
 var File_aifd_proxy_proxy_proto protoreflect.FileDescriptor
 
 const file_aifd_proxy_proxy_proto_rawDesc = "" +
@@ -503,7 +572,14 @@ const file_aifd_proxy_proxy_proto_rawDesc = "" +
 	"\x06reason\x18\x02 \x01(\x0e2\x1c.aifd.proxy.SessionEndReasonR\x06reason\"\x15\n" +
 	"\x13MceSessionHeartbeat\"D\n" +
 	"\x13MseSessionHeartbeat\x12-\n" +
-	"\x13server_time_unix_ms\x18\x01 \x01(\x03R\x10serverTimeUnixMs*\xbd\x01\n" +
+	"\x13server_time_unix_ms\x18\x01 \x01(\x03R\x10serverTimeUnixMs\"\x8f\x01\n" +
+	"\vAuthContext\x12\x1d\n" +
+	"\n" +
+	"backend_id\x18\x01 \x01(\tR\tbackendId\x12\x18\n" +
+	"\aaccount\x18\x02 \x01(\tR\aaccount\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\x12(\n" +
+	"\x10valid_until_unix\x18\x04 \x01(\x03R\x0evalidUntilUnix*\xbd\x01\n" +
 	"\x10SessionEndReason\x12\"\n" +
 	"\x1eSESSION_END_REASON_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fSESSION_END_REASON_DISCONNECTED\x10\x01\x12\x1f\n" +
@@ -524,7 +600,7 @@ func file_aifd_proxy_proxy_proto_rawDescGZIP() []byte {
 }
 
 var file_aifd_proxy_proxy_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_aifd_proxy_proxy_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_aifd_proxy_proxy_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_aifd_proxy_proxy_proto_goTypes = []any{
 	(SessionEndReason)(0),             // 0: aifd.proxy.SessionEndReason
 	(*MsgHead)(nil),                   // 1: aifd.proxy.MsgHead
@@ -535,6 +611,7 @@ var file_aifd_proxy_proxy_proto_goTypes = []any{
 	(*ClientSessionClosed)(nil),       // 6: aifd.proxy.ClientSessionClosed
 	(*MceSessionHeartbeat)(nil),       // 7: aifd.proxy.MceSessionHeartbeat
 	(*MseSessionHeartbeat)(nil),       // 8: aifd.proxy.MseSessionHeartbeat
+	(*AuthContext)(nil),               // 9: aifd.proxy.AuthContext
 }
 var file_aifd_proxy_proxy_proto_depIdxs = []int32{
 	3, // 0: aifd.proxy.OpenClientSessionRequest.session:type_name -> aifd.proxy.ClientSessionRef
@@ -558,7 +635,7 @@ func file_aifd_proxy_proxy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aifd_proxy_proxy_proto_rawDesc), len(file_aifd_proxy_proxy_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

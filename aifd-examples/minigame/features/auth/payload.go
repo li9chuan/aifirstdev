@@ -7,6 +7,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const AccountBackendID = "minigame"
+const AccountAudience = "minigame-proxy"
+
 // CanonicalPayloadBytes returns deterministic bytes used by account signing and proxy verification.
 func CanonicalPayloadBytes(payload *pbmsg.MAuthPayload) ([]byte, error) {
 	if payload == nil {

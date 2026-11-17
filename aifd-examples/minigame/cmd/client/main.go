@@ -25,11 +25,7 @@ func main() {
 	runCtx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()
 
-	accountApp, err := app.NewAccountApp()
-	if err != nil {
-		fail(err)
-	}
-	authReq, err := accountApp.DemoAuth(runCtx, *uid)
+	authReq, err := app.RequestDemoAuth(runCtx, *url, *uid)
 	if err != nil {
 		fail(err)
 	}

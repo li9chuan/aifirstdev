@@ -76,7 +76,7 @@ func NewAllInOneApp(ctx context.Context, configs ...ServiceFileConfig) (*AllInOn
 	if len(configs) > 0 {
 		fileCfg = configs[0]
 	}
-	proxyApp, err := NewProxyApp(bus, accountApp.Verifier, fileCfg.Proxy)
+	proxyApp, err := NewProxyApp(bus, accountApp, fileCfg.Proxy)
 	if err != nil {
 		cancel()
 		_ = bus.Close(context.Background())

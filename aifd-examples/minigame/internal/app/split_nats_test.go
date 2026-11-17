@@ -108,7 +108,7 @@ func runSplitModeRobotCounter(t *testing.T, ctx context.Context, ownerBus rpc.Bu
 	if err != nil {
 		t.Fatalf("NewAccountApp error = %v", err)
 	}
-	proxyApp, err := NewProxyApp(proxyBus, accountApp.Verifier)
+	proxyApp, err := NewProxyApp(proxyBus, accountApp)
 	if err != nil {
 		t.Fatalf("NewProxyApp error = %v", err)
 	}

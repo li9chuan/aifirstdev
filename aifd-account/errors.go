@@ -1,18 +1,27 @@
 package account
 
-import "errors"
+import (
+	"errors"
+	"github.com/li9chuan/aifirstdev/aifd-account/credential"
+)
 
+// Stable service errors are mapped to public HTTP/RPC errors by the host.
 var (
-	// ErrInvalidCredential indicates that provider login input is missing or rejected.
-	ErrInvalidCredential = errors.New("invalid account credential")
-	// ErrAccountMissing indicates that a login principal has no account and auto-create is disabled.
-	ErrAccountMissing = errors.New("account missing")
-	// ErrIdentityConflict indicates that a provider identity is already bound to another account.
-	ErrIdentityConflict = errors.New("account identity conflict")
-	// ErrAccountDisabled indicates that an account exists but is not allowed to log in.
-	ErrAccountDisabled = errors.New("account disabled")
-	// ErrStoreMissing indicates that account service was created without a store.
-	ErrStoreMissing = errors.New("account store missing")
-	// ErrTokenIssuerMissing indicates that account service cannot issue login tokens.
-	ErrTokenIssuerMissing = errors.New("account token issuer missing")
+	ErrInvalidCredential        = credential.ErrInvalidCredential
+	ErrConnectorNotAllowed      = credential.ErrConnectorNotAllowed
+	ErrRegistrationDenied       = errors.New("REGISTRATION_DENIED")
+	ErrAccountNotFound          = errors.New("ACCOUNT_NOT_FOUND")
+	ErrAccountDisabled          = errors.New("ACCOUNT_DISABLED")
+	ErrIdentityInUse            = errors.New("IDENTITY_IN_USE")
+	ErrIdentityNotBound         = errors.New("IDENTITY_NOT_BOUND")
+	ErrIdentityRevisionConflict = errors.New("IDENTITY_REVISION_CONFLICT")
+	ErrLastLoginIdentity        = errors.New("LAST_LOGIN_IDENTITY")
+	ErrIdentityLimit            = errors.New("IDENTITY_LIMIT")
+	ErrSessionInvalid           = errors.New("SESSION_INVALID")
+	ErrEpochConflict            = errors.New("EPOCH_CONFLICT")
+	ErrUnavailable              = credential.ErrUnavailable
+	ErrResultUnknown            = errors.New("RESULT_UNKNOWN")
+	ErrCorruptState             = errors.New("CORRUPT_STATE")
+	ErrStoreMissing             = errors.New("account store missing")
+	ErrTokenIssuerMissing       = errors.New("account token issuer missing")
 )

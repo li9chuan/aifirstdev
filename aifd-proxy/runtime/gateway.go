@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
@@ -65,6 +67,9 @@ func (g *Gateway) AcceptIdentity(conn proxy.Connection, identity proxy.Identity)
 	if identity.UID <= 0 {
 		return Session{}, ErrInvalidIdentity
 	}
+	if err := identity.AuthContext().Validate(time.Now()); err != nil {
+		return Session{}, err
+	}
 	session := &Session{ConnectionID: conn.ID(), Identity: identity, ProxyInstanceID: g.instanceID}
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -114,9 +119,21 @@ func (g *Gateway) Receive(ctx context.Context, connID string, msg rpc.Message) e
 	if !ok {
 		return ErrConnectionNotFound
 	}
+	auth := session.Identity.AuthContext()
+	if err := auth.Validate(time.Now()); err != nil {
+		return err
+	}
 	out := cloneMessage(msg)
 	if out.Header == nil {
 		out.Header = make(map[string]string)
+	}
+	for key := range out.Header {
+		for _, reserved := range []string{proxy.HeaderAuthContext, proxy.HeaderCallerKind, proxy.HeaderProxyInstanceID, proxy.HeaderConnectionID, proxy.HeaderSessionDeadline} {
+			if strings.EqualFold(key, reserved) {
+				delete(out.Header, key)
+				break
+			}
+		}
 	}
 	out.Header[proxy.HeaderProxyInstanceID] = session.ProxyInstanceID
 	out.Header[proxy.HeaderConnectionID] = session.ConnectionID
@@ -124,6 +141,7 @@ func (g *Gateway) Receive(ctx context.Context, connID string, msg rpc.Message) e
 	return g.upstream.Forward(ctx, proxy.Envelope{
 		ConnectionID: connID,
 		UID:          session.Identity.UID,
+		Auth:         auth,
 		Message:      out,
 	})
 }

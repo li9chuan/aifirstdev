@@ -27,7 +27,7 @@ func TestServerUsesLoginHandlerTopicWhenConfigEmpty(t *testing.T) {
 				t.Fatalf("login message name = %q, want MceAuth", req.Message.Name)
 			}
 			return proxy.LoginResult{
-				Identity: proxy.Identity{UID: 1001, Account: "account-1"},
+				Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "account-1"},
 				Response: &rpc.Message{
 					Name:    "MseAuth",
 					Payload: []byte{1},
@@ -36,7 +36,7 @@ func TestServerUsesLoginHandlerTopicWhenConfigEmpty(t *testing.T) {
 			}, nil
 		},
 	}
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:      proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery:     proxyruntime.NewDelivery(),
 		LoginHandler: handler,
@@ -53,7 +53,7 @@ func TestServerUsesLoginHandlerTopicWhenConfigEmpty(t *testing.T) {
 }
 
 func TestServerValidateRejectsMismatchedLoginTopic(t *testing.T) {
-	err := NewServer(Config{
+	err := NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		LoginTopic:   "MceOther",
 		Gateway:      proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery:     proxyruntime.NewDelivery(),
@@ -65,7 +65,7 @@ func TestServerValidateRejectsMismatchedLoginTopic(t *testing.T) {
 }
 
 func TestServerListenAndServeRejectsInvalidConfig(t *testing.T) {
-	err := NewServer(Config{
+	err := NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		LoginTopic:   "Game.AuthOK",
 		Gateway:      proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery:     proxyruntime.NewDelivery(),
@@ -77,7 +77,7 @@ func TestServerListenAndServeRejectsInvalidConfig(t *testing.T) {
 }
 
 func TestServerServeHTTPRejectsInvalidConfig(t *testing.T) {
-	server := NewServer(Config{
+	server := NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		LoginTopic:   "Game.AuthOK",
 		Gateway:      proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery:     proxyruntime.NewDelivery(),
@@ -98,7 +98,7 @@ func TestServerLoginThenForward(t *testing.T) {
 	}))
 	delivery := proxyruntime.NewDelivery()
 	downlink := &recordingDownlink{}
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:  gateway,
 		Delivery: delivery,
 		Downlink: downlink,
@@ -110,7 +110,7 @@ func TestServerLoginThenForward(t *testing.T) {
 				t.Fatalf("login pbType = %q, want Int64Value", req.Message.Header[rpc.HeaderPBType])
 			}
 			return proxy.LoginResult{
-				Identity: proxy.Identity{UID: 1001, Account: "account-1"},
+				Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "account-1"},
 				Response: &rpc.Message{
 					Name:    "MseLogin",
 					Payload: []byte{9},
@@ -147,7 +147,7 @@ func TestServerLoginThenForward(t *testing.T) {
 }
 
 func TestServerRejectsPingBeforeLogin(t *testing.T) {
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway: proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error {
 			t.Fatal("ping should not enter upstream")
 			return nil
@@ -177,7 +177,7 @@ func TestServerPingAfterLogin(t *testing.T) {
 }
 
 func TestServerRejectsInvalidTopicBeforeLogin(t *testing.T) {
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway: proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error {
 			t.Fatal("invalid topic should not enter upstream")
 			return nil
@@ -194,7 +194,7 @@ func TestServerRejectsInvalidTopicBeforeLogin(t *testing.T) {
 }
 
 func TestServerRejectsNonLoginBeforeLogin(t *testing.T) {
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:      proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery:     proxyruntime.NewDelivery(),
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) { return proxy.LoginResult{}, nil }),
@@ -212,7 +212,7 @@ func TestServerPublicRequestBeforeLogin(t *testing.T) {
 		t.Fatal("public request should not enter authenticated gateway")
 		return nil
 	}))
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:      gateway,
 		Delivery:     proxyruntime.NewDelivery(),
 		PublicTopics: []string{"McdBootstrap"},
@@ -228,7 +228,7 @@ func TestServerPublicRequestBeforeLogin(t *testing.T) {
 		}),
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) {
 			return proxy.LoginResult{
-				Identity: proxy.Identity{UID: 1001, Account: "account-1"},
+				Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "account-1"},
 				Response: &rpc.Message{
 					Name:    "MseLogin",
 					Payload: []byte{1},
@@ -258,7 +258,7 @@ func TestServerPublicRequestBeforeLogin(t *testing.T) {
 }
 
 func TestServerPublicTopicsRequireHandler(t *testing.T) {
-	err := NewServer(Config{
+	err := NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:      proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery:     proxyruntime.NewDelivery(),
 		PublicTopics: []string{"McdBootstrap"},
@@ -271,7 +271,7 @@ func TestServerPublicTopicsRequireHandler(t *testing.T) {
 
 func TestServerRejectsInvalidTopicAfterLogin(t *testing.T) {
 	envCh := make(chan proxy.Envelope, 1)
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway: proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(_ context.Context, env proxy.Envelope) error {
 			envCh <- env
 			return nil
@@ -279,7 +279,7 @@ func TestServerRejectsInvalidTopicAfterLogin(t *testing.T) {
 		Delivery: proxyruntime.NewDelivery(),
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) {
 			return proxy.LoginResult{
-				Identity: proxy.Identity{UID: 1001, Account: "account-1"},
+				Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "account-1"},
 				Response: &rpc.Message{
 					Name:    "MseLogin",
 					Payload: []byte{1},
@@ -304,12 +304,12 @@ func TestServerRejectsInvalidTopicAfterLogin(t *testing.T) {
 func TestServerAllowsDownlinkTopicsWithoutMsPrefix(t *testing.T) {
 	gateway := proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil }))
 	delivery := proxyruntime.NewDelivery()
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:  gateway,
 		Delivery: delivery,
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) {
 			return proxy.LoginResult{
-				Identity: proxy.Identity{UID: 1001, Account: "account-1"},
+				Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "account-1"},
 				Response: &rpc.Message{
 					Name:    "MseLogin",
 					Payload: []byte{1},
@@ -348,7 +348,7 @@ func TestServerAllowsDownlinkTopicsWithoutMsPrefix(t *testing.T) {
 
 func TestServerLoginFailureResponse(t *testing.T) {
 	gateway := proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil }))
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:  gateway,
 		Delivery: proxyruntime.NewDelivery(),
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) {
@@ -392,13 +392,13 @@ func TestDuplicateAllowKeepsMultipleConnections(t *testing.T) {
 func TestSharedGatewayAcrossServersUsesUniqueConnectionIDs(t *testing.T) {
 	gateway := proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil }))
 	delivery := proxyruntime.NewDelivery()
-	config := Config{
+	config := Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:         gateway,
 		Delivery:        delivery,
 		DuplicatePolicy: DuplicateAllow,
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) {
 			return proxy.LoginResult{
-				Identity: proxy.Identity{UID: 1001},
+				Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), Account: "test-account", UID: 1001},
 				Response: &rpc.Message{
 					Name: "MseLogin", Payload: []byte{1}, Header: map[string]string{rpc.HeaderPBType: "StringValue"},
 				},
@@ -468,7 +468,7 @@ func TestDuplicateHandlerCanOverridePolicy(t *testing.T) {
 func TestCleanupUnsubscribesLastConnectionAndCallsLifecycle(t *testing.T) {
 	downlink := &recordingDownlink{}
 	disconnected := make(chan proxyruntime.Session, 1)
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:  proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery: proxyruntime.NewDelivery(),
 		Downlink: downlink,
@@ -478,7 +478,7 @@ func TestCleanupUnsubscribesLastConnectionAndCallsLifecycle(t *testing.T) {
 		}},
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) {
 			return proxy.LoginResult{
-				Identity: proxy.Identity{UID: 1001, Account: "account-1"},
+				Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "account-1"},
 				Response: &rpc.Message{
 					Name:    "MseLogin",
 					Payload: []byte{1},
@@ -508,7 +508,7 @@ func TestCleanupUnsubscribesLastConnectionAndCallsLifecycle(t *testing.T) {
 }
 
 func TestServerRejectsTextFrame(t *testing.T) {
-	server := httptest.NewServer(NewServer(Config{
+	server := httptest.NewServer(NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:      proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery:     proxyruntime.NewDelivery(),
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) { return proxy.LoginResult{}, nil }),
@@ -531,14 +531,14 @@ func duplicateServer(t *testing.T, policy DuplicatePolicy, downlink *recordingDo
 	if downlink == nil {
 		downlink = &recordingDownlink{}
 	}
-	handler := NewServer(Config{
+	handler := NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:         gateway,
 		Delivery:        proxyruntime.NewDelivery(),
 		Downlink:        downlink,
 		DuplicatePolicy: policy,
 		LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) {
 			return proxy.LoginResult{
-				Identity: proxy.Identity{UID: 1001, Account: "account-1"},
+				Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "account-1"},
 				Response: &rpc.Message{
 					Name:    "MseLogin",
 					Payload: []byte{1},

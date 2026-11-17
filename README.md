@@ -2,7 +2,7 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-**v0.7.0 introduces the independent aifd-log entry point, local text logs, typed CSV Stat, and size/calendar-day rotation with recovery and retention. APIs may change incompatibly.**
+**v0.8.0 adds independent credential verification, optional accounts with revocable sessions, and Proxy authentication expiry/revalidation. Account APIs and storage are breaking changes; read the [migration notes](docs/releases/v0.8.0.md).**
 
 The [v0.7.1 patch](docs/releases/v0.7.1.md) closes WebSockets whose upgrade overlaps shutdown, without changing public APIs or protocols.
 

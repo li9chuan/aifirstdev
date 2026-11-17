@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"testing"
+	"time"
 
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
 	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
@@ -35,7 +36,7 @@ func TestLocalPubSubReachesEveryProxyAndUnsubscribesIndependently(t *testing.T) 
 		if err := delivery.Add(conn); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := gateway.AcceptIdentity(conn, proxy.Identity{UID: 42}); err != nil {
+		if _, err := gateway.AcceptIdentity(conn, proxy.Identity{UID: 42, BackendID: "test", Account: "account", ValidUntil: time.Now().Add(time.Hour)}); err != nil {
 			t.Fatal(err)
 		}
 		downlink := NewDownlink(bus, gateway, delivery)

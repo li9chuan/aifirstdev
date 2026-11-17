@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file aifd/proxy/proxy.proto.
  */
 export const file_aifd_proxy_proxy: GenFile = /*@__PURE__*/
-  fileDesc("ChZhaWZkL3Byb3h5L3Byb3h5LnByb3RvEgphaWZkLnByb3h5IkQKB01zZ0hlYWQSCwoDbGVuGAEgASgFEg0KBWluYm94GAIgASgFEg0KBXRvcGljGAMgASgJEg4KBnBiVHlwZRgEIAEoCSIpCghSUENFcnJvchIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkiRAoQQ2xpZW50U2Vzc2lvblJlZhIZChFwcm94eV9pbnN0YW5jZV9pZBgBIAEoCRIVCg1jb25uZWN0aW9uX2lkGAIgASgJIkkKGE9wZW5DbGllbnRTZXNzaW9uUmVxdWVzdBItCgdzZXNzaW9uGAEgASgLMhwuYWlmZC5wcm94eS5DbGllbnRTZXNzaW9uUmVmIhsKGU9wZW5DbGllbnRTZXNzaW9uUmVzcG9uc2UicgoTQ2xpZW50U2Vzc2lvbkNsb3NlZBItCgdzZXNzaW9uGAEgASgLMhwuYWlmZC5wcm94eS5DbGllbnRTZXNzaW9uUmVmEiwKBnJlYXNvbhgCIAEoDjIcLmFpZmQucHJveHkuU2Vzc2lvbkVuZFJlYXNvbiIVChNNY2VTZXNzaW9uSGVhcnRiZWF0IjIKE01zZVNlc3Npb25IZWFydGJlYXQSGwoTc2VydmVyX3RpbWVfdW5peF9tcxgBIAEoAyq9AQoQU2Vzc2lvbkVuZFJlYXNvbhIiCh5TRVNTSU9OX0VORF9SRUFTT05fVU5TUEVDSUZJRUQQABIjCh9TRVNTSU9OX0VORF9SRUFTT05fRElTQ09OTkVDVEVEEAESHwobU0VTU0lPTl9FTkRfUkVBU09OX1JFUExBQ0VEEAISHgoaU0VTU0lPTl9FTkRfUkVBU09OX0VYUElSRUQQAxIfChtTRVNTSU9OX0VORF9SRUFTT05fU0hVVERPV04QBEJEWkJnaXRodWIuY29tL2xpOWNodWFuL2FpZmlyc3RkZXYvYWlmZC1zY2hlbWEvZ2VuZXJhdGVkL3Byb3h5O3Byb3h5cGJiBnByb3RvMw");
+  fileDesc("ChZhaWZkL3Byb3h5L3Byb3h5LnByb3RvEgphaWZkLnByb3h5IkQKB01zZ0hlYWQSCwoDbGVuGAEgASgFEg0KBWluYm94GAIgASgFEg0KBXRvcGljGAMgASgJEg4KBnBiVHlwZRgEIAEoCSIpCghSUENFcnJvchIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkiRAoQQ2xpZW50U2Vzc2lvblJlZhIZChFwcm94eV9pbnN0YW5jZV9pZBgBIAEoCRIVCg1jb25uZWN0aW9uX2lkGAIgASgJIkkKGE9wZW5DbGllbnRTZXNzaW9uUmVxdWVzdBItCgdzZXNzaW9uGAEgASgLMhwuYWlmZC5wcm94eS5DbGllbnRTZXNzaW9uUmVmIhsKGU9wZW5DbGllbnRTZXNzaW9uUmVzcG9uc2UicgoTQ2xpZW50U2Vzc2lvbkNsb3NlZBItCgdzZXNzaW9uGAEgASgLMhwuYWlmZC5wcm94eS5DbGllbnRTZXNzaW9uUmVmEiwKBnJlYXNvbhgCIAEoDjIcLmFpZmQucHJveHkuU2Vzc2lvbkVuZFJlYXNvbiIVChNNY2VTZXNzaW9uSGVhcnRiZWF0IjIKE01zZVNlc3Npb25IZWFydGJlYXQSGwoTc2VydmVyX3RpbWVfdW5peF9tcxgBIAEoAyJgCgtBdXRoQ29udGV4dBISCgpiYWNrZW5kX2lkGAEgASgJEg8KB2FjY291bnQYAiABKAkSEgoKc2Vzc2lvbl9pZBgDIAEoCRIYChB2YWxpZF91bnRpbF91bml4GAQgASgDKr0BChBTZXNzaW9uRW5kUmVhc29uEiIKHlNFU1NJT05fRU5EX1JFQVNPTl9VTlNQRUNJRklFRBAAEiMKH1NFU1NJT05fRU5EX1JFQVNPTl9ESVNDT05ORUNURUQQARIfChtTRVNTSU9OX0VORF9SRUFTT05fUkVQTEFDRUQQAhIeChpTRVNTSU9OX0VORF9SRUFTT05fRVhQSVJFRBADEh8KG1NFU1NJT05fRU5EX1JFQVNPTl9TSFVURE9XThAEQkRaQmdpdGh1Yi5jb20vbGk5Y2h1YW4vYWlmaXJzdGRldi9haWZkLXNjaGVtYS9nZW5lcmF0ZWQvcHJveHk7cHJveHlwYmIGcHJvdG8z");
 
 /**
  * MsgHead 是客户端与 proxy 通信时的 PB 帧头。
@@ -198,6 +198,48 @@ export type MseSessionHeartbeat = Message<"aifd.proxy.MseSessionHeartbeat"> & {
  */
 export const MseSessionHeartbeatSchema: GenMessage<MseSessionHeartbeat> = /*@__PURE__*/
   messageDesc(file_aifd_proxy_proxy, 7);
+
+/**
+ * AuthContext 表示受信网关为本次调用注入的认证快照。
+ *
+ * @generated from message aifd.proxy.AuthContext
+ */
+export type AuthContext = Message<"aifd.proxy.AuthContext"> & {
+  /**
+   * 宿主登记的账号或 token 验证域。
+   *
+   * @generated from field: string backend_id = 1;
+   */
+  backendId: string;
+
+  /**
+   * 已验证账号原值，自带模式为规范十进制 ID。
+   *
+   * @generated from field: string account = 2;
+   */
+  account: string;
+
+  /**
+   * 可空；是否为空不决定重检策略。
+   *
+   * @generated from field: string session_id = 3;
+   */
+  sessionId: string;
+
+  /**
+   * 本连接认证的绝对截止时间，Unix 秒。
+   *
+   * @generated from field: int64 valid_until_unix = 4;
+   */
+  validUntilUnix: bigint;
+};
+
+/**
+ * Describes the message aifd.proxy.AuthContext.
+ * Use `create(AuthContextSchema)` to create a new message.
+ */
+export const AuthContextSchema: GenMessage<AuthContext> = /*@__PURE__*/
+  messageDesc(file_aifd_proxy_proxy, 8);
 
 /**
  * @generated from enum aifd.proxy.SessionEndReason

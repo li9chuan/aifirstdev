@@ -2,14 +2,17 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
 	account "github.com/li9chuan/aifirstdev/aifd-account"
+	"github.com/li9chuan/aifirstdev/aifd-account/credential"
 	"github.com/li9chuan/aifirstdev/aifd-auth/token"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -41,22 +44,26 @@ func NewAccountAppWithStore(store account.Store) (*AccountApp, error) {
 	if err != nil {
 		return nil, err
 	}
-	issuer := account.TokenIssuerFunc(func(_ context.Context, payload account.AuthPayload) (string, error) {
+	issuer := account.TokenIssuerFunc(func(_ context.Context, payload account.AuthPayload) (account.LoginTicket, error) {
 		payloadBytes, err := auth.CanonicalPayloadBytes(authPayloadPB(payload))
 		if err != nil {
-			return "", err
+			return account.LoginTicket{}, err
 		}
-		return signer.Sign(payloadBytes, token.SignOptions{
-			IssuedAt:  payload.IssuedAt,
-			ExpiresAt: payload.ExpiresAt,
+		signed, err := signer.Sign(payloadBytes, token.SignOptions{
+			IssuedAt:  payload.IssuedAtUnix,
+			ExpiresAt: payload.ExpiresAtUnix,
 		})
+		return account.LoginTicket{Payload: payloadBytes, Token: signed}, err
 	})
 	service, err := account.NewService(
 		store,
 		account.NewDemoVerifier(),
 		issuer,
 		account.Options{
-			TokenTTL: 30 * time.Minute,
+			BackendID: auth.AccountBackendID, Audience: auth.AccountAudience,
+			IndexKey:  []byte("minigame-development-index-key-32bytes"),
+			TicketTTL: 30 * time.Minute, SessionTTL: 24 * time.Hour,
+			RegistrationPolicy: account.RegistrationPolicyFunc(func(context.Context, credential.Principal, []byte) error { return nil }),
 		},
 	)
 	if err != nil {
@@ -65,44 +72,41 @@ func NewAccountAppWithStore(store account.Store) (*AccountApp, error) {
 	return &AccountApp{Service: service, Verifier: verifier, RealmID: defaultRealmID}, nil
 }
 
-// DemoLogin resolves a demo account and returns a signed proxy login token.
+// DemoLogin logs into an already registered demo account.
 func (a *AccountApp) DemoLogin(ctx context.Context, ownerID int64) (account.LoginResult, error) {
 	if a == nil || a.Service == nil {
 		return account.LoginResult{}, fmt.Errorf("account app is nil")
 	}
 	subject := strconv.FormatInt(ownerID, 10)
-	return a.Service.Login(ctx, account.LoginRequest{
-		Credential: account.Credential{
-			Provider: account.ProviderDemo,
-			Subject:  subject,
-			Secret:   account.DemoSecret(subject),
-		},
-		AutoCreate: true,
-	})
+	return a.Service.Login(ctx, account.DemoCredential(subject))
 }
 
-// DemoAuth returns the client login protobuf used by proxy and owner auth.
+// DemoAuth explicitly provisions a development account, then logs in. Real
+// applications expose registration and login as separate authorized actions.
 func (a *AccountApp) DemoAuth(ctx context.Context, ownerID int64) (*pbmsg.MceAuth, error) {
+	if a == nil || a.Service == nil || ownerID <= 0 {
+		return nil, fmt.Errorf("invalid demo account")
+	}
+	if _, err := a.Service.Register(ctx, account.RegistrationRequest{First: account.DemoCredential(strconv.FormatInt(ownerID, 10))}); err != nil && !errors.Is(err, account.ErrIdentityInUse) {
+		return nil, err
+	}
 	result, err := a.DemoLogin(ctx, ownerID)
 	if err != nil {
 		return nil, err
 	}
-	return &pbmsg.MceAuth{
-		Payload: authPayloadPB(result.Payload),
-		Token:   result.Token,
-	}, nil
+	var payload pbmsg.MAuthPayload
+	if err := proto.Unmarshal(result.Ticket.Payload, &payload); err != nil {
+		return nil, err
+	}
+	return &pbmsg.MceAuth{Payload: &payload, Token: result.Ticket.Token}, nil
 }
 
 func authPayloadPB(payload account.AuthPayload) *pbmsg.MAuthPayload {
 	return &pbmsg.MAuthPayload{
-		AccountId:    payload.AccountID,
-		Uid:          payload.AccountID,
-		RealmId:      defaultRealmID,
-		Provider:     payload.Provider,
-		SubjectHash:  payload.SubjectHash,
-		TokenId:      payload.TokenID,
-		IssuedAt:     payload.IssuedAt,
-		ExpiresAt:    payload.ExpiresAt,
-		IsNewAccount: payload.IsNewAccount,
+		AccountId: payload.Session.AccountID,
+		Uid:       payload.Session.AccountID,
+		RealmId:   defaultRealmID,
+		BackendId: payload.BackendID, Audience: payload.Audience, SessionId: payload.Session.SessionID,
+		IssuedAt: payload.IssuedAtUnix, ExpiresAt: payload.ExpiresAtUnix,
 	}
 }

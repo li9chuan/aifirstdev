@@ -17,6 +17,7 @@ type Connection interface {
 type Envelope struct {
 	ConnectionID string
 	UID          int64
+	Auth         AuthContext
 	Message      rpc.Message
 }
 

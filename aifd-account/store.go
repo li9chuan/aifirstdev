@@ -1,19 +1,34 @@
 package account
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
-// ResolveResult describes store changes performed while resolving a principal.
-type ResolveResult struct {
-	AccountID    int64
-	IsNewAccount bool
+type OpenSessionRequest struct {
+	Identity  LoginRef
+	SessionID string
+	ExpiresAt time.Time
 }
 
-// Store owns account login mappings and account metadata.
+type IdentityWrite struct {
+	Actor            SessionRef
+	Reauthenticated  LoginRef
+	Target           LoginRef
+	ExpectedRevision uint64
+}
+
 type Store interface {
-	ResolveOrCreate(context.Context, LoginRef, bool) (ResolveResult, error)
-}
+	CreateAccount(context.Context, LoginRef) (AccountSnapshot, error)
+	GetAccount(context.Context, int64) (AccountSnapshot, error)
+	ResolveAccount(context.Context, LoginRef) (AccountSnapshot, error)
 
-// AccountReader optionally exposes account status lookup without login resolution.
-type AccountReader interface {
-	GetAccount(context.Context, int64) (AccountRecord, error)
+	OpenSession(context.Context, OpenSessionRequest) (LoginSession, error)
+	BindIdentity(context.Context, IdentityWrite) (uint64, error)
+	UnbindIdentity(context.Context, IdentityWrite) (uint64, error)
+
+	ValidateSession(context.Context, SessionRef) (LoginSession, error)
+	RevokeSession(context.Context, SessionRef) error
+	AdvanceSessionEpoch(context.Context, int64, uint64) (uint64, error)
+	ChangeAccountStatus(context.Context, StatusWrite) (AccountSnapshot, error)
 }

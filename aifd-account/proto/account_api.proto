@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package aifd.account;
+option go_package = "github.com/li9chuan/aifirstdev/aifd-account/generated/accountpb;accountpb";
+
+import "account.proto";
+
+// Credential 表示待验证的渠道凭据。
+message Credential {
+  string connector_id = 1; // 服务端登记的验证入口，不是身份命名空间。
+  bytes proof = 2;         // 渠道定义的有界编码，不接受已验证身份声明。
+}
+
+// AccountView 是授权后可读取的账号视图，不直接作为存盘输入。
+message AccountView {
+  int64 account_id = 1;
+  AccountStatus status = 2;
+  repeated LoginRef identities = 3;
+  uint64 identity_revision = 4;
+  uint64 session_epoch = 5;
+}
+
+// LoginTicketPayload 是签名前的逻辑载荷，由服务端构造。
+message LoginTicketPayload {
+  string backend_id = 1;       // 账号与会话系统的配置 ID。
+  string audience = 2;         // 接收票据的服务域。
+  LoginSessionRef session = 3;
+  int64 issued_at_unix = 4;
+  int64 expires_at_unix = 5;
+}
+
+// LoginTicket 保留实际被签名的 payload 字节。
+message LoginTicket {
+  bytes payload = 1; // 原样传递，验签前不自行重编码。
+  string token = 2;  // 签名票据。
+}
+
+// RegisterRequest 请求显式注册，admission_proof 由业务策略解释。
+message RegisterRequest {
+  Credential first = 1;
+  bytes admission_proof = 2;
+}
+
+// RegisterResponse 返回账号，不隐式创建登录会话。
+message RegisterResponse {
+  AccountView account = 1;
+}
+
+// LoginRequest 仅请求登录已存在的账号。
+message LoginRequest {
+  Credential credential = 1;
+}
+
+// LoginResponse 返回账号及本次登录票据。
+message LoginResponse {
+  int64 account_id = 1;
+  LoginTicket ticket = 2;
+}
+
+// GetAccountRequest 读取当前账号，目标来自受信上下文。
+message GetAccountRequest {}
+
+// GetAccountResponse 返回当前账号视图。
+message GetAccountResponse {
+  AccountView account = 1;
+}
+
+// BindIdentityRequest 验证新增身份并重新证明当前账号。
+message BindIdentityRequest {
+  Credential candidate = 1;
+  Credential reauth = 2;
+  uint64 expected_revision = 3;
+}
+
+// BindIdentityResponse 返回提交后的身份集合版本。
+message BindIdentityResponse {
+  uint64 identity_revision = 1;
+}
+
+// UnbindIdentityRequest 移除指定身份，不撤销会话。
+message UnbindIdentityRequest {
+  LoginRef target = 1;
+  Credential reauth = 2;
+  uint64 expected_revision = 3;
+}
+
+// UnbindIdentityResponse 返回提交后的身份集合版本。
+message UnbindIdentityResponse {
+  uint64 identity_revision = 1;
+}
+
+// RenewLoginTicketRequest 使用当前已认证会话换取同一会话的新票据。
+message RenewLoginTicketRequest {}
+
+// RenewLoginTicketResponse 不延长登录会话的绝对有效期。
+message RenewLoginTicketResponse {
+  LoginTicket ticket = 1;
+}
+
+// RevokeSessionRequest 撤销当前账号下的一次会话。
+message RevokeSessionRequest {
+  string session_id = 1; // 所属账号取自受信上下文。
+}
+
+// RevokeSessionResponse 表示撤销操作已提交。
+message RevokeSessionResponse {}
+
+// RevokeAllSessionsRequest 撤销截至指定版本的全部会话。
+message RevokeAllSessionsRequest {
+  uint64 expected_epoch = 1; // 服务端曾返回的当前账号会话版本。
+}
+
+// RevokeAllSessionsResponse 返回当前会话版本。
+message RevokeAllSessionsResponse {
+  uint64 session_epoch = 1;
+}

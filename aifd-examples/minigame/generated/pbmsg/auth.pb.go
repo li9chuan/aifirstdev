@@ -26,12 +26,11 @@ type MAuthPayload struct {
 	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	Uid           int64                  `protobuf:"varint,2,opt,name=uid,proto3" json:"uid,omitempty"`
 	RealmId       int32                  `protobuf:"varint,3,opt,name=realm_id,json=realmId,proto3" json:"realm_id,omitempty"`
-	Provider      string                 `protobuf:"bytes,4,opt,name=provider,proto3" json:"provider,omitempty"`
-	SubjectHash   string                 `protobuf:"bytes,5,opt,name=subject_hash,json=subjectHash,proto3" json:"subject_hash,omitempty"`
-	TokenId       string                 `protobuf:"bytes,6,opt,name=token_id,json=tokenId,proto3" json:"token_id,omitempty"`
+	BackendId     string                 `protobuf:"bytes,4,opt,name=backend_id,json=backendId,proto3" json:"backend_id,omitempty"`
+	Audience      string                 `protobuf:"bytes,5,opt,name=audience,proto3" json:"audience,omitempty"`
+	SessionId     string                 `protobuf:"bytes,6,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	IssuedAt      int64                  `protobuf:"varint,7,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
 	ExpiresAt     int64                  `protobuf:"varint,8,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	IsNewAccount  bool                   `protobuf:"varint,9,opt,name=is_new_account,json=isNewAccount,proto3" json:"is_new_account,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -87,23 +86,23 @@ func (x *MAuthPayload) GetRealmId() int32 {
 	return 0
 }
 
-func (x *MAuthPayload) GetProvider() string {
+func (x *MAuthPayload) GetBackendId() string {
 	if x != nil {
-		return x.Provider
+		return x.BackendId
 	}
 	return ""
 }
 
-func (x *MAuthPayload) GetSubjectHash() string {
+func (x *MAuthPayload) GetAudience() string {
 	if x != nil {
-		return x.SubjectHash
+		return x.Audience
 	}
 	return ""
 }
 
-func (x *MAuthPayload) GetTokenId() string {
+func (x *MAuthPayload) GetSessionId() string {
 	if x != nil {
-		return x.TokenId
+		return x.SessionId
 	}
 	return ""
 }
@@ -120,13 +119,6 @@ func (x *MAuthPayload) GetExpiresAt() int64 {
 		return x.ExpiresAt
 	}
 	return 0
-}
-
-func (x *MAuthPayload) GetIsNewAccount() bool {
-	if x != nil {
-		return x.IsNewAccount
-	}
-	return false
 }
 
 type MceAuth struct {
@@ -229,19 +221,20 @@ var File_system_auth_proto protoreflect.FileDescriptor
 
 const file_system_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x11system/auth.proto\x12\x0fminigame.system\"\x96\x02\n" +
+	"\x11system/auth.proto\x12\x0fminigame.system\"\xf0\x01\n" +
 	"\fMAuthPayload\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x10\n" +
 	"\x03uid\x18\x02 \x01(\x03R\x03uid\x12\x19\n" +
-	"\brealm_id\x18\x03 \x01(\x05R\arealmId\x12\x1a\n" +
-	"\bprovider\x18\x04 \x01(\tR\bprovider\x12!\n" +
-	"\fsubject_hash\x18\x05 \x01(\tR\vsubjectHash\x12\x19\n" +
-	"\btoken_id\x18\x06 \x01(\tR\atokenId\x12\x1b\n" +
+	"\brealm_id\x18\x03 \x01(\x05R\arealmId\x12\x1d\n" +
+	"\n" +
+	"backend_id\x18\x04 \x01(\tR\tbackendId\x12\x1a\n" +
+	"\baudience\x18\x05 \x01(\tR\baudience\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x06 \x01(\tR\tsessionId\x12\x1b\n" +
 	"\tissued_at\x18\a \x01(\x03R\bissuedAt\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\b \x01(\x03R\texpiresAt\x12$\n" +
-	"\x0eis_new_account\x18\t \x01(\bR\fisNewAccount\"X\n" +
+	"expires_at\x18\b \x01(\x03R\texpiresAt\"X\n" +
 	"\aMceAuth\x127\n" +
 	"\apayload\x18\x01 \x01(\v2\x1d.minigame.system.MAuthPayloadR\apayload\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05token\"\x1b\n" +

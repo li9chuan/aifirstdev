@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	coderws "github.com/coder/websocket"
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
@@ -17,7 +18,7 @@ import (
 
 func TestInvalidHandshakeCredentialsRejectBeforeUpgradeWithoutFallback(t *testing.T) {
 	called := false
-	handler := NewServer(Config{
+	handler := NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 		Gateway:  proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 		Delivery: proxyruntime.NewDelivery(),
 		HandshakeHandler: proxy.HandshakeHandlerFunc(func(context.Context, proxy.AuthRequest) (proxy.HandshakeResult, error) {
@@ -39,9 +40,9 @@ func TestHandshakeActivationFailureRollsBackMembershipAndSubscription(t *testing
 	gateway := proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil }))
 	downlink := &recordingDownlink{}
 	closed := make(chan proxypb.SessionEndReason, 1)
-	handler := NewServer(Config{Gateway: gateway, Delivery: proxyruntime.NewDelivery(), Downlink: downlink,
+	handler := NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly, Gateway: gateway, Delivery: proxyruntime.NewDelivery(), Downlink: downlink,
 		HandshakeHandler: proxy.HandshakeHandlerFunc(func(context.Context, proxy.AuthRequest) (proxy.HandshakeResult, error) {
-			return proxy.HandshakeResult{Handled: true, Identity: proxy.Identity{UID: 42}}, nil
+			return proxy.HandshakeResult{Handled: true, Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), Account: "test-account", UID: 42}}, nil
 		}),
 		Lifecycle: SessionLifecycleFuncs{Connected: func(context.Context, proxyruntime.Session) error { return errors.New("owner unavailable") }, Disconnected: func(_ context.Context, _ proxyruntime.Session, reason proxypb.SessionEndReason) error {
 			closed <- reason
@@ -69,9 +70,9 @@ func TestHandshakeMultiDeviceKeepsSubscriptionUntilLastConnection(t *testing.T) 
 	downlink := &recordingDownlink{}
 	ready, _ := rpc.NewMessagePB("MseReady", wrapperspb.String("ready"))
 	ready.Header[rpc.HeaderClientInbox] = "7"
-	handler := NewServer(Config{Gateway: gateway, Delivery: proxyruntime.NewDelivery(), Downlink: downlink, DuplicatePolicy: DuplicateAllow,
+	handler := NewServer(Config{AuthCheckMode: proxy.AuthCheckExpiryOnly, Gateway: gateway, Delivery: proxyruntime.NewDelivery(), Downlink: downlink, DuplicatePolicy: DuplicateAllow,
 		HandshakeHandler: proxy.HandshakeHandlerFunc(func(context.Context, proxy.AuthRequest) (proxy.HandshakeResult, error) {
-			return proxy.HandshakeResult{Handled: true, Identity: proxy.Identity{UID: 42}, InitialMessage: &ready}, nil
+			return proxy.HandshakeResult{Handled: true, Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), Account: "test-account", UID: 42}, InitialMessage: &ready}, nil
 		}),
 	})
 	server := httptest.NewServer(handler)

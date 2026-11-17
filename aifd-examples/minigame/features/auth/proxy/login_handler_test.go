@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 
 func TestLoginHandlerDefaultsUseAuthTopics(t *testing.T) {
 	_, verifier := newTestTokenTools(t)
-	handler := proxyc.NewLoginHandler(Authenticate(nil, verifier))
+	handler := proxyc.NewLoginHandler(Authenticate(nil, verifier, nil))
 	if err := handler.Validate(); err != nil {
 		t.Fatalf("Validate error = %v", err)
 	}
@@ -33,7 +32,7 @@ func TestLoginHandlerInvalidTokenReturnsMseAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMessagePB error = %v", err)
 	}
-	handler := proxyc.NewLoginHandler(Authenticate(nil, verifier))
+	handler := proxyc.NewLoginHandler(Authenticate(nil, verifier, nil))
 	result, err := handler.Login(context.Background(), loginRequest(msg))
 	if err != nil {
 		t.Fatalf("Login error = %v", err)
@@ -60,7 +59,7 @@ func TestLoginHandlerRejectsTamperedPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMessagePB error = %v", err)
 	}
-	handler := proxyc.NewLoginHandler(Authenticate(nil, verifier))
+	handler := proxyc.NewLoginHandler(Authenticate(nil, verifier, nil))
 	result, err := handler.Login(context.Background(), loginRequest(msg))
 	if err != nil {
 		t.Fatalf("Login error = %v", err)
@@ -88,14 +87,12 @@ func newTestTokenTools(t *testing.T) (*token.Signer, *token.Verifier) {
 
 func testPayload() *pbmsg.MAuthPayload {
 	return &pbmsg.MAuthPayload{
-		AccountId:   5001,
-		Uid:         1001,
-		RealmId:     1,
-		Provider:    "demo",
-		SubjectHash: strings.Repeat("a", 64),
-		TokenId:     "token-1",
-		IssuedAt:    time.Unix(1000, 0).Unix(),
-		ExpiresAt:   time.Unix(1100, 0).Unix(),
+		AccountId: 5001,
+		Uid:       1001,
+		RealmId:   1,
+		SessionId: "token-1",
+		IssuedAt:  time.Unix(1000, 0).Unix(),
+		ExpiresAt: time.Unix(1100, 0).Unix(),
 	}
 }
 

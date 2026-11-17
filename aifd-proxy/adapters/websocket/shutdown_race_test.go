@@ -31,14 +31,14 @@ func TestServerCloseDuringUpgrade(t *testing.T) {
 				defer cancel()
 				written, release := make(chan struct{}), make(chan struct{})
 				resume := sync.OnceFunc(func() { close(release) })
-				cfg := Config{
+				cfg := Config{AuthCheckMode: proxy.AuthCheckExpiryOnly,
 					Gateway:      proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil })),
 					Delivery:     proxyruntime.NewDelivery(),
 					LoginHandler: proxy.LoginHandlerFunc(func(context.Context, proxy.LoginRequest) (proxy.LoginResult, error) { return proxy.LoginResult{}, nil }),
 				}
 				if authenticated {
 					cfg.HandshakeHandler = proxy.HandshakeHandlerFunc(func(context.Context, proxy.AuthRequest) (proxy.HandshakeResult, error) {
-						return proxy.HandshakeResult{Handled: true, Identity: proxy.Identity{UID: 1001}}, nil
+						return proxy.HandshakeResult{Handled: true, Identity: proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), Account: "test-account", UID: 1001}}, nil
 					})
 				}
 				handler := NewServer(cfg)

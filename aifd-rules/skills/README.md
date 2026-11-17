@@ -31,7 +31,7 @@
 - [schema-proto-workflow](schema-proto-workflow/SKILL.md)
   - 用于框架默认 PB、业务 proto、generated pb 边界、消息兼容性和 RPC 绑定联动。
 - [account-identity-store-workflow](account-identity-store-workflow/SKILL.md)
-  - 用于 `aifd-account`、登录身份、`account_id`、provider/subject_hash、账号 Redis key、token payload、账号创建/禁用/并发创建和业务项目接入账号中心；确认 account 只管理登录账号，不承载业务 uid、owner、realm、角色或服务器归属。
+  - 用于独立凭据验证、可选账号中心、authority/subject、身份绑定、Redis 分步写入、会话撤销及外部账号接入 Proxy/Runtime；区分账号事实、连接认证与业务准入。
 - [config-table-workflow](config-table-workflow/SKILL.md)
   - 用于 `aifd-config`、Luban/cfgtable 适配、typed bundle、validator、manifest diff 和热更边界。
 - [service-entrypoint-development](service-entrypoint-development/SKILL.md)

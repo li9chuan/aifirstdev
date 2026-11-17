@@ -7,10 +7,11 @@ import (
 	"github.com/li9chuan/aifirstdev/aifd-runtime/entrypoint"
 )
 
-// NewWebSocketHTTPServer 创建只挂载 /ws 的示例 HTTP server。
+// NewWebSocketHTTPServer mounts WS and the development-only account endpoint.
 func NewWebSocketHTTPServer(addr string, handler http.Handler) *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/ws", handler)
+	mux.Handle("/demo/auth", handler)
 	return &http.Server{Addr: addr, Handler: mux}
 }
 

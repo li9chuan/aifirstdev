@@ -44,7 +44,7 @@ func RegisterRPC(reg *rpc.Registry, service *runtimeuser.Runtime[*pbmsg.DBPlayer
 				db.RegisterTime = time.Now().Unix()
 			}
 			db.LoginCount++
-			db.LastSession = payload.GetTokenId()
+			db.LastSession = payload.GetSessionId()
 			db.Auth = proto.Clone(payload).(*pbmsg.MAuthPayload)
 			return nil
 		}); err != nil {

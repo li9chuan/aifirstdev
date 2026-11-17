@@ -13,6 +13,7 @@ import (
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth"
 	authrobot "github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth/robot"
 	counterrobot "github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/counter/robot"
+	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/generated/pbmsg"
 	"github.com/li9chuan/aifirstdev/aifd-examples/minigame/internal/app"
 	robotc "github.com/li9chuan/aifirstdev/aifd-robot/contracts"
 	robotrt "github.com/li9chuan/aifirstdev/aifd-robot/runtime"
@@ -31,10 +32,6 @@ func main() {
 
 	waitCtx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()
-	accountApp, err := app.NewAccountApp()
-	if err != nil {
-		fail(err)
-	}
 
 	var modules []*authrobot.AuthModule
 	var counters []*counterrobot.CounterModule
@@ -54,7 +51,9 @@ func main() {
 			})
 		},
 		Modules: func(robotc.AgentSpec) []robotc.AgentModule {
-			authModule := authrobot.NewModule(authrobot.ModuleOptions{Auth: accountApp.DemoAuth})
+			authModule := authrobot.NewModule(authrobot.ModuleOptions{Auth: func(ctx context.Context, subject int64) (*pbmsg.MceAuth, error) {
+				return app.RequestDemoAuth(ctx, *url, subject)
+			}})
 			counterModule := counterrobot.NewModule(counterrobot.ModuleOptions{
 				Auth:  authModule,
 				Delta: int32(*counterDelta),

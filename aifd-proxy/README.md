@@ -80,7 +80,9 @@ WebSocket adapter 使用 `github.com/coder/websocket`，只接受 binary frame�
 websocket.NewServer(websocket.Config{
     Gateway:      gateway,
     Delivery:     delivery,
-    LoginHandler: proxy.NewLoginHandler(authproxy.Authenticate(bus, tokenVerifier)),
+    LoginHandler: proxy.NewLoginHandler(authproxy.Authenticate(bus, tokenVerifier, accountService)),
+    AuthCheckMode: proxy.AuthCheckPerRequest,
+    AuthRevalidator: authproxy.Revalidator{Sessions: accountService},
 })
 ```
 
@@ -91,7 +93,30 @@ websocket.NewServer(websocket.Config{
 
 `MceAuth` / `MseAuth` 这类真实登录协议属于业务项目自己的 proto。`aifd-proxy`
 只提供 `LoginHandler` 入口和 packet 转发能力，不把业务登录 PB 放进框架层。账号中心
-签发 token，proxy 本地验签，不应在每次登录热路径查询账号中心。
+签发 token；应用的 Authenticate 负责验签、backend/audience/time 校验、按所选策略查询权威状态和业务准入。
+Proxy 不强制使用 AIFD 账号中心，也不会替应用选择验证策略。
+
+### 认证有效期与后续重检
+
+Identity 必须含 BackendID、Account 和 ValidUntil；SessionID 可为空，UID 仍由业务映射。
+WebSocket.Config.AuthCheckMode 必须显式选择：
+
+| 模式 | 行为 |
+|---|---|
+| AuthCheckExpiryOnly | 只执行本地绝对期限，不查询撤销状态，不允许配置重检器或重检时长 |
+| AuthCheckPeriodic | 按周期查询权威状态，窗口内复用检查结果 |
+| AuthCheckPerRequest | 每条已认证入站消息重检，并保留空闲连接的周期检查 |
+
+后两种模式必须提供 AuthRevalidator；缺省 AuthRecheckInterval 为 30 秒、AuthCheckTimeout 为 5 秒。
+初次 Authenticate 自身完成完整检查，成功后不立刻重复调用 Revalidate。后续检查不能换账号、session 或
+延长原 ValidUntil。重检失败或超时先本地失效并关闭连接；晚返回不能恢复有效状态。
+纯推送和空闲连接也受检查，最终写入锁后的发送门禁会再次检查期限和本地失效状态。
+Periodic/PerRequest 的撤销观察有检查窗口；ExpiryOnly 只承诺到期关闭。
+
+Gateway 从已认证连接生成 AuthContext，通过可信内部 RPC metadata 传递；清除客户端提供的同名字段。
+业务在来源验证和连接租约门禁之后调用 contracts.GetAuthContext；header 字节本身不能证明可信来源。
+登录 session 与 Proxy 的 ClientSessionRef 连接租约是不同对象，不能互相代替。
+完整外部系统接线见 [外部账号示例](../aifd-examples/external-auth/README.md)。
 
 重复登录策略通过配置选择：
 

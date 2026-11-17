@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/li9chuan/aifirstdev/aifd-auth/token"
 	authproxy "github.com/li9chuan/aifirstdev/aifd-examples/minigame/features/auth/proxy"
 	proxylocal "github.com/li9chuan/aifirstdev/aifd-proxy/adapters/local"
 	proxynats "github.com/li9chuan/aifirstdev/aifd-proxy/adapters/nats"
@@ -31,15 +30,16 @@ type ProxyApp struct {
 	Delivery *proxyruntime.Delivery
 	Handler  http.Handler
 	Downlink downlinkCloser
+	server   *proxyws.Server
 }
 
 // NewProxyApp 创建 websocket proxy 入口；local bus 使用示例桥，NATS bus 使用真实下行订阅。
-func NewProxyApp(bus rpc.Bus, verifier *token.Verifier, configs ...proxyws.FileConfig) (*ProxyApp, error) {
+func NewProxyApp(bus rpc.Bus, accountApp *AccountApp, configs ...proxyws.FileConfig) (*ProxyApp, error) {
 	if bus == nil {
 		return nil, fmt.Errorf("rpc bus is nil")
 	}
-	if verifier == nil {
-		return nil, fmt.Errorf("token verifier is nil")
+	if accountApp == nil || accountApp.Verifier == nil || accountApp.Service == nil {
+		return nil, fmt.Errorf("account authority is nil")
 	}
 	delivery := proxyruntime.NewDelivery()
 	gateway := proxyruntime.NewGateway(nil, proxyruntime.NewRPCUpstream(bus, delivery))
@@ -50,11 +50,12 @@ func NewProxyApp(bus rpc.Bus, verifier *token.Verifier, configs ...proxyws.FileC
 		downlink = proxynats.NewDownlink(provider.NatsConn(), gateway, delivery, proxynats.Config{})
 	}
 	wsCfg := proxyws.Config{
-		Bus:             bus,
-		Gateway:         gateway,
-		Delivery:        delivery,
-		Downlink:        downlink,
-		LoginHandler:    proxyc.NewLoginHandler(authproxy.Authenticate(bus, verifier)),
+		Bus:           bus,
+		Gateway:       gateway,
+		Delivery:      delivery,
+		Downlink:      downlink,
+		LoginHandler:  proxyc.NewLoginHandler(authproxy.Authenticate(bus, accountApp.Verifier, accountApp.Service)),
+		AuthCheckMode: proxyc.AuthCheckPerRequest, AuthRevalidator: authproxy.Revalidator{Sessions: accountApp.Service},
 		DuplicatePolicy: proxyws.DuplicateKickOld,
 	}
 	if len(configs) > 0 {
@@ -65,14 +66,24 @@ func NewProxyApp(bus rpc.Bus, verifier *token.Verifier, configs ...proxyws.FileC
 		}
 	}
 	handler := proxyws.NewServer(wsCfg)
-	return &ProxyApp{Gateway: gateway, Delivery: delivery, Handler: handler, Downlink: downlink}, nil
+	if err := handler.Validate(); err != nil {
+		return nil, err
+	}
+	combined := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/demo/auth" {
+			accountApp.serveDemoAuth(w, r)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	})
+	return &ProxyApp{Gateway: gateway, Delivery: delivery, Handler: combined, Downlink: downlink, server: handler}, nil
 }
 
 // Close 停止示例本地 downlink 桥。
 func (a *ProxyApp) Close() error {
 	if a != nil {
-		if server, ok := a.Handler.(*proxyws.Server); ok {
-			_ = server.Close(context.Background())
+		if a.server != nil {
+			_ = a.server.Close(context.Background())
 		}
 	}
 	if a != nil && a.Downlink != nil {

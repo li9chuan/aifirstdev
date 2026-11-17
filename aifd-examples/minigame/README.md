@@ -33,17 +33,22 @@ rdb、config、observe、robot 和 split/all-in-one 入口如何组合成游戏�
 
 业务项目可以复制这里的目录分层：业务 proto 放在项目自己的 `proto/`，生成物放在项目
 自己的 `generated/pbmsg/`。`DBPlayer` 也是业务 proto，不进入框架层；账号注册、provider
-绑定和 payload token 签发由 `aifd-account` 负责，proxy 只本地验签，game host 的登录确认放在
+绑定和 payload token 签发由 `aifd-account` 负责，proxy 验签并检查权威会话，game host 的登录确认放在
 `features/auth/game`。
 具体业务功能放在 `features/counter` 这样的 feature 目录里，由业务自己决定协议名、
 配置表名、Redis key、指标名和 DBPlayer 子字段。
 
 客户端先通过账号中心拿到 `MAuthPayload + token`，再用 `MsgHead.topic = MceAuth`
 连接 proxy；proxy 验签后把同一个 `MceAuth` 转发给 game host。服务端登录回包使用
-`MsgHead.topic = MseAuth`，只包含 `ret`。登录身份和 new 标记写入 `DBPlayer.auth`。
+`MsgHead.topic = MseAuth`，只包含 `ret`。账号、session、期限及业务映射写入 `DBPlayer.auth`。
 `pbType` 是 body 的 protobuf 类型名，不等同于 topic。
 登录后的业务请求使用 `MsgHead.topic = MceCounterAdd`，服务端返回
 `MsgHead.topic = MseCounterState`。
+
+开发 client/robot 通过同一 proxy 的 `POST /demo/auth` 获取票据，服务端 DemoAuth 显式注册缺失账号再登录；
+客户端不再自行创建账号中心和签票。此入口接受 demo subject、没有真实身份验证，只用于本地演示，不能用于生产。
+示例使用 MemoryStore 和 PerRequest 重检；进程重启会丢失账号/会话，多 proxy 需要接入同一权威账号服务或存储。
+payload 只保留 backend、audience、账号/session、时间及业务 UID/realm，不再携带 provider、subject hash 或 new 标记。
 
 可以先启动本地 all-in-one 后端；它在一个进程里组装 proxy、game host、world host、
 local RPC、memory rdb、memory config 和 memory observe：

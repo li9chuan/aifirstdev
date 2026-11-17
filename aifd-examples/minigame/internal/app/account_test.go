@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/hex"
 	"strconv"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestAccountAppCanUseRedisStore(t *testing.T) {
 		_ = client.Close()
 	})
 
-	store, err := account.NewRedisStore(client, account.RedisStoreOptions{})
+	store, err := account.NewRedisStore(client, account.RedisStoreOptions{Space: "minigame"})
 	if err != nil {
 		t.Fatalf("NewRedisStore error = %v", err)
 	}
@@ -31,26 +32,30 @@ func TestAccountAppCanUseRedisStore(t *testing.T) {
 		t.Fatalf("DemoAuth first error = %v", err)
 	}
 	accountID := first.GetPayload().GetAccountId()
-	if accountID <= 0 || first.GetPayload().GetUid() != accountID || !first.GetPayload().GetIsNewAccount() || first.GetToken() == "" {
+	if accountID <= 0 || first.GetPayload().GetUid() != accountID || first.GetPayload().GetSessionId() == "" || first.GetToken() == "" {
 		t.Fatalf("first auth = %+v, want new Redis-backed account auth", first)
 	}
 
-	ref, err := account.LoginRefFromPrincipal(account.Principal{Provider: account.ProviderDemo, Subject: "4001"})
+	snapshot, err := app.Service.GetAccount(ctx, accountID)
 	if err != nil {
-		t.Fatalf("LoginRefFromPrincipal error = %v", err)
+		t.Fatal(err)
 	}
-	loginAccount, err := client.Get(ctx, "account:login:"+ref.Provider+":"+ref.SubjectHash).Result()
+	if len(snapshot.Identities) != 1 {
+		t.Fatal("identity set", snapshot)
+	}
+	ref := snapshot.Identities[0]
+	loginAccount, err := client.Get(ctx, "account:minigame:login:"+ref.AuthorityID+":"+hex.EncodeToString(ref.SubjectDigest[:])).Result()
 	if err != nil {
 		t.Fatalf("GET login key error = %v", err)
 	}
 	if loginAccount != strconv.FormatInt(accountID, 10) {
 		t.Fatalf("login account = %q, want %d", loginAccount, accountID)
 	}
-	if !server.Exists("account:act:" + strconv.FormatInt(accountID, 10)) {
+	if !server.Exists("account:minigame:act:" + strconv.FormatInt(accountID, 10)) {
 		t.Fatalf("account record key missing for %d", accountID)
 	}
 
-	secondStore, err := account.NewRedisStore(client, account.RedisStoreOptions{})
+	secondStore, err := account.NewRedisStore(client, account.RedisStoreOptions{Space: "minigame"})
 	if err != nil {
 		t.Fatalf("NewRedisStore second error = %v", err)
 	}
@@ -62,7 +67,7 @@ func TestAccountAppCanUseRedisStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DemoAuth second error = %v", err)
 	}
-	if second.GetPayload().GetAccountId() != accountID || second.GetPayload().GetUid() != accountID || second.GetPayload().GetIsNewAccount() {
+	if second.GetPayload().GetAccountId() != accountID || second.GetPayload().GetUid() != accountID || second.GetPayload().GetSessionId() == first.GetPayload().GetSessionId() {
 		t.Fatalf("second auth = %+v, want persisted existing account", second)
 	}
 }

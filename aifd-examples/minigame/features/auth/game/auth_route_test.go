@@ -3,7 +3,6 @@ package game
 import (
 	"context"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -55,7 +54,7 @@ func TestAuthOKLogsPlayerIn(t *testing.T) {
 		t.Fatal("owner 1001 is not active")
 	}
 	dbPlayer := owner.Snapshot()
-	if dbPlayer.GetAuth().GetAccountId() != 5001 || dbPlayer.GetAuth().GetTokenId() != "first" || dbPlayer.GetLastSession() != "first" {
+	if dbPlayer.GetAuth().GetAccountId() != 5001 || dbPlayer.GetAuth().GetSessionId() != "first" || dbPlayer.GetLastSession() != "first" {
 		t.Fatalf("dbPlayer = %+v, want auth payload saved", dbPlayer)
 	}
 	if err := db.Flush(ctx); err != nil {
@@ -73,7 +72,7 @@ func TestAuthOKLogsPlayerIn(t *testing.T) {
 	if !ok {
 		t.Fatal("owner 1001 is not active after second login")
 	}
-	if got := owner.Snapshot().GetAuth().GetTokenId(); got != "second" {
+	if got := owner.Snapshot().GetAuth().GetSessionId(); got != "second" {
 		t.Fatalf("auth token id = %q, want second", got)
 	}
 }
@@ -81,13 +80,10 @@ func TestAuthOKLogsPlayerIn(t *testing.T) {
 func authReq(accountID int64, uid int64, tokenID string, isNewAccount bool) *pbmsg.MceAuth {
 	return &pbmsg.MceAuth{
 		Payload: &pbmsg.MAuthPayload{
-			AccountId:    accountID,
-			Uid:          uid,
-			RealmId:      1,
-			Provider:     "demo",
-			SubjectHash:  strings.Repeat("a", 64),
-			TokenId:      tokenID,
-			IsNewAccount: isNewAccount,
+			AccountId: accountID,
+			Uid:       uid,
+			RealmId:   1,
+			SessionId: tokenID,
 		},
 	}
 }

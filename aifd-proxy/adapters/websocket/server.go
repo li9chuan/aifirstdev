@@ -118,6 +118,12 @@ type Config struct {
 	Lifecycle        SessionLifecycle
 	HandshakeHandler proxy.HandshakeHandler
 	Bus              rpc.Bus
+	// AuthCheckMode is mandatory. Revalidation modes default to 30s/5s below;
+	// expiry-only forbids a checker or revalidation durations.
+	AuthCheckMode       proxy.AuthCheckMode
+	AuthRevalidator     proxy.AuthRevalidator
+	AuthRecheckInterval time.Duration
+	AuthCheckTimeout    time.Duration
 }
 
 // Server 是 websocket client adapter，可直接作为 http.Handler 使用。
@@ -139,6 +145,14 @@ type loginHandlerValidator interface {
 
 // NewServer 创建 websocket client adapter。
 func NewServer(cfg Config) *Server {
+	if cfg.AuthCheckMode == proxy.AuthCheckPeriodic || cfg.AuthCheckMode == proxy.AuthCheckPerRequest {
+		if cfg.AuthRecheckInterval == 0 {
+			cfg.AuthRecheckInterval = 30 * time.Second
+		}
+		if cfg.AuthCheckTimeout == 0 {
+			cfg.AuthCheckTimeout = 5 * time.Second
+		}
+	}
 	if cfg.Delivery == nil {
 		cfg.Delivery = proxyruntime.NewDelivery()
 	}
@@ -187,7 +201,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.HandshakeHandler != nil {
 		var err error
 		handshake, err = s.cfg.HandshakeHandler.AuthenticateHandshake(r.Context(), proxy.AuthRequest{Token: r.URL.Query().Get("token"), RemoteAddr: r.RemoteAddr, Header: headerSnapshot(r.Header)})
-		if err != nil || handshake.Handled && handshake.Identity.UID <= 0 {
+		if err != nil || handshake.Handled && (handshake.Identity.UID <= 0 || handshake.Identity.AuthContext().Validate(time.Now()) != nil) {
 			http.Error(w, "authentication failed", http.StatusUnauthorized)
 			return
 		}
@@ -201,7 +215,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws.SetReadLimit(s.cfg.MaxMessageBytes)
-	conn := newConnection(s.nextConnectionID(), ws)
+	conn := newConnection(r.Context(), s.nextConnectionID(), ws)
 	if err := s.cfg.Delivery.Add(conn); err != nil {
 		_ = conn.Close(r.Context())
 		return
@@ -259,6 +273,9 @@ func (s *Server) Validate() error {
 	if s == nil || s.cfg.Gateway == nil || s.cfg.Delivery == nil || s.cfg.LoginHandler == nil && s.cfg.HandshakeHandler == nil {
 		return ErrConfigMissing
 	}
+	if err := validateAuthConfig(s.cfg); err != nil {
+		return err
+	}
 	if validator, ok := s.cfg.LoginHandler.(loginHandlerValidator); ok {
 		if err := validator.Validate(); err != nil {
 			return err
@@ -314,6 +331,10 @@ func (s *Server) serveConn(ctx context.Context, conn *Connection, req *http.Requ
 			return
 		}
 		if _, ok := s.cfg.Gateway.Session(conn.ID()); !ok {
+			// Retired authenticated connections must never become anonymous again.
+			if conn.auth.Load() != nil {
+				return
+			}
 			if s.isPublicTopic(msg.Name) {
 				keep, err := s.handlePublic(ctx, conn, req, msg)
 				if err != nil || !keep {
@@ -328,8 +349,13 @@ func (s *Server) serveConn(ctx context.Context, conn *Connection, req *http.Requ
 			continue
 		}
 		if s.isPing(msg.Name) {
-			_ = conn.Send(ctx, rpc.Message{Name: s.cfg.PongTopic})
+			if err := conn.Send(ctx, rpc.Message{Name: s.cfg.PongTopic}); err != nil {
+				return
+			}
 			continue
+		}
+		if err := conn.auth.Load().check(conn.ctx, true); err != nil {
+			return
 		}
 		if err := s.cfg.Gateway.Receive(ctx, conn.ID(), msg); err != nil {
 			_ = conn.CloseWithStatus(coderws.StatusPolicyViolation, err.Error())
@@ -422,8 +448,19 @@ func (s *Server) duplicateDecision(ctx context.Context, conn *Connection, identi
 // first/last downlink subscription changes are serialized; business hooks and socket
 // writes run after releasing the membership lock.
 func (s *Server) activateConnection(ctx context.Context, conn *Connection, identity proxy.Identity) error {
+	if identity.UID <= 0 {
+		return proxyruntime.ErrInvalidIdentity
+	}
+	if err := identity.AuthContext().Validate(time.Now()); err != nil {
+		return err
+	}
+	auth := newConnectionAuth(s.cfg, identity.AuthContext(), func() { s.cleanup(context.Background(), conn.ID()) })
+	conn.auth.Store(auth)
 	decision, err := s.duplicateDecision(ctx, conn, identity)
 	if err != nil {
+		return err
+	}
+	if err := auth.checkLocal(); err != nil {
 		return err
 	}
 	s.membershipMu.Lock()
@@ -484,6 +521,11 @@ func (s *Server) activateConnection(ctx context.Context, conn *Connection, ident
 		s.cleanup(ctx, conn.ID())
 		return ErrLoginRejected
 	}
+	if err := auth.checkLocal(); err != nil {
+		auth.fail()
+		return err
+	}
+	go auth.monitor(conn.ctx)
 	return nil
 }
 
@@ -597,10 +639,14 @@ type Connection struct {
 	ws     *coderws.Conn
 	mu     sync.Mutex
 	closed atomic.Bool
+	auth   atomic.Pointer[connectionAuth]
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
-func newConnection(id string, ws *coderws.Conn) *Connection {
-	return &Connection{id: id, ws: ws}
+func newConnection(ctx context.Context, id string, ws *coderws.Conn) *Connection {
+	ctx, cancel := context.WithCancel(ctx)
+	return &Connection{id: id, ws: ws, ctx: ctx, cancel: cancel}
 }
 
 // ID 返回 proxy 连接 ID。
@@ -620,6 +666,12 @@ func (c *Connection) Send(ctx context.Context, msg rpc.Message) error {
 	if c.closed.Load() {
 		return coderws.CloseError{Code: coderws.StatusNormalClosure, Reason: "connection closed"}
 	}
+	if auth := c.auth.Load(); auth != nil {
+		if err := auth.checkLocal(); err != nil {
+			auth.fail()
+			return err
+		}
+	}
 	return c.ws.Write(ctx, coderws.MessageBinary, data)
 }
 
@@ -633,5 +685,9 @@ func (c *Connection) CloseWithStatus(code coderws.StatusCode, reason string) err
 	if c.closed.Swap(true) {
 		return nil
 	}
+	if auth := c.auth.Load(); auth != nil {
+		auth.invalid.Store(true)
+	}
+	c.cancel()
 	return c.ws.Close(code, reason)
 }

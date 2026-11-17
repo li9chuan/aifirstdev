@@ -76,9 +76,9 @@ func TestNATSMultiProxyIdenticalInboxesAndUIDBroadcast(t *testing.T) {
 		gateway := proxyruntime.NewGateway(nil, proxyruntime.NewRPCUpstream(bus, delivery))
 		downlink := proxynats.NewDownlink(bus.NatsConn(), gateway, delivery, proxynats.Config{})
 		ready, _ := contracts.NewMessagePB("MseReady", wrapperspb.String("ready"))
-		handler := proxyws.NewServer(proxyws.Config{Bus: bus, Gateway: gateway, Delivery: delivery, Downlink: downlink, DuplicatePolicy: proxyws.DuplicateAllow,
+		handler := proxyws.NewServer(proxyws.Config{AuthCheckMode: proxy.AuthCheckExpiryOnly, Bus: bus, Gateway: gateway, Delivery: delivery, Downlink: downlink, DuplicatePolicy: proxyws.DuplicateAllow,
 			HandshakeHandler: proxy.HandshakeHandlerFunc(func(context.Context, proxy.AuthRequest) (proxy.HandshakeResult, error) {
-				return proxy.HandshakeResult{Handled: true, Identity: proxy.Identity{UID: 42}, InitialMessage: &ready}, nil
+				return proxy.HandshakeResult{Handled: true, Identity: proxy.Identity{UID: 42, BackendID: "test", Account: "account", ValidUntil: time.Now().Add(time.Hour)}, InitialMessage: &ready}, nil
 			}),
 		})
 		server := httptest.NewServer(handler)

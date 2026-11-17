@@ -69,3 +69,11 @@ message MceSessionHeartbeat {}
 message MseSessionHeartbeat {
   int64 server_time_unix_ms = 1;
 }
+
+// AuthContext 表示受信网关为本次调用注入的认证快照。
+message AuthContext {
+  string backend_id = 1;       // 宿主登记的账号或 token 验证域。
+  string account = 2;          // 已验证账号原值，自带模式为规范十进制 ID。
+  string session_id = 3;       // 可空；是否为空不决定重检策略。
+  int64 valid_until_unix = 4;  // 本连接认证的绝对截止时间，Unix 秒。
+}

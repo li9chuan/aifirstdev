@@ -61,7 +61,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	proxyApp, err := app.NewProxyApp(bus, accountApp.Verifier, fileCfg.Proxy)
+	proxyApp, err := app.NewProxyApp(bus, accountApp, fileCfg.Proxy)
 	if err != nil {
 		panic(err)
 	}

@@ -2,12 +2,15 @@ package runtime
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"strconv"
 	"time"
 
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
 	rpc "github.com/li9chuan/aifirstdev/aifd-rpc/contracts"
+	proxypb "github.com/li9chuan/aifirstdev/aifd-schema/generated/proxy"
+	"google.golang.org/protobuf/proto"
 )
 
 // RPCUpstream 将已认证客户端消息转发到 aifd-rpc Bus。
@@ -27,6 +30,22 @@ func (u *RPCUpstream) Forward(ctx context.Context, env proxy.Envelope) error {
 	if u == nil || u.Bus == nil {
 		return ErrUpstreamMissing
 	}
+	if err := env.Auth.Validate(time.Now()); err != nil {
+		return err
+	}
+	raw, err := proto.Marshal(&proxypb.AuthContext{BackendId: env.Auth.BackendID, Account: env.Auth.Account, SessionId: env.Auth.SessionID, ValidUntilUnix: env.Auth.ValidUntil.Unix()})
+	if err != nil {
+		return err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(raw)
+	if len(encoded) > proxy.MaxAuthContextBytes {
+		return proxy.ErrAuthContextInvalid
+	}
+	env.Message = env.Message.Clone()
+	if env.Message.Header == nil {
+		env.Message.Header = make(map[string]string)
+	}
+	env.Message.Header[proxy.HeaderAuthContext] = encoded
 	inbox, err := strconv.Atoi(env.Message.Header[rpc.HeaderClientInbox])
 	if err == nil && inbox > 0 {
 		if u.Delivery == nil || env.ConnectionID == "" {

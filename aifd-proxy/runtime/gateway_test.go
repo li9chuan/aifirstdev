@@ -4,6 +4,7 @@ import (
 	"context"
 	proxyruntime "github.com/li9chuan/aifirstdev/aifd-proxy/runtime"
 	"testing"
+	"time"
 
 	"github.com/li9chuan/aifirstdev/aifd-proxy/adapters/local"
 	proxy "github.com/li9chuan/aifirstdev/aifd-proxy/contracts"
@@ -14,7 +15,7 @@ func TestGatewayAcceptReceiveAndDeliver(t *testing.T) {
 	ctx := context.Background()
 	upstream := local.NewUpstreamRecorder()
 	gateway := proxyruntime.NewGateway(proxy.AuthenticatorFunc(func(context.Context, proxy.AuthRequest) (proxy.Identity, error) {
-		return proxy.Identity{UID: 1001, Account: "account-1", ServerID: 1}, nil
+		return proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "account-1", ServerID: 1}, nil
 	}), upstream)
 	delivery := proxyruntime.NewDelivery()
 	conn := local.NewConnection("conn-1")
@@ -64,10 +65,10 @@ func TestGatewayAcceptIdentitySessionsByUIDAndDisconnectSession(t *testing.T) {
 	gateway := proxyruntime.NewGateway(nil, proxy.UpstreamFunc(func(context.Context, proxy.Envelope) error { return nil }))
 	conn1 := local.NewConnection("conn-1")
 	conn2 := local.NewConnection("conn-2")
-	if _, err := gateway.AcceptIdentity(conn1, proxy.Identity{UID: 1001, Account: "a"}); err != nil {
+	if _, err := gateway.AcceptIdentity(conn1, proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "a"}); err != nil {
 		t.Fatalf("AcceptIdentity conn1 error = %v", err)
 	}
-	if _, err := gateway.AcceptIdentity(conn2, proxy.Identity{UID: 1001, Account: "a"}); err != nil {
+	if _, err := gateway.AcceptIdentity(conn2, proxy.Identity{BackendID: "test", ValidUntil: time.Now().Add(time.Hour), UID: 1001, Account: "a"}); err != nil {
 		t.Fatalf("AcceptIdentity conn2 error = %v", err)
 	}
 	sessions := gateway.SessionsByUID(1001)

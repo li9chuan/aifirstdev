@@ -4,6 +4,8 @@ English | [简体中文](./README.zh-CN.md)
 
 **v0.8.0 adds independent credential verification, optional accounts with revocable sessions, and Proxy authentication expiry/revalidation. Account APIs and storage are breaking changes; read the [migration notes](docs/releases/v0.8.0.md).**
 
+Latest patch [v0.8.1](docs/releases/v0.8.1.md) adds read-only identity lookup and offline import cleanup.
+
 The [v0.7.1 patch](docs/releases/v0.7.1.md) closes WebSockets whose upgrade overlaps shutdown, without changing public APIs or protocols.
 
 Read the [v0.7.0 release notes](docs/releases/v0.7.0.md) before upgrading logging imports, handlers, Stat calls, or log consumers. Native HTTPS/WSS setup and limits are covered in [v0.6.0](docs/releases/v0.6.0.md), and earlier Mail migrations in [v0.5.0](docs/releases/v0.5.0.md).

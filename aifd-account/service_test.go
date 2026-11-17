@@ -151,9 +151,9 @@ func TestVerificationBindingAndIndexIsolation(t *testing.T) {
 			t.Fatalf("binding not scoped: %+v %v", v, err)
 		}
 	}
-	a, _ := loginRefFromPrincipal(s.opts.IndexKey, credential.Principal{AuthorityID: "issuer-a", Subject: "same"})
-	b, _ := loginRefFromPrincipal(s.opts.IndexKey, credential.Principal{AuthorityID: "issuer-b", Subject: "same"})
-	c, _ := loginRefFromPrincipal([]byte("another-index-key-with-32-bytes!!"), credential.Principal{AuthorityID: "issuer-a", Subject: "same"})
+	a, _ := LoginRefFromPrincipal(s.opts.IndexKey, credential.Principal{AuthorityID: "issuer-a", Subject: "same"})
+	b, _ := LoginRefFromPrincipal(s.opts.IndexKey, credential.Principal{AuthorityID: "issuer-b", Subject: "same"})
+	c, _ := LoginRefFromPrincipal([]byte("another-index-key-with-32-bytes!!"), credential.Principal{AuthorityID: "issuer-a", Subject: "same"})
 	if a.SubjectDigest == b.SubjectDigest || a.SubjectDigest == c.SubjectDigest {
 		t.Fatal("authority/key isolation lost")
 	}

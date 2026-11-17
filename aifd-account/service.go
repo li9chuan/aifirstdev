@@ -129,7 +129,7 @@ func (s *Service) Register(ctx context.Context, req RegistrationRequest) (Accoun
 	if err := s.opts.RegistrationPolicy.AuthorizeRegistration(ctx, principal, req.AdmissionProof); err != nil {
 		return AccountSnapshot{}, fmt.Errorf("%w: %w", ErrRegistrationDenied, err)
 	}
-	ref, err := loginRefFromPrincipal(s.opts.IndexKey, principal)
+	ref, err := LoginRefFromPrincipal(s.opts.IndexKey, principal)
 	if err != nil {
 		return AccountSnapshot{}, err
 	}
@@ -141,13 +141,25 @@ func (s *Service) GetAccount(ctx context.Context, id int64) (AccountSnapshot, er
 	return s.store.GetAccount(ctx, id)
 }
 
+// ResolveAccount looks up a trusted identity without verifying credentials,
+// creating accounts or opening sessions. The host must authorize access to this
+// administrative/read-only operation; a supplied principal is not proof of login.
+// Disabled accounts remain visible so callers can distinguish status from absence.
+func (s *Service) ResolveAccount(ctx context.Context, principal credential.Principal) (AccountSnapshot, error) {
+	ref, err := LoginRefFromPrincipal(s.opts.IndexKey, principal)
+	if err != nil {
+		return AccountSnapshot{}, err
+	}
+	return s.store.ResolveAccount(ctx, ref)
+}
+
 // Login only opens a session for an existing verified identity; it never creates accounts.
 func (s *Service) Login(ctx context.Context, proof credential.Credential) (LoginResult, error) {
 	principal, err := s.verify(ctx, proof, VerificationContext{Purpose: VerifyLogin})
 	if err != nil {
 		return LoginResult{}, err
 	}
-	ref, err := loginRefFromPrincipal(s.opts.IndexKey, principal)
+	ref, err := LoginRefFromPrincipal(s.opts.IndexKey, principal)
 	if err != nil {
 		return LoginResult{}, err
 	}
@@ -176,7 +188,7 @@ func (s *Service) BindIdentity(ctx context.Context, change IdentityChange, candi
 	if err != nil {
 		return 0, err
 	}
-	target, err := loginRefFromPrincipal(s.opts.IndexKey, principal)
+	target, err := LoginRefFromPrincipal(s.opts.IndexKey, principal)
 	if err != nil {
 		return 0, err
 	}
@@ -185,7 +197,7 @@ func (s *Service) BindIdentity(ctx context.Context, change IdentityChange, candi
 	if err != nil {
 		return 0, err
 	}
-	reauth, err := loginRefFromPrincipal(s.opts.IndexKey, current)
+	reauth, err := LoginRefFromPrincipal(s.opts.IndexKey, current)
 	if err != nil {
 		return 0, err
 	}
@@ -198,7 +210,7 @@ func (s *Service) UnbindIdentity(ctx context.Context, change IdentityChange, tar
 	if err != nil {
 		return 0, err
 	}
-	ref, err := loginRefFromPrincipal(s.opts.IndexKey, principal)
+	ref, err := LoginRefFromPrincipal(s.opts.IndexKey, principal)
 	if err != nil {
 		return 0, err
 	}

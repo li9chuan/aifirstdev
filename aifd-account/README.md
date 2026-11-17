@@ -36,6 +36,24 @@ MemoryStore 用于本地示例；服务不启动网络、定时任务或隐藏�
 验证码和网页授权用 BuildVerificationBinding 绑定用途、当前会话、身份版本及解绑目标。
 小程序 code 直接向微信交换，不声称普通 code 具备挑战关联；敏感动作仍需重新证明当前账号。
 
+## 只读身份查询与离线导入
+
+`Service.ResolveAccount(ctx, credential.Principal{AuthorityID: authority, Subject: subject})`
+只查询已登记身份，核对索引与主档成员关系，不建号、不开会话、不调用渠道验证器。禁用账号仍返回其状态。
+它是受信管理/恢复入口；宿主必须授权查询，传入 Principal 不代表调用者已经证明身份，不能直接映射成公开登录接口。
+
+离线导入可使用 `LoginRefFromPrincipal(indexKey, principal)` 构造与 Service 相同的索引；密钥至少 32 字节，
+必须与目标 Service 配置一致。继续调用 Store.ResolveAccount/CreateAccount，不能由宿主复制索引算法。
+
+MemoryStore/RedisStore 的可选 `CreatedAccountCleaner.DeleteCreatedAccount(ctx, ref, accountID)`
+只用于离线导入回滚。宿主先隔离全部账号写入者，并用批次记录证明该账号由本批新建。只允许 ACTIVE、
+单一匹配身份、revision=1、epoch=1 的主档；改变过身份、状态或撤销版本即拒绝。它不检查“从未登录”，
+不能作为在线删除或判断账号未被使用的接口。删除后残留 session 因主档不存在而不可用，ID 不复用。
+
+Redis 先条件删除主档，再条件删除索引，跨分片不原子；删除结果不明返回 ErrResultUnknown，不隐式重放。
+需要恢复时保留原批次，重新确认停写与实际状态；主档已删、原索引仍匹配时可继续清理，二者均不存在时返回 false。
+已有的 Store/ServiceAPI 接口不增加必需方法，既有实现无需为这项可选能力修改接口。
+
 ## Redis 模型与故障语义
 
 NewRedisStore(redis.UniversalClient, RedisStoreOptions{Space: "example"}) 使用独立小 key：

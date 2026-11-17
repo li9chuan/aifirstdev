@@ -4,6 +4,8 @@
 
 **v0.8.0 提供独立凭据验证、可选账号中心与可撤销会话、Proxy 到期与重检策略。账号 API 与存储格式不兼容旧版，升级前阅读 [迁移说明](docs/releases/v0.8.0.md)。**
 
+最新补丁 [v0.8.1](docs/releases/v0.8.1.md) 补齐只读身份解析与离线导入清理。
+
 此前补丁 [v0.7.1](docs/releases/v0.7.1.md) 修复 WebSocket 升级与关闭交错时的连接遗漏，公共 API 与协议保持不变。
 
 升级前阅读 [v0.7.0 发布说明](docs/releases/v0.7.0.md)，迁移日志导入、handler、Stat 调用和数据消费；HTTPS/WSS 接入与边界见 [v0.6.0](docs/releases/v0.6.0.md)，更早版本的邮件迁移要求见 [v0.5.0](docs/releases/v0.5.0.md)。

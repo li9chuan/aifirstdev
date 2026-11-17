@@ -22,8 +22,11 @@ func encodeFields(fields ...string) []byte {
 	return out
 }
 
-func loginRefFromPrincipal(key []byte, principal credential.Principal) (LoginRef, error) {
-	if !credential.ValidID(principal.AuthorityID) || len(principal.Subject) == 0 || len(principal.Subject) > credential.MaxProofBytes {
+// LoginRefFromPrincipal derives the same keyed identity index used by Service.
+// It is intended for trusted offline imports and storage adapters. It does not
+// verify the principal or authorize lookup, creation, binding or deletion.
+func LoginRefFromPrincipal(key []byte, principal credential.Principal) (LoginRef, error) {
+	if len(key) < 32 || !credential.ValidID(principal.AuthorityID) || len(principal.Subject) == 0 || len(principal.Subject) > credential.MaxProofBytes {
 		return LoginRef{}, ErrInvalidCredential
 	}
 	mac := hmac.New(sha256.New, key)

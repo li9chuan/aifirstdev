@@ -6,7 +6,7 @@ description: "规划、实现或审查凭据验证、可选账号中心、身份
 # Account 身份与存储工作流
 
 用法与 API 以 [Account](../../../aifd-account/README.md)、[凭据验证](../../../aifd-account/credential/README.md)
-及 [Proxy](../../../aifd-proxy/README.md#认证有效期与后续重检) 为准。本规则对应 v0.8.0，不据此推断旧版能力。
+及 [Proxy](../../../aifd-proxy/README.md#认证有效期与后续重检) 为准。本规则对应 v0.8.1，不据此推断旧版能力。
 
 ## 分层与事实源
 
@@ -16,6 +16,13 @@ description: "规划、实现或审查凭据验证、可选账号中心、身份
 - connector_id 是验证器配置入口，authority_id 是可信身份空间；跨渠道复用主体要有权威映射依据。
   微信 UnionID 缺失不能静默降级或自动合并账号。
 - 账号索引/主档使用服务端 HMAC 摘要，不存原始手机号/OpenID；短期挑战敏感数据由渠道 Store 管理。
+
+## 只读查询与离线维护
+
+- Service.ResolveAccount 接收受信 Principal，只读索引与主档；不认证、不建号、不开会话，禁用状态仍可查询。宿主先授权，不能把返回值直接当登录成功。
+- 离线索引复用 LoginRefFromPrincipal，与目标 Service 共用 IndexKey；不复制 HMAC 算法，不把旧无密钥摘要当新索引。
+- DeleteCreatedAccount 仅供已隔离全部账号写入者的离线批次清理，校验本批创建证据、原身份/账号以及初始 revision/epoch/status。初始状态不证明从未登录；不得用于在线删除。
+- 清理跨 key 分步完成；结果不明先核实，再在同一维护隔离条件下恢复。保留批次，不自动反向补偿，不重用已删除账号 ID。
 
 ## 账号动作
 
